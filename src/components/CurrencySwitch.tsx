@@ -57,10 +57,10 @@ const CurrencyButton: React.FC<CurrencyButtonProps> = ({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: '#2C2C2C',
+    backgroundColor: 'rgba(27, 38, 59, 0.6)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#616161',
+    borderColor: 'rgba(66, 165, 245, 0.2)',
     overflow: 'hidden',
   },
   button: {
@@ -71,11 +71,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonSelected: {
-    backgroundColor: '#1976D2',
+    backgroundColor: '#42A5F5',
   },
   buttonText: {
-    color: '#BDBDBD',
+    color: '#B0BEC5',
     fontSize: 14,
+    fontWeight: '500',
   },
   buttonTextSelected: {
     color: '#FFFFFF',

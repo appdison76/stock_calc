@@ -90,6 +90,11 @@ export class ProfitCalculation {
     // 매도가 = 총 비용 / (수량 * (1 - 수수료율 - 세율))
     return totalCostWithBuyFee / (this.quantity * (1 - sellFeeRate - taxRateValue));
   }
+
+  // 단순 차이 (매도 금액 - 매수 금액, 수수료/거래세 제외)
+  get simpleDifference(): number {
+    return this.totalSellAmount - this.totalBuyAmount;
+  }
 }
 
 

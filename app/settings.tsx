@@ -12,6 +12,7 @@ import {
   Platform,
   Modal,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SettingsService } from '../src/services/SettingsService';
 
 export default function SettingsView() {
@@ -99,9 +100,12 @@ export default function SettingsView() {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <LinearGradient
+        colors={['#0D1B2A', '#1B263B', '#0F1419']}
+        style={styles.loadingContainer}
+      >
         <ActivityIndicator size="large" color="#42A5F5" />
-      </View>
+      </LinearGradient>
     );
   }
 
@@ -111,11 +115,15 @@ export default function SettingsView() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
+      <LinearGradient
+        colors={['#0D1B2A', '#1B263B', '#0F1419']}
+        style={styles.gradient}
       >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
       {/* 원화 설정 */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -187,11 +195,10 @@ export default function SettingsView() {
           <Text style={styles.saveButtonText}>저장</Text>
         )}
       </TouchableOpacity>
+        </ScrollView>
 
-      </ScrollView>
-
-      {/* 개인정보처리방침 Modal */}
-      <Modal
+        {/* 개인정보처리방침 Modal */}
+        <Modal
         visible={isPrivacyModalVisible}
         transparent={true}
         animationType="fade"
@@ -240,7 +247,8 @@ export default function SettingsView() {
             </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+        </Modal>
+      </LinearGradient>
     </KeyboardAvoidingView>
   );
 }
@@ -248,22 +256,26 @@ export default function SettingsView() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+  },
+  gradient: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
   },
   content: {
     padding: 16,
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#121212',
     alignItems: 'center',
     justifyContent: 'center',
   },
   card: {
-    backgroundColor: '#1E1E1E',
-    borderRadius: 12,
+    backgroundColor: 'rgba(13, 27, 42, 0.8)',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#424242',
+    borderColor: 'rgba(66, 165, 245, 0.1)',
     padding: 16,
     marginBottom: 16,
   },
@@ -289,10 +301,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   input: {
-    backgroundColor: '#2C2C2C',
+    backgroundColor: 'rgba(27, 38, 59, 0.6)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#616161',
+    borderColor: 'rgba(66, 165, 245, 0.2)',
     padding: 16,
     color: '#FFFFFF',
     fontSize: 16,
@@ -305,7 +317,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   saveButton: {
-    backgroundColor: '#1976D2',
+    backgroundColor: '#42A5F5',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -328,10 +340,10 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalCard: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: 'rgba(13, 27, 42, 0.95)',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#424242',
+    borderColor: 'rgba(66, 165, 245, 0.2)',
     width: '100%',
     maxWidth: 500,
     maxHeight: '80%',
@@ -344,7 +356,7 @@ const styles = StyleSheet.create({
   modalHeader: {
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#424242',
+    borderBottomColor: 'rgba(66, 165, 245, 0.1)',
   },
   modalTitle: {
     fontSize: 20,
@@ -371,7 +383,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   modalCloseButton: {
-    backgroundColor: '#1976D2',
+    backgroundColor: '#42A5F5',
     borderRadius: 12,
     paddingVertical: 14,
     margin: 20,

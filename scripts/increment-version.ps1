@@ -70,3 +70,6 @@ Write-Host "`n✓ 버전 업데이트 완료!" -ForegroundColor Green
 Write-Host "  app.json: $newVersion" -ForegroundColor Cyan
 Write-Host "  build.gradle: versionCode $newVersionCode, versionName $newVersion" -ForegroundColor Cyan
 
+
+
+

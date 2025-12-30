@@ -14,6 +14,7 @@ import {
   Animated,
   Vibration,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Currency } from '../src/models/Currency';
 import { ProfitCalculation } from '../src/models/ProfitCalculation';
@@ -23,7 +24,7 @@ import { CurrencySwitch } from '../src/components/CurrencySwitch';
 import { CalculationResultCard } from '../src/components/CalculationResultCard';
 import { SharedResultSection } from '../src/components/SharedResultSection';
 import { CoupangBannerSection, CoupangBannerSectionRef } from '../src/components/CoupangBannerSection';
-import { formatCurrency, formatNumber, getKrwEquivalent } from '../src/utils/formatUtils';
+import { formatCurrency, formatNumber, getKrwEquivalent, addCommas } from '../src/utils/formatUtils';
 import { Share } from 'react-native';
 
 export default function ProfitCalculatorView() {
@@ -192,10 +193,8 @@ export default function ProfitCalculatorView() {
     buffer.push('');
     buffer.push(`순수익: ${formatCurrency(calculation.netProfit, calculation.currency)}`);
     buffer.push(`수익률: ${calculation.profitRate.toFixed(2)}%`);
-    buffer.push(`총 매수 금액: ${formatCurrency(calculation.totalBuyAmount, calculation.currency)}`);
-    buffer.push(`총 매도 금액: ${formatCurrency(calculation.totalSellAmount, calculation.currency)}`);
-    buffer.push(`총 비용: ${formatCurrency(calculation.buyFee, calculation.currency)}`);
-    buffer.push(`손익분기점: ${formatNumber(calculation.breakEvenPrice, calculation.currency)}`);
+      buffer.push(`총 매수 금액: ${formatCurrency(calculation.totalBuyAmount, calculation.currency)}`);
+      buffer.push(`총 매도 금액: ${formatCurrency(calculation.totalSellAmount, calculation.currency)}`);
     buffer.push('');
     buffer.push('만든 사람: 네오비저닝');
 
@@ -237,12 +236,16 @@ export default function ProfitCalculatorView() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+      <LinearGradient
+        colors={['#0D1B2A', '#1B263B', '#0F1419']}
+        style={styles.gradient}
       >
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
         <View style={styles.currencySwitchContainer}>
           <CurrencySwitch
             selectedCurrency={selectedCurrency}
@@ -371,7 +374,6 @@ export default function ProfitCalculatorView() {
                   title="순수익"
                   value={`${formatCurrency(calculation.netProfit, calculation.currency)}${getKrwEquivalentDisplay(calculation.netProfit) || ''}`}
                   valueColor={calculation.netProfit >= 0 ? '#EF5350' : '#42A5F5'}
-                  icon={calculation.netProfit >= 0 ? '📈' : '📉'}
                 />
                 <View key="spacer-1" style={{ height: 12 }} />
                 <CalculationResultCard
@@ -379,35 +381,29 @@ export default function ProfitCalculatorView() {
                   title="수익률"
                   value={`${calculation.profitRate.toFixed(2)}%`}
                   valueColor={calculation.profitRate >= 0 ? '#EF5350' : '#42A5F5'}
-                  icon="%"
                 />
                 <View key="spacer-2" style={{ height: 12 }} />
                 <CalculationResultCard
                   key="total-buy-amount"
                   title="총 매수 금액"
                   value={`${formatCurrency(calculation.totalBuyAmount, calculation.currency)}${getKrwEquivalentDisplay(calculation.totalBuyAmount) || ''}`}
-                  icon="🛒"
                 />
                 <View key="spacer-3" style={{ height: 12 }} />
                 <CalculationResultCard
                   key="total-sell-amount"
                   title="총 매도 금액"
-                  value={`${formatCurrency(calculation.totalSellAmount, calculation.currency)}${getKrwEquivalentDisplay(calculation.totalSellAmount) || ''}`}
-                  icon="💰"
-                />
-                <View key="spacer-4" style={{ height: 12 }} />
-                <CalculationResultCard
-                  key="total-cost"
-                  title="총 비용"
-                  value={`${formatCurrency(calculation.buyFee, calculation.currency)}${getKrwEquivalentDisplay(calculation.buyFee) || ''}`}
-                  icon="💳"
-                />
-                <View key="spacer-5" style={{ height: 12 }} />
-                <CalculationResultCard
-                  key="break-even"
-                  title="손익분기점"
-                  value={formatNumber(calculation.breakEvenPrice, calculation.currency)}
-                  icon="⚖️"
+                  value={`${formatCurrency(calculation.totalSellAmount, calculation.currency)}${
+                    calculation.simpleDifference !== 0
+                      ? ` (${calculation.simpleDifference >= 0 ? '↑' : '↓'} ${formatCurrency(Math.abs(calculation.simpleDifference), calculation.currency)})`
+                      : ''
+                  }${
+                    calculation.currency === Currency.USD && calculation.exchangeRate
+                      ? calculation.simpleDifference !== 0
+                        ? `\n(${addCommas((calculation.totalSellAmount * calculation.exchangeRate).toFixed(0))}원 ${calculation.simpleDifference >= 0 ? '↑' : '↓'} ${addCommas((Math.abs(calculation.simpleDifference) * calculation.exchangeRate).toFixed(0))}원)`
+                        : `\n(${addCommas((calculation.totalSellAmount * calculation.exchangeRate).toFixed(0))}원)`
+                      : getKrwEquivalentDisplay(calculation.totalSellAmount) || ''
+                  }`}
+                  valueColor={calculation.simpleDifference === 0 ? '#FFFFFF' : (calculation.netProfit >= 0 ? '#EF5350' : '#42A5F5')}
                 />
               </View>
             </SharedResultSection>
@@ -415,7 +411,8 @@ export default function ProfitCalculatorView() {
             <CoupangBannerSection ref={coupangBannerRef} />
           </Animated.View>
         )}
-      </ScrollView>
+        </ScrollView>
+      </LinearGradient>
     </KeyboardAvoidingView>
   );
 }
@@ -423,7 +420,9 @@ export default function ProfitCalculatorView() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+  },
+  gradient: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,
@@ -449,10 +448,10 @@ const styles = StyleSheet.create({
     color: '#42A5F5',
   },
   card: {
-    backgroundColor: '#1E1E1E',
-    borderRadius: 12,
+    backgroundColor: 'rgba(13, 27, 42, 0.8)',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#424242',
+    borderColor: 'rgba(66, 165, 245, 0.1)',
     padding: 16,
     marginBottom: 24,
   },
@@ -463,10 +462,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   input: {
-    backgroundColor: '#2C2C2C',
+    backgroundColor: 'rgba(27, 38, 59, 0.6)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#616161',
+    borderColor: 'rgba(66, 165, 245, 0.2)',
     padding: 16,
     color: '#FFFFFF',
     fontSize: 17,
@@ -485,7 +484,7 @@ const styles = StyleSheet.create({
   },
   calculateButton: {
     flex: 1,
-    backgroundColor: '#1976D2',
+    backgroundColor: '#42A5F5',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -504,13 +503,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#757575',
+    borderColor: 'rgba(66, 165, 245, 0.3)',
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   resetButtonText: {
-    color: '#BDBDBD',
+    color: '#B0BEC5',
     fontSize: 16,
   },
   resultContainer: {

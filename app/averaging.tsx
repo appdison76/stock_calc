@@ -14,6 +14,7 @@ import {
   Animated,
   Vibration,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Currency } from '../src/models/Currency';
 import { AveragingCalculation } from '../src/models/AveragingCalculation';
@@ -23,7 +24,7 @@ import { CurrencySwitch } from '../src/components/CurrencySwitch';
 import { CalculationResultCard } from '../src/components/CalculationResultCard';
 import { SharedResultSection } from '../src/components/SharedResultSection';
 import { CoupangBannerSection, CoupangBannerSectionRef } from '../src/components/CoupangBannerSection';
-import { formatCurrency, formatNumber, getKrwEquivalent } from '../src/utils/formatUtils';
+import { formatCurrency, formatNumber, getKrwEquivalent, addCommas } from '../src/utils/formatUtils';
 import { Share } from 'react-native';
 
 export default function AveragingCalculatorView() {
@@ -249,12 +250,12 @@ export default function AveragingCalculatorView() {
     calculationHistory.forEach((calc, index) => {
       buffer.push(`${index + 1}차 물타기`);
       buffer.push(`기존 평균 단가: ${formatNumber(calc.currentAveragePrice, calc.currency)}`);
-      buffer.push(`새로운 평균 단가: ${formatNumber(calc.newAveragePriceWithoutFee, calc.currency)}`);
+      buffer.push(`물타기 평균 단가: ${formatNumber(calc.newAveragePriceWithoutFee, calc.currency)}`);
       buffer.push(`평단 변화량: ${formatNumber(calc.averagePriceChange, calc.currency)}`);
       buffer.push(`평단 변화율: ${calc.averagePriceChangeRate.toFixed(2)}%`);
-      buffer.push(`기존 매수 수량: ${calc.currentQuantity}주`);
-      buffer.push(`추가 매수 수량: ${calc.additionalQuantity}주`);
-      buffer.push(`총 매수 수량: ${calc.newTotalQuantity}주`);
+      buffer.push(`기존 매수 수량: ${addCommas(calc.currentQuantity.toString())}주`);
+      buffer.push(`추가 매수 수량: ${addCommas(calc.additionalQuantity.toString())}주`);
+      buffer.push(`총 매수 수량: ${addCommas(calc.newTotalQuantity.toString())}주`);
       buffer.push(`기존 매수 금액: ${formatCurrency(calc.currentTotalAmount, calc.currency)}`);
       buffer.push(`추가 매수 금액: ${formatCurrency(calc.additionalTotalAmount, calc.currency)}`);
       buffer.push(`총 매수 금액: ${formatCurrency(calc.newTotalAmountWithoutFee, calc.currency)}`);
@@ -296,12 +297,16 @@ export default function AveragingCalculatorView() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+      <LinearGradient
+        colors={['#0D1B2A', '#1B263B', '#0F1419']}
+        style={styles.gradient}
       >
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
         <View style={styles.currencySwitchContainer}>
           <CurrencySwitch
             selectedCurrency={selectedCurrency}
@@ -464,26 +469,24 @@ export default function AveragingCalculatorView() {
                   <SharedResultSection
                     watermarkText="만든 사람: 네오비저닝"
                     onTextShare={shareAllResultsAsText}
+                    actionButtons={[
+                      ...(isLast && calculationHistory.length > 0
+                        ? [
+                            {
+                              icon: '🗑️',
+                              onPress: deleteLastCalculation,
+                            },
+                          ]
+                        : []),
+                      {
+                        icon: '🔄',
+                        onPress: reset,
+                      },
+                    ]}
                   >
                     <View style={styles.resultHeader}>
                       <View style={styles.roundBadge}>
                         <Text style={styles.roundBadgeText}>{round}차 물타기</Text>
-                      </View>
-                      <View style={styles.resultActions}>
-                        {isLast && calculationHistory.length > 0 && (
-                          <>
-                            <TouchableOpacity
-                              onPress={deleteLastCalculation}
-                              style={styles.actionButton}
-                            >
-                              <Text style={styles.deleteButtonText}>🗑️ 삭제</Text>
-                            </TouchableOpacity>
-                            <View style={styles.actionSpacer} />
-                          </>
-                        )}
-                        <TouchableOpacity onPress={reset} style={styles.actionButton}>
-                          <Text style={styles.resetButtonTextSmall}>🔄 초기화</Text>
-                        </TouchableOpacity>
                       </View>
                     </View>
 
@@ -499,7 +502,6 @@ export default function AveragingCalculatorView() {
                                 ? getKrwEquivalent(calc.currentAveragePrice, calc.exchangeRate) || ''
                                 : '')
                             }
-                            icon="💰"
                           />
                         </View>
                         <View key={`${baseKey}-spacer-1`} style={{ width: 12 }} />
@@ -513,7 +515,6 @@ export default function AveragingCalculatorView() {
                                 ? getKrwEquivalent(calc.additionalBuyPrice, calc.exchangeRate) || ''
                                 : '')
                             }
-                            icon="➕"
                           />
                         </View>
                       </View>
@@ -521,15 +522,18 @@ export default function AveragingCalculatorView() {
                         <View style={styles.gridItem}>
                           <CalculationResultCard
                             key={`${baseKey}-new-avg`}
-                            title="새로운 평균 단가"
+                            title="물타기 평균 단가"
                             value={
                               formatNumber(calc.newAveragePriceWithoutFee, calc.currency) +
                               (calc.exchangeRate
                                 ? getKrwEquivalent(calc.newAveragePriceWithoutFee, calc.exchangeRate) || ''
                                 : '')
                             }
-                            valueColor="#42A5F5"
-                            icon="📈"
+                            valueColor={
+                              calc.newAveragePriceWithoutFee > calc.currentAveragePrice ? '#EF5350' :
+                              calc.newAveragePriceWithoutFee < calc.currentAveragePrice ? '#42A5F5' :
+                              '#FFFFFF'
+                            }
                           />
                         </View>
                         <View key={`${baseKey}-spacer-2`} style={{ width: 12 }} />
@@ -538,13 +542,13 @@ export default function AveragingCalculatorView() {
                             key={`${baseKey}-price-change`}
                             title="평단 변화량"
                             value={
-                              formatNumber(calc.averagePriceChange, calc.currency) +
+                              (calc.averagePriceChange !== 0 ? (calc.averagePriceChange > 0 ? '↑ ' : '↓ ') : '') +
+                              formatNumber(Math.abs(calc.averagePriceChange), calc.currency) +
                               (calc.exchangeRate
-                                ? getKrwEquivalent(calc.averagePriceChange, calc.exchangeRate) || ''
+                                ? getKrwEquivalent(Math.abs(calc.averagePriceChange), calc.exchangeRate) || ''
                                 : '')
                             }
                             valueColor={calc.averagePriceChange >= 0 ? '#EF5350' : '#42A5F5'}
-                            icon={calc.averagePriceChange >= 0 ? '⬆️' : '⬇️'}
                           />
                         </View>
                       </View>
@@ -553,9 +557,8 @@ export default function AveragingCalculatorView() {
                           <CalculationResultCard
                             key={`${baseKey}-change-rate`}
                             title="평단 변화율"
-                            value={`${calc.averagePriceChangeRate.toFixed(2)}%`}
+                            value={`${calc.averagePriceChangeRate !== 0 ? (calc.averagePriceChangeRate > 0 ? '↑ ' : '↓ ') : ''}${Math.abs(calc.averagePriceChangeRate).toFixed(2)}%`}
                             valueColor={calc.averagePriceChangeRate >= 0 ? '#EF5350' : '#42A5F5'}
-                            icon="%"
                           />
                         </View>
                         <View key={`${baseKey}-spacer-3`} style={{ width: 12 }} />
@@ -563,8 +566,7 @@ export default function AveragingCalculatorView() {
                           <CalculationResultCard
                             key={`${baseKey}-current-qty`}
                             title="기존 매수 수량"
-                            value={`${calc.currentQuantity}주`}
-                            icon="📦"
+                            value={`${addCommas(calc.currentQuantity.toString())}주`}
                           />
                         </View>
                       </View>
@@ -573,8 +575,7 @@ export default function AveragingCalculatorView() {
                           <CalculationResultCard
                             key={`${baseKey}-additional-qty`}
                             title="추가 매수 수량"
-                            value={`${calc.additionalQuantity}주`}
-                            icon="➕"
+                            value={`${addCommas(calc.additionalQuantity.toString())}주`}
                           />
                         </View>
                         <View key={`${baseKey}-spacer-4`} style={{ width: 12 }} />
@@ -582,8 +583,8 @@ export default function AveragingCalculatorView() {
                           <CalculationResultCard
                             key={`${baseKey}-total-qty`}
                             title="총 매수 수량"
-                            value={`${calc.newTotalQuantity}주`}
-                            icon="📊"
+                            value={`${addCommas(calc.newTotalQuantity.toString())}주`}
+                            valueColor="#9CCC65"
                           />
                         </View>
                       </View>
@@ -599,7 +600,6 @@ export default function AveragingCalculatorView() {
                             ? getKrwEquivalent(calc.currentTotalAmount, calc.exchangeRate) || ''
                             : '')
                         }
-                        icon="💳"
                       />
                       <View key={`${baseKey}-spacer-5`} style={{ height: 12 }} />
                       <CalculationResultCard
@@ -611,7 +611,6 @@ export default function AveragingCalculatorView() {
                             ? getKrwEquivalent(calc.additionalTotalAmount, calc.exchangeRate) || ''
                             : '')
                         }
-                        icon="🛒"
                       />
                       <View key={`${baseKey}-spacer-6`} style={{ height: 12 }} />
                       <CalculationResultCard
@@ -623,7 +622,7 @@ export default function AveragingCalculatorView() {
                             ? getKrwEquivalent(calc.newTotalAmountWithoutFee, calc.exchangeRate) || ''
                             : '')
                         }
-                        icon="💰"
+                        valueColor="#FFD700"
                       />
                     </View>
                   </SharedResultSection>
@@ -643,7 +642,8 @@ export default function AveragingCalculatorView() {
             <CoupangBannerSection ref={coupangBannerRef} />
           </>
         )}
-      </ScrollView>
+        </ScrollView>
+      </LinearGradient>
     </KeyboardAvoidingView>
   );
 }
@@ -651,7 +651,9 @@ export default function AveragingCalculatorView() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+  },
+  gradient: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,
@@ -677,10 +679,10 @@ const styles = StyleSheet.create({
     color: '#42A5F5',
   },
   card: {
-    backgroundColor: '#1E1E1E',
-    borderRadius: 12,
+    backgroundColor: 'rgba(13, 27, 42, 0.8)',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#424242',
+    borderColor: 'rgba(66, 165, 245, 0.1)',
     padding: 16,
     marginBottom: 24,
   },
@@ -691,10 +693,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   input: {
-    backgroundColor: '#2C2C2C',
+    backgroundColor: 'rgba(27, 38, 59, 0.6)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#616161',
+    borderColor: 'rgba(66, 165, 245, 0.2)',
     padding: 16,
     color: '#FFFFFF',
     fontSize: 17,
@@ -714,7 +716,7 @@ const styles = StyleSheet.create({
   },
   calculateButton: {
     flex: 1,
-    backgroundColor: '#1976D2',
+    backgroundColor: '#42A5F5',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -733,13 +735,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#757575',
+    borderColor: 'rgba(66, 165, 245, 0.3)',
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   resetButtonText: {
-    color: '#BDBDBD',
+    color: '#B0BEC5',
     fontSize: 16,
   },
   resultContainer: {
@@ -761,26 +763,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#42A5F5',
   },
-  resultActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-  },
-  actionButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  actionSpacer: {
-    width: 8,
-  },
-  deleteButtonText: {
-    color: '#EF5350',
-    fontSize: 14,
-  },
-  resetButtonTextSmall: {
-    color: '#BDBDBD',
-    fontSize: 14,
-  },
   resultGrid: {
     marginBottom: 12,
   },
@@ -800,6 +782,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.3)',
   },
   continueButtonText: {
     color: '#FFFFFF',

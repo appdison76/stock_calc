@@ -3,16 +3,24 @@ import { View, TouchableOpacity, Text, StyleSheet, Alert, InteractionManager, Pl
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 
+interface ActionButton {
+  icon: string;
+  onPress: () => void;
+  disabled?: boolean;
+}
+
 interface SharedResultSectionProps {
   children: React.ReactNode;
   watermarkText?: string;
   onTextShare?: () => void;
+  actionButtons?: ActionButton[];
 }
 
 export const SharedResultSection: React.FC<SharedResultSectionProps> = ({
   children,
   watermarkText = '만든 사람: 네오비저닝',
   onTextShare,
+  actionButtons = [],
 }) => {
   const viewRef = useRef<View | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
@@ -113,6 +121,19 @@ export const SharedResultSection: React.FC<SharedResultSectionProps> = ({
             <Text style={styles.shareButtonIcon}>🖼️</Text>
           )}
         </TouchableOpacity>
+        {actionButtons.map((action, index) => (
+          <React.Fragment key={index}>
+            <View style={styles.buttonSpacer} />
+            <TouchableOpacity
+              onPress={action.onPress}
+              disabled={action.disabled}
+              style={[styles.shareButton, styles.textShareButton]}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.shareButtonIcon}>{action.icon}</Text>
+            </TouchableOpacity>
+          </React.Fragment>
+        ))}
       </View>
     </View>
   );
@@ -132,25 +153,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   shareButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.3)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
   },
   textShareButton: {
-    backgroundColor: 'rgba(76, 175, 80, 0.9)',
+    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    borderColor: 'rgba(66, 165, 245, 0.3)',
   },
   imageShareButton: {
-    backgroundColor: 'rgba(33, 150, 243, 0.9)',
+    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    borderColor: 'rgba(66, 165, 245, 0.3)',
   },
   shareButtonIcon: {
-    fontSize: 22,
+    fontSize: 18,
   },
   buttonSpacer: {
     width: 8,

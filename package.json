@@ -9,7 +9,9 @@
     "web": "expo start --web",
     "test-build": "expo run:android",
     "build:debug": "cd android && gradlew.bat assembleDebug",
+    "build:debug:install": "powershell -ExecutionPolicy Bypass -File scripts/build-and-install.ps1 debug",
     "build:release": "cd android && gradlew.bat assembleRelease",
+    "build:release:install": "powershell -ExecutionPolicy Bypass -File scripts/build-and-install.ps1 release",
     "version:patch": "powershell -ExecutionPolicy Bypass -File scripts/increment-version.ps1 patch",
     "version:minor": "powershell -ExecutionPolicy Bypass -File scripts/increment-version.ps1 minor",
     "version:major": "powershell -ExecutionPolicy Bypass -File scripts/increment-version.ps1 major"

@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Modal,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -75,11 +76,11 @@ export default function MainScreen() {
         >
           <View style={styles.header}>
             <View style={styles.headerIconContainer}>
-              <Text style={styles.headerIcon}>↑</Text>
+              <Text style={styles.headerIcon}>📈</Text>
             </View>
-            <Text style={styles.headerTitle}>STOCK CALCULATOR</Text>
+            <Text style={styles.headerTitle}>스마트 물타기 계산기</Text>
             <Text style={styles.headerSubtitle}>
-              스마트한 평단가 & 수익률 계산
+              평단가 & 수익률 계산
             </Text>
             <View style={styles.subtitleContainer}>
               <Text style={styles.headerFeature}>
@@ -104,7 +105,7 @@ export default function MainScreen() {
             <CalculatorCard
               title="물타기 계산기"
               description={['현재 보유 주식과 추가 매수 정보를 합산하여 새로운', '평균 단가를 계산합니다']}
-              icon="="
+              icon="💧"
               color="#4CAF50"
               onPress={() => router.push('/averaging')}
             />
@@ -233,31 +234,40 @@ const styles = StyleSheet.create({
     color: '#42A5F5',
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: 38,
     fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: 12,
+    marginBottom: 16,
     letterSpacing: 2,
     textAlign: 'center',
+    textShadowColor: 'rgba(66, 165, 245, 0.4)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 6,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   subtitleContainer: {
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 4,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(66, 165, 245, 0.2)',
+    width: '60%',
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: 18,
+    color: '#E3F2FD',
+    textAlign: 'center',
+    lineHeight: 26,
+    marginBottom: 12,
+    fontWeight: '600',
+  },
+  headerFeature: {
+    fontSize: 15,
     color: '#B0BEC5',
     textAlign: 'center',
     lineHeight: 22,
-    marginBottom: 16,
+    marginTop: 8,
     fontWeight: '500',
-  },
-  headerFeature: {
-    fontSize: 14,
-    color: '#90A4AE',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginTop: 6,
   },
   cardsContainer: {
     width: '100%',
