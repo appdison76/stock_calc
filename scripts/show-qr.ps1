@@ -23,3 +23,7 @@ Write-Host "`n터미널에 QR 코드가 자동으로 표시됩니다." -Foregrou
 
 
 
+
+
+
+
