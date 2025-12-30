@@ -109,6 +109,15 @@ export default function MainScreen() {
               color="#4CAF50"
               onPress={() => router.push('/averaging')}
             />
+            <View style={styles.cardSpacer} />
+
+            <CalculatorCard
+              title="포트폴리오"
+              description={['저장된 포트폴리오와 종목의', '매매기록을 관리하고 확인합니다']}
+              icon="📊"
+              color="#FF9800"
+              onPress={() => router.push('/portfolios')}
+            />
           </View>
 
           <View style={styles.adSpacer} />

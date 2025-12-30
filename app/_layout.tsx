@@ -48,9 +48,7 @@ export default function RootLayout() {
         screenOptions={{
           headerStyle: {
             backgroundColor: '#0D1B2A',
-            borderBottomWidth: 1,
-            borderBottomColor: 'rgba(66, 165, 245, 0.1)',
-          },
+          } as any,
           headerTintColor: '#FFFFFF',
           headerTitleStyle: {
             fontWeight: 'bold',
@@ -82,6 +80,24 @@ export default function RootLayout() {
           name="settings"
           options={{
             title: '환경설정',
+          }}
+        />
+        <Stack.Screen
+          name="portfolios"
+          options={{
+            title: '포트폴리오',
+          }}
+        />
+        <Stack.Screen
+          name="portfolio-detail"
+          options={{
+            title: '종목 목록',
+          }}
+        />
+        <Stack.Screen
+          name="stock-detail"
+          options={{
+            title: '종목 상세',
           }}
         />
       </Stack>

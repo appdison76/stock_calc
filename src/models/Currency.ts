@@ -1,6 +1,6 @@
 export enum Currency {
-  KRW = 'krw',
-  USD = 'usd',
+  KRW = 'KRW',
+  USD = 'USD',
 }
 
 

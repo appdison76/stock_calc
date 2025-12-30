@@ -26,8 +26,11 @@ import { SharedResultSection } from '../src/components/SharedResultSection';
 import { CoupangBannerSection, CoupangBannerSectionRef } from '../src/components/CoupangBannerSection';
 import { formatCurrency, formatNumber, getKrwEquivalent, addCommas } from '../src/utils/formatUtils';
 import { Share } from 'react-native';
+import { useRouter } from 'expo-router';
+import { initDatabase, saveCalculationAsScenario, getAllAccounts, createAccount } from '../src/services/DatabaseService';
 
 export default function AveragingCalculatorView() {
+  const router = useRouter();
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>(Currency.KRW);
   
   // 통화별 입력값 분리
@@ -46,6 +49,9 @@ export default function AveragingCalculatorView() {
   const [isLoadingExchangeRate, setIsLoadingExchangeRate] = useState(false);
   const [isExchangeRateLoaded, setIsExchangeRateLoaded] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [isSavingScenario, setIsSavingScenario] = useState(false);
+  const [showTickerInput, setShowTickerInput] = useState(false);
+  const [tickerInput, setTickerInput] = useState('');
   const coupangBannerRef = useRef<CoupangBannerSectionRef>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const resultOpacity = useRef(new Animated.Value(0)).current;
@@ -239,6 +245,123 @@ export default function AveragingCalculatorView() {
     const newHistory = [...calculationHistory];
     newHistory.pop();
     setCalculationHistory(newHistory);
+  };
+
+  const saveAsScenario = async () => {
+    if (calculationHistory.length === 0) {
+      Alert.alert('알림', '저장할 계산 결과가 없습니다.');
+      return;
+    }
+
+    try {
+      setIsSavingScenario(true);
+
+      // 데이터베이스 초기화 (에러 핸들링)
+      try {
+        await initDatabase();
+      } catch (dbError) {
+        console.error('Database initialization error:', dbError);
+        Alert.alert('오류', '데이터베이스 초기화에 실패했습니다.');
+        setIsSavingScenario(false);
+        return;
+      }
+
+      // 계좌 목록 조회
+      let accounts = await getAllAccounts();
+      
+      // 계좌가 없으면 기본 포트폴리오 자동 생성 (선택한 통화로)
+      if (accounts.length === 0) {
+        const defaultAccount = await createAccount('나의 포트폴리오', selectedCurrency);
+        accounts = [defaultAccount];
+      }
+
+      // 계좌 선택 로직:
+      // 1. 선택한 통화와 일치하는 포트폴리오 중에서
+      // 2. 먼저 "나의 포트폴리오" (기본 포트폴리오)를 찾고
+      // 3. 없으면 같은 통화의 첫 번째 포트폴리오를 선택
+      // 4. 같은 통화의 포트폴리오가 없으면 기본 포트폴리오 생성
+      const sameCurrencyAccounts = accounts.filter(a => a.currency === selectedCurrency);
+      let account = sameCurrencyAccounts.find(a => a.name === '나의 포트폴리오') 
+        || sameCurrencyAccounts[0];
+      
+      // 같은 통화의 포트폴리오가 없으면 기본 포트폴리오 생성
+      if (!account) {
+        account = await createAccount('나의 포트폴리오', selectedCurrency);
+      }
+
+      // 종목명 입력 모달 표시
+      setTickerInput('');
+      setShowTickerInput(true);
+    } catch (error) {
+      console.error('시나리오 저장 오류:', error);
+      Alert.alert('오류', '시나리오 저장에 실패했습니다.');
+      setIsSavingScenario(false);
+    }
+  };
+
+  const handleTickerInputConfirm = async () => {
+    if (!tickerInput || tickerInput.trim() === '') {
+      Alert.alert('오류', '종목명을 입력해주세요.');
+      return;
+    }
+
+    setShowTickerInput(false);
+    const ticker = tickerInput.trim();
+
+    // 계좌 조회 및 선택
+    const accounts = await getAllAccounts();
+    const sameCurrencyAccounts = accounts.filter(a => a.currency === selectedCurrency);
+    let account = sameCurrencyAccounts.find(a => a.name === '나의 포트폴리오') 
+      || sameCurrencyAccounts[0];
+    
+    // 같은 통화의 포트폴리오가 없으면 기본 포트폴리오 생성
+    if (!account) {
+      account = await createAccount('나의 포트폴리오', selectedCurrency);
+    }
+
+    // 종목 저장
+    await saveScenario(account, ticker);
+  };
+
+  const saveScenario = async (
+    account: { id: string; name: string },
+    ticker: string
+  ) => {
+    try {
+      // 계산 히스토리를 데이터베이스 형식으로 변환
+      const historyData = calculationHistory.map((calc) => ({
+        additionalBuyPrice: calc.additionalBuyPrice,
+        additionalQuantity: calc.additionalQuantity,
+        feeRate: calc.feeRate,
+        exchangeRate: calc.exchangeRate,
+        newAveragePriceWithoutFee: calc.newAveragePriceWithoutFee,
+        newTotalQuantity: calc.newTotalQuantity,
+        currentAveragePrice: calc.currentAveragePrice,
+        currentQuantity: calc.currentQuantity,
+      }));
+
+      await saveCalculationAsScenario(
+        account.id,
+        ticker, // 종목명으로 사용 (사용자가 입력한 이름)
+        historyData,
+        selectedCurrency
+      );
+
+      Alert.alert(
+        '저장 완료',
+        `종목이 저장되었습니다.\n\n포트폴리오: ${account.name}\n종목: ${ticker}`,
+        [
+          {
+            text: '확인',
+            onPress: () => setIsSavingScenario(false),
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('시나리오 저장 오류:', error);
+      Alert.alert('오류', '시나리오 저장에 실패했습니다.');
+      setIsSavingScenario(false);
+    }
   };
 
   const shareAllResultsAsText = async () => {
@@ -482,6 +605,15 @@ export default function AveragingCalculatorView() {
                         icon: '🔄',
                         onPress: reset,
                       },
+                      ...(isLast && calculationHistory.length > 0
+                        ? [
+                            {
+                              label: '물타기 기록 저장',
+                              onPress: saveAsScenario,
+                              disabled: isSavingScenario,
+                            },
+                          ]
+                        : []),
                     ]}
                   >
                     <View style={styles.resultHeader}>
@@ -643,6 +775,45 @@ export default function AveragingCalculatorView() {
           </>
         )}
         </ScrollView>
+
+        {/* 종목명 입력 모달 */}
+        {showTickerInput && (
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>종목명 입력</Text>
+              <Text style={styles.modalDescription}>
+                저장할 종목명을 입력하세요.{'\n'}예: 삼성전자, Apple
+              </Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="종목명"
+                placeholderTextColor="#757575"
+                value={tickerInput}
+                onChangeText={setTickerInput}
+                autoFocus
+                keyboardType="default"
+                autoCapitalize="none"
+              />
+              <View style={styles.modalButtonRow}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={() => {
+                    setShowTickerInput(false);
+                    setIsSavingScenario(false);
+                  }}
+                >
+                  <Text style={styles.modalButtonText}>취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonConfirm]}
+                  onPress={handleTickerInputConfirm}
+                >
+                  <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>확인</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
       </LinearGradient>
     </KeyboardAvoidingView>
   );
@@ -789,6 +960,72 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalContent: {
+    backgroundColor: 'rgba(13, 27, 42, 0.95)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.3)',
+    padding: 24,
+    width: '85%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: '#B0BEC5',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  modalInput: {
+    backgroundColor: 'rgba(27, 38, 59, 0.6)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.2)',
+    padding: 16,
+    color: '#FFFFFF',
+    fontSize: 17,
+    marginBottom: 20,
+  },
+  modalButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.3)',
+  },
+  modalButtonConfirm: {
+    backgroundColor: '#42A5F5',
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#B0BEC5',
   },
 });
 
