@@ -1,10 +1,28 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import mobileAds from 'react-native-google-mobile-ads';
+import { checkAppVersion } from '../src/services/versionCheck';
+import ForceUpdateModal from '../src/components/ForceUpdateModal';
 
 export default function RootLayout() {
+  const [forceUpdateVisible, setForceUpdateVisible] = useState(false);
+  const [versionInfo, setVersionInfo] = useState<{
+    currentVersion: string;
+    requiredVersion: string;
+  } | null>(null);
+
   useEffect(() => {
+    // 버전 체크
+    const version = checkAppVersion();
+    if (version.needsUpdate) {
+      setVersionInfo({
+        currentVersion: version.currentVersion,
+        requiredVersion: version.minRequiredVersion,
+      });
+      setForceUpdateVisible(true);
+    }
+
     // Google Mobile Ads 초기화
     mobileAds()
       .initialize()
@@ -19,17 +37,26 @@ export default function RootLayout() {
   return (
     <>
       <StatusBar style="light" />
+      {versionInfo && (
+        <ForceUpdateModal
+          visible={forceUpdateVisible}
+          currentVersion={versionInfo.currentVersion}
+          requiredVersion={versionInfo.requiredVersion}
+        />
+      )}
       <Stack
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#1E1E1E',
+            backgroundColor: '#0D1B2A',
+            borderBottomWidth: 1,
+            borderBottomColor: 'rgba(66, 165, 245, 0.1)',
           },
           headerTintColor: '#FFFFFF',
           headerTitleStyle: {
             fontWeight: 'bold',
           },
           contentStyle: {
-            backgroundColor: '#121212',
+            backgroundColor: '#0D1B2A',
           },
         }}
       >

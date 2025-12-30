@@ -33,13 +33,13 @@ const CalculatorCard: React.FC<CalculatorCardProps> = ({
       style={styles.card}
     >
       <LinearGradient
-        colors={['#1E1E1E', '#121212']}
+        colors={['rgba(13, 27, 42, 0.8)', 'rgba(27, 38, 59, 0.6)']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.cardGradient}
       >
         <View style={styles.cardContent}>
-          <View style={[styles.iconContainer, { backgroundColor: `${color}20` }]}>
+          <View style={[styles.iconContainer, { borderColor: `${color}40` }]}>
             <Text style={[styles.icon, { color }]}>{icon}</Text>
           </View>
           <View style={styles.textContainer}>
@@ -66,7 +66,7 @@ export default function MainScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#121212', '#1A1A1A']}
+        colors={['#0D1B2A', '#1B263B', '#0F1419']}
         style={styles.gradient}
       >
         <ScrollView
@@ -74,17 +74,19 @@ export default function MainScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <Text style={styles.headerIcon}>📈</Text>
-            <Text style={styles.headerTitle}>스마트 물타기 계산기</Text>
+            <View style={styles.headerIconContainer}>
+              <Text style={styles.headerIcon}>↑</Text>
+            </View>
+            <Text style={styles.headerTitle}>STOCK CALCULATOR</Text>
+            <Text style={styles.headerSubtitle}>
+              스마트한 평단가 & 수익률 계산
+            </Text>
             <View style={styles.subtitleContainer}>
-              <Text style={styles.headerSubtitle}>
-                수익률과 물타기를 계산해보세요
-              </Text>
-              <Text style={styles.headerSubtitle}>
+              <Text style={styles.headerFeature}>
                 한국·미국 주식 지원
               </Text>
-              <Text style={styles.headerSubtitle}>
-                반복물타기 가능
+              <Text style={styles.headerFeature}>
+                반복 물타기 계산
               </Text>
             </View>
           </View>
@@ -93,7 +95,7 @@ export default function MainScreen() {
             <CalculatorCard
               title="수익률 계산기"
               description={['매수가, 매도가, 수량을 입력하여', '수익률과 순수익을 계산합니다']}
-              icon="💰"
+              icon="%"
               color="#42A5F5"
               onPress={() => router.push('/profit')}
             />
@@ -102,8 +104,8 @@ export default function MainScreen() {
             <CalculatorCard
               title="물타기 계산기"
               description={['현재 보유 주식과 추가 매수 정보를 합산하여 새로운', '평균 단가를 계산합니다']}
-              icon="📉"
-              color="#FF9800"
+              icon="="
+              color="#4CAF50"
               onPress={() => router.push('/averaging')}
             />
           </View>
@@ -120,8 +122,8 @@ export default function MainScreen() {
             <CalculatorCard
               title="환경설정"
               description={['거래세와 수수료를', '원화/달러별로 설정합니다']}
-              icon="⚙️"
-              color="#9E9E9E"
+              icon="⚙"
+              color="#64B5F6"
               onPress={() => router.push('/settings')}
             />
           </View>
@@ -197,7 +199,7 @@ export default function MainScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D1B2A',
   },
   gradient: {
     flex: 1,
@@ -214,27 +216,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 56,
   },
+  headerIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 24,
+    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(66, 165, 245, 0.3)',
+  },
   headerIcon: {
-    fontSize: 88,
-    marginBottom: 20,
+    fontSize: 56,
+    fontWeight: '700',
+    color: '#42A5F5',
   },
   headerTitle: {
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: 14,
-    letterSpacing: -0.8,
+    marginBottom: 12,
+    letterSpacing: 2,
     textAlign: 'center',
   },
   subtitleContainer: {
     alignItems: 'center',
+    marginTop: 8,
   },
   headerSubtitle: {
     fontSize: 16,
-    color: '#BDBDBD',
+    color: '#B0BEC5',
     textAlign: 'center',
     lineHeight: 22,
-    marginTop: 4,
+    marginBottom: 16,
+    fontWeight: '500',
+  },
+  headerFeature: {
+    fontSize: 14,
+    color: '#90A4AE',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginTop: 6,
   },
   cardsContainer: {
     width: '100%',
@@ -251,7 +274,8 @@ const styles = StyleSheet.create({
   cardGradient: {
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: 'rgba(66, 165, 245, 0.1)',
+    backgroundColor: 'rgba(13, 27, 42, 0.6)',
   },
   cardContent: {
     flexDirection: 'row',
@@ -259,16 +283,19 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 18,
+    width: 72,
+    height: 72,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 28,
+    marginRight: 24,
     alignSelf: 'center',
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(13, 27, 42, 0.4)',
   },
   icon: {
-    fontSize: 40,
+    fontSize: 32,
+    fontWeight: '600',
   },
   textContainer: {
     flex: 1,
@@ -295,6 +322,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
     marginLeft: 16,
+    color: '#42A5F5',
   },
   cardSpacer: {
     height: 20,
