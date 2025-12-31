@@ -29,3 +29,5 @@ export interface TradingRecord {
   createdAt: number; // 거래 시점 (타임스탬프)
 }
 
+
+
