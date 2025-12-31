@@ -202,6 +202,7 @@
       "expo-router",
       "expo-updates",
       "expo-sqlite",
+      "expo-notifications",
       [
         "react-native-google-mobile-ads",
         {
