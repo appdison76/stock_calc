@@ -216,7 +216,7 @@ export default function PortfolioDetailScreen() {
             <Text style={styles.headerTitle}>{portfolio.name}</Text>
             <View style={styles.metaContainer}>
               <Text style={styles.currencyBadge}>
-                {portfolio.currency === Currency.KRW ? '₩ KRW' : '$ USD'}
+                {portfolio.currency === Currency.KRW ? '₩ 원화' : '$ 달러'}
               </Text>
             </View>
           </View>

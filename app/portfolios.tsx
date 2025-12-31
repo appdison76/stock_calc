@@ -216,49 +216,54 @@ export default function PortfoliosScreen() {
                   >
                     <View style={styles.cardContent}>
                       <View style={styles.cardLeft}>
-                        <View style={styles.iconContainer}>
-                          <Text style={styles.portfolioIcon}>📊</Text>
-                        </View>
                         <View style={styles.textContainer}>
                           <View style={styles.portfolioNameRow}>
                             <Text style={styles.portfolioName}>{portfolio.name}</Text>
                             {portfolio.name === '나의 포트폴리오' && (
                               <View style={styles.defaultBadge}>
-                                <Text style={styles.defaultBadgeText}>기본생성</Text>
+                                <Text style={styles.defaultBadgeText}>기본</Text>
                               </View>
                             )}
                           </View>
                           <View style={styles.metaContainer}>
-                            <Text style={styles.currencyBadge}>
-                              {portfolio.currency === Currency.KRW ? '₩ KRW' : '$ USD'}
-                            </Text>
-                            <Text style={styles.stockCountText}>
-                              종목 {portfolio.stockCount}개
-                            </Text>
+                            <View style={styles.currencyBadge}>
+                              <Text style={styles.currencyBadgeText}>
+                                {portfolio.currency === Currency.KRW ? '₩ 원화' : '$ 달러'}
+                              </Text>
+                            </View>
+                            <View style={styles.stockCountBadge}>
+                              <Text style={styles.stockCountBadgeText}>
+                                종목 {portfolio.stockCount}개
+                              </Text>
+                            </View>
                           </View>
                         </View>
                       </View>
                       <View style={styles.cardRight}>
+                        <TouchableOpacity
+                          style={styles.actionButton}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            handleEditPortfolio(portfolio);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.actionButtonText}>편집</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.deleteActionButton]}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            handleDeletePortfolio(portfolio);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.actionButtonText, styles.deleteActionButtonText]}>삭제</Text>
+                        </TouchableOpacity>
                         <Text style={styles.arrow}>→</Text>
                       </View>
                     </View>
                   </LinearGradient>
-                  <View style={styles.portfolioActionButtons}>
-                    <TouchableOpacity
-                      style={styles.editButtonBottom}
-                      onPress={() => handleEditPortfolio(portfolio)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.editButtonTextBottom}>편집</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.deleteButtonBottom}
-                      onPress={() => handleDeletePortfolio(portfolio)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.deleteButtonTextBottom}>삭제</Text>
-                    </TouchableOpacity>
-                  </View>
                 </TouchableOpacity>
               ))}
             </View>
@@ -476,42 +481,28 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   portfolioCard: {
-    marginBottom: 16,
-    borderRadius: 16,
+    marginBottom: 12,
+    borderRadius: 12,
     overflow: 'hidden',
-    elevation: 4,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   cardGradient: {
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.1)',
+    borderColor: 'rgba(66, 165, 245, 0.08)',
   },
   cardContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 20,
+    padding: 16,
   },
   cardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
     flex: 1,
-  },
-  iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 152, 0, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  portfolioIcon: {
-    fontSize: 28,
   },
   textContainer: {
     flex: 1,
@@ -519,82 +510,81 @@ const styles = StyleSheet.create({
   portfolioNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
     gap: 8,
   },
   portfolioName: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   defaultBadge: {
-    backgroundColor: 'rgba(66, 165, 245, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.4)',
+    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   defaultBadgeText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
     color: '#42A5F5',
   },
   metaContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    marginTop: 6,
+    gap: 8,
   },
   currencyBadge: {
-    fontSize: 14,
+    backgroundColor: 'rgba(255, 152, 0, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  currencyBadgeText: {
+    fontSize: 12,
     fontWeight: '600',
     color: '#FF9800',
-    backgroundColor: 'rgba(255, 152, 0, 0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
   },
-  stockCountText: {
-    fontSize: 14,
-    color: '#B0BEC5',
+  stockCountBadge: {
+    backgroundColor: 'rgba(156, 39, 176, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  stockCountBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9C27B0',
   },
   cardRight: {
-    marginLeft: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: 12,
+  },
+  actionButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: 'rgba(66, 165, 245, 0.1)',
+  },
+  actionButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#42A5F5',
+  },
+  deleteActionButton: {
+    backgroundColor: 'rgba(244, 67, 54, 0.1)',
+  },
+  deleteActionButtonText: {
+    color: '#F44336',
   },
   arrow: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '600',
     color: '#42A5F5',
-  },
-  portfolioActionButtons: {
-    flexDirection: 'row',
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-    overflow: 'hidden',
-  },
-  editButtonBottom: {
-    flex: 1,
-    backgroundColor: 'rgba(66, 165, 245, 0.15)',
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRightWidth: 1,
-    borderRightColor: 'rgba(66, 165, 245, 0.2)',
-  },
-  editButtonTextBottom: {
-    color: '#42A5F5',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  deleteButtonBottom: {
-    flex: 1,
-    backgroundColor: 'rgba(244, 67, 54, 0.15)',
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  deleteButtonTextBottom: {
-    color: '#F44336',
-    fontSize: 14,
-    fontWeight: '600',
+    marginLeft: 4,
   },
   addButton: {
     borderRadius: 16,
