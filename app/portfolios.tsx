@@ -187,7 +187,7 @@ export default function PortfoliosScreen() {
           <View style={styles.header}>
             <Text style={styles.headerTitle}>포트폴리오</Text>
             <Text style={styles.headerSubtitle}>
-              포트폴리오에 종목을 추가하여 매매기록을 관리하세요
+              포트폴리오와 종목을 추가하여 매매기록을 관리해세요
             </Text>
           </View>
 
