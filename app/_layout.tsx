@@ -100,6 +100,12 @@ export default function RootLayout() {
             title: '종목 상세',
           }}
         />
+        <Stack.Screen
+          name="visualization"
+          options={{
+            headerShown: false,
+          }}
+        />
       </Stack>
     </>
   );

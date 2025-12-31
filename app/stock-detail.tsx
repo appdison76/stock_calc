@@ -316,18 +316,47 @@ export default function StockDetailScreen() {
         >
           {/* 종목 정보 카드 */}
           <View style={styles.stockInfoCard}>
-            <Text style={styles.stockName}>{stock.name || stock.ticker}</Text>
+            <View style={styles.stockNameContainer}>
+              <Text style={styles.stockName}>{stock.name || stock.ticker}</Text>
+              {records.length > 0 && (
+                <TouchableOpacity
+                  style={styles.chartIconButton}
+                  onPress={() => router.push(`/visualization?stockId=${stock.id}`)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.chartIcon}>📉</Text>
+                </TouchableOpacity>
+              )}
+            </View>
             <View style={styles.stockDetails}>
-              <Text style={styles.stockDetailText}>
-                보유: {formatNumber(stock.quantity)}주
-              </Text>
-              <Text style={styles.stockDetailText}>
-                평단가: {formatPrice(stock.averagePrice, stock.currency)}
-              </Text>
-              {stock.currentPrice && (
-                <Text style={styles.stockDetailText}>
-                  현재가: {formatPrice(stock.currentPrice, stock.currency)}
+              {/* 평단가 - 강조 */}
+              <View style={styles.stockDetailRow}>
+                <Text style={styles.stockDetailLabel}>평균 단가</Text>
+                <Text style={styles.stockDetailValue}>{formatPrice(stock.averagePrice, stock.currency)}</Text>
+              </View>
+              
+              {/* 보유 수량 - 강조 */}
+              <View style={styles.stockDetailRow}>
+                <Text style={styles.stockDetailLabel}>보유 수량</Text>
+                <Text style={styles.stockDetailValue}>{formatNumber(stock.quantity)}주</Text>
+              </View>
+              
+              {/* 총 매수 금액 */}
+              <View style={styles.stockDetailRow}>
+                <Text style={styles.stockDetailLabel}>총 매수 금액</Text>
+                <Text style={styles.stockDetailValueSecondary}>
+                  {formatPrice((stock.averagePrice || 0) * (stock.quantity || 0), stock.currency)}
                 </Text>
+              </View>
+              
+              {/* 현재가 */}
+              {stock.currentPrice && (
+                <View style={styles.stockDetailRow}>
+                  <Text style={styles.stockDetailLabel}>현재가</Text>
+                  <Text style={styles.stockDetailValueSecondary}>
+                    {formatPrice(stock.currentPrice, stock.currency)}
+                  </Text>
+                </View>
               )}
             </View>
           </View>
@@ -651,20 +680,54 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.2)',
+  },
+  stockNameContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   stockName: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 16,
+    flex: 1,
+  },
+  chartIconButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(156, 39, 176, 0.15)',
+    marginLeft: 12,
+  },
+  chartIcon: {
+    fontSize: 20,
   },
   stockDetails: {
-    gap: 8,
+    gap: 16,
   },
-  stockDetailText: {
-    fontSize: 16,
+  stockDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 0,
+  },
+  stockDetailLabel: {
+    fontSize: 15,
+    color: '#B0BEC5',
+    fontWeight: '500',
+  },
+  stockDetailValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  stockDetailValueSecondary: {
+    fontSize: 18,
+    fontWeight: '600',
     color: '#E0E0E0',
-    lineHeight: 24,
   },
   addButtonContainer: {
     flexDirection: 'row',
@@ -700,6 +763,32 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   addButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  chartButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 24,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  chartButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
+  chartButtonIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  chartButtonText: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#FFFFFF',

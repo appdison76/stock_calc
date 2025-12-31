@@ -113,10 +113,19 @@ export default function MainScreen() {
 
             <CalculatorCard
               title="포트폴리오"
-              description={['저장된 포트폴리오와 종목의', '매매기록을 관리하고 확인합니다']}
+              description={['나의 포트폴리오와 종목을 저장하여', '매매기록을 관리합니다']}
               icon="📊"
               color="#FF9800"
               onPress={() => router.push('/portfolios')}
+            />
+            <View style={styles.cardSpacer} />
+
+            <CalculatorCard
+              title="매매기록 차트"
+              description={['저장된 매매 기록을', '차트로 시각화하여 확인합니다']}
+              icon="📉"
+              color="#9C27B0"
+              onPress={() => router.push('/visualization')}
             />
           </View>
 

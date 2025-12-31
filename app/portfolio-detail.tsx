@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { getAccountById, getStocksByAccountId, deleteStock, createStock, updateStock, initDatabase } from '../src/services/DatabaseService';
+import { getAccountById, getStocksByAccountId, deleteStock, createStock, updateStock, initDatabase, getTradingRecordsByStockId } from '../src/services/DatabaseService';
 import { Account } from '../src/models/Account';
 import { Stock } from '../src/models/Stock';
 import { Currency } from '../src/models/Currency';
@@ -22,6 +22,7 @@ export default function PortfolioDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [portfolio, setPortfolio] = useState<Account | null>(null);
   const [stocks, setStocks] = useState<Stock[]>([]);
+  const [stocksWithRecordCount, setStocksWithRecordCount] = useState<Array<Stock & { recordCount: number }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showStockModal, setShowStockModal] = useState(false);
   const [showEditStockModal, setShowEditStockModal] = useState(false);
@@ -57,6 +58,15 @@ export default function PortfolioDetailScreen() {
       setPortfolio(account);
       const portfolioStocks = await getStocksByAccountId(id);
       setStocks(portfolioStocks);
+      
+      // 각 종목의 매매기록 개수 확인
+      const stocksWithCount = await Promise.all(
+        portfolioStocks.map(async (stock) => {
+          const records = await getTradingRecordsByStockId(stock.id);
+          return { ...stock, recordCount: records.length };
+        })
+      );
+      setStocksWithRecordCount(stocksWithCount);
     } catch (error: any) {
       console.error('포트폴리오 상세 로드 오류:', error);
       const errorMessage = error?.message || '알 수 없는 오류가 발생했습니다.';
@@ -221,7 +231,7 @@ export default function PortfolioDetailScreen() {
             </View>
           ) : (
             <View style={styles.stocksContainer}>
-              {stocks.map((stock) => (
+              {stocksWithRecordCount.map((stock) => (
                 <TouchableOpacity
                   key={stock.id}
                   activeOpacity={0.8}
@@ -236,22 +246,52 @@ export default function PortfolioDetailScreen() {
                   >
                     <View style={styles.stockCardContent}>
                       <View style={styles.stockCardLeft}>
-                        <View style={styles.stockInfo}>
+                        <View style={styles.stockNameRow}>
                           <Text style={styles.stockTicker}>
                             {stock.name || stock.ticker}
                           </Text>
+                          {stock.recordCount > 0 && (
+                            <TouchableOpacity
+                              style={styles.chartIconButton}
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                router.push(`/visualization?stockId=${stock.id}`);
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={styles.chartIcon}>📉</Text>
+                            </TouchableOpacity>
+                          )}
                         </View>
                         <View style={styles.stockDetails}>
-                          <Text style={styles.stockDetailText}>
-                            보유: {formatNumber(stock.quantity)}주
-                          </Text>
-                          <Text style={styles.stockDetailText}>
-                            평단가: {formatPrice(stock.averagePrice, stock.currency)}
-                          </Text>
-                          {stock.currentPrice && (
-                            <Text style={styles.stockDetailText}>
-                              현재가: {formatPrice(stock.currentPrice, stock.currency)}
+                          {/* 평단가 - 강조 */}
+                          <View style={styles.stockDetailRow}>
+                            <Text style={styles.stockDetailLabel}>평단가</Text>
+                            <Text style={styles.stockDetailValue}>{formatPrice(stock.averagePrice, stock.currency)}</Text>
+                          </View>
+                          
+                          {/* 보유 수량 - 강조 */}
+                          <View style={styles.stockDetailRow}>
+                            <Text style={styles.stockDetailLabel}>보유</Text>
+                            <Text style={styles.stockDetailValue}>{formatNumber(stock.quantity)}주</Text>
+                          </View>
+                          
+                          {/* 총 매수 금액 */}
+                          <View style={styles.stockDetailRow}>
+                            <Text style={styles.stockDetailLabel}>총 매수 금액</Text>
+                            <Text style={styles.stockDetailValueSecondary}>
+                              {formatPrice((stock.averagePrice || 0) * (stock.quantity || 0), stock.currency)}
                             </Text>
+                          </View>
+                          
+                          {/* 현재가 */}
+                          {stock.currentPrice && (
+                            <View style={styles.stockDetailRow}>
+                              <Text style={styles.stockDetailLabel}>현재가</Text>
+                              <Text style={styles.stockDetailValueSecondary}>
+                                {formatPrice(stock.currentPrice, stock.currency)}
+                              </Text>
+                            </View>
                           )}
                         </View>
                       </View>
@@ -407,6 +447,32 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 100,
   },
+  chartButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 24,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  chartButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
+  chartButtonIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  chartButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -479,12 +545,22 @@ const styles = StyleSheet.create({
   },
   stockCardContent: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    padding: 16,
+    padding: 20,
   },
   stockCardRight: {
     marginLeft: 16,
+    alignItems: 'center',
+    gap: 8,
+  },
+  chartIconButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(156, 39, 176, 0.15)',
+  },
+  chartIcon: {
+    fontSize: 20,
   },
   arrow: {
     fontSize: 24,
@@ -524,26 +600,40 @@ const styles = StyleSheet.create({
   stockCardLeft: {
     flex: 1,
   },
-  stockInfo: {
-    marginBottom: 12,
+  stockNameRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   stockTicker: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  stockName: {
-    fontSize: 14,
-    color: '#B0BEC5',
+    flex: 1,
   },
   stockDetails: {
-    gap: 6,
+    gap: 10,
   },
-  stockDetailText: {
-    fontSize: 14,
+  stockDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  stockDetailLabel: {
+    fontSize: 15,
+    color: '#B0BEC5',
+    fontWeight: '500',
+  },
+  stockDetailValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  stockDetailValueSecondary: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#E0E0E0',
-    lineHeight: 20,
   },
   addButton: {
     borderRadius: 16,

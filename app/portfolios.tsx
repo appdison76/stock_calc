@@ -17,9 +17,13 @@ import { Account } from '../src/models/Account';
 import { Currency } from '../src/models/Currency';
 import { initDatabase } from '../src/services/DatabaseService';
 
+interface PortfolioWithStockCount extends Account {
+  stockCount: number;
+}
+
 export default function PortfoliosScreen() {
   const router = useRouter();
-  const [portfolios, setPortfolios] = useState<Account[]>([]);
+  const [portfolios, setPortfolios] = useState<PortfolioWithStockCount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showPortfolioModal, setShowPortfolioModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);

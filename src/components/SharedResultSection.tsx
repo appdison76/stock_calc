@@ -87,16 +87,37 @@ export const SharedResultSection: React.FC<SharedResultSectionProps> = ({
     setIsLayoutReady(true);
   };
 
-  // 아이콘 매핑 (SNS 스타일 심플 아이콘)
+  // 아이콘 매핑 (직관적인 아이콘)
   const getIcon = (icon?: string) => {
     const iconMap: Record<string, string> = {
-      '📋': '📄', // 복사
-      '🖼️': '↗', // 이미지 공유
-      '🗑️': '✕', // 삭제
-      '🔄': '↻', // 초기화
-      '💾': '✓', // 저장
+      '📋': '📋', // 복사
+      '🖼️': '📤', // 이미지 공유
+      '🗑️': '❌', // 삭제 - X 표시
+      '🔄': '🔄', // 초기화 - 큰 원형 화살표
+      '↻': '🔄', // 초기화 - 큰 원형 화살표
+      '💾': '💾', // 저장
     };
     return icon ? (iconMap[icon] || icon) : '';
+  };
+
+  // 버튼 스타일 매핑 (기능별 색상)
+  const getButtonStyle = (icon?: string, label?: string) => {
+    if (label) return null; // 텍스트 버튼은 별도 스타일 사용
+    
+    const styleMap: Record<string, any> = {
+      '📋': { backgroundColor: 'rgba(66, 165, 245, 0.25)', borderColor: 'rgba(66, 165, 245, 0.4)' }, // 복사 - 파란색
+      '🖼️': { backgroundColor: 'rgba(76, 175, 80, 0.25)', borderColor: 'rgba(76, 175, 80, 0.4)' }, // 공유 - 초록색
+      '📤': { backgroundColor: 'rgba(76, 175, 80, 0.25)', borderColor: 'rgba(76, 175, 80, 0.4)' }, // 공유 - 초록색
+      '🗑️': { backgroundColor: 'rgba(244, 67, 54, 0.3)', borderColor: 'rgba(244, 67, 54, 0.5)' }, // 삭제 - 빨간색 (더 진하게)
+      '❌': { backgroundColor: 'rgba(244, 67, 54, 0.3)', borderColor: 'rgba(244, 67, 54, 0.5)' }, // 삭제 - 빨간색
+      '✕': { backgroundColor: 'rgba(244, 67, 54, 0.3)', borderColor: 'rgba(244, 67, 54, 0.5)' }, // 삭제 - 빨간색 (작은 X)
+      '🔄': { backgroundColor: 'rgba(255, 152, 0, 0.25)', borderColor: 'rgba(255, 152, 0, 0.4)' }, // 초기화 - 주황색
+      '↻': { backgroundColor: 'rgba(255, 152, 0, 0.25)', borderColor: 'rgba(255, 152, 0, 0.4)' }, // 초기화 - 주황색
+      '💾': { backgroundColor: 'rgba(156, 39, 176, 0.25)', borderColor: 'rgba(156, 39, 176, 0.4)' }, // 저장 - 보라색
+    };
+    
+    const key = icon || '';
+    return styleMap[key] || { backgroundColor: 'rgba(255, 255, 255, 0.15)', borderColor: 'rgba(255, 255, 255, 0.2)' };
   };
 
   return (
@@ -114,11 +135,11 @@ export const SharedResultSection: React.FC<SharedResultSectionProps> = ({
           <>
             <TouchableOpacity
               onPress={onTextShare}
-              activeOpacity={0.7}
+              activeOpacity={0.6}
               style={styles.buttonWrapper}
             >
-              <View style={[styles.shareButton, styles.textShareButton]}>
-                <Text style={styles.shareButtonIcon}>📄</Text>
+              <View style={[styles.shareButton, getButtonStyle('📋')]}>
+                <Text style={styles.shareButtonIcon}>📋</Text>
               </View>
             </TouchableOpacity>
             <View style={styles.buttonSpacer} />
@@ -127,38 +148,51 @@ export const SharedResultSection: React.FC<SharedResultSectionProps> = ({
         <TouchableOpacity
           onPress={captureAndShare}
           disabled={isCapturing}
-          activeOpacity={0.7}
+          activeOpacity={0.6}
           style={styles.buttonWrapper}
         >
-          <View style={[styles.shareButton, styles.imageShareButton]}>
+          <View style={[styles.shareButton, getButtonStyle('📤')]}>
             {isCapturing ? (
               <Text style={styles.shareButtonIcon}>⋯</Text>
             ) : (
-              <Text style={styles.shareButtonIcon}>↗</Text>
+              <Text style={styles.shareButtonIcon}>📤</Text>
             )}
           </View>
         </TouchableOpacity>
-        {actionButtons.map((action, index) => (
-          <React.Fragment key={index}>
-            <View style={styles.buttonSpacer} />
-            <TouchableOpacity
-              onPress={action.onPress}
-              disabled={action.disabled}
-              activeOpacity={0.7}
-              style={styles.buttonWrapper}
-            >
-              {action.label ? (
-                <View style={[styles.shareButton, styles.labelButton]}>
-                  <Text style={styles.shareButtonLabel}>{action.label}</Text>
-                </View>
+        {actionButtons.map((action, index) => {
+          const isLabelButton = !!action.label;
+          const prevAction = index > 0 ? actionButtons[index - 1] : null;
+          const needsExtraSpacing = isLabelButton && prevAction && !prevAction.label;
+          
+          return (
+            <React.Fragment key={index}>
+              {isLabelButton ? (
+                <View style={styles.labelButtonSpacer} />
               ) : (
-                <View style={[styles.shareButton, styles.iconButton]}>
-                  {action.icon && <Text style={styles.shareButtonIcon}>{getIcon(action.icon)}</Text>}
-                </View>
+                <View style={styles.buttonSpacer} />
               )}
-            </TouchableOpacity>
-          </React.Fragment>
-        ))}
+              <TouchableOpacity
+                onPress={action.onPress}
+                disabled={action.disabled}
+                activeOpacity={0.6}
+                style={[
+                  styles.buttonWrapper,
+                  isLabelButton && styles.labelButtonWrapper,
+                ]}
+              >
+                {action.label ? (
+                  <View style={[styles.shareButton, styles.labelButton]}>
+                    <Text style={styles.shareButtonLabel}>{action.label}</Text>
+                  </View>
+                ) : (
+                  <View style={[styles.shareButton, getButtonStyle(action.icon)]}>
+                    {action.icon && <Text style={styles.shareButtonIcon}>{getIcon(action.icon)}</Text>}
+                  </View>
+                )}
+              </TouchableOpacity>
+            </React.Fragment>
+          );
+        })}
       </View>
     </View>
   );
@@ -174,53 +208,59 @@ const styles = StyleSheet.create({
   buttonContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
     paddingHorizontal: 12,
     paddingTop: 12,
     paddingBottom: 8,
     marginTop: 8,
+    flexWrap: 'wrap',
   },
   buttonWrapper: {
-    borderRadius: 16,
+    borderRadius: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+  },
+  labelButtonWrapper: {
+    width: '100%',
+    marginTop: 12,
   },
   shareButton: {
-    minWidth: 32,
-    height: 32,
-    borderRadius: 16,
+    minWidth: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  textShareButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  imageShareButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  iconButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   labelButton: {
-    paddingHorizontal: 12,
-    backgroundColor: 'rgba(76, 175, 80, 0.2)',
-    borderColor: 'rgba(76, 175, 80, 0.3)',
+    paddingHorizontal: 16,
+    minWidth: 'auto',
+    width: '100%',
+    backgroundColor: 'rgba(76, 175, 80, 0.3)',
+    borderColor: 'rgba(76, 175, 80, 0.5)',
   },
   shareButtonIcon: {
-    fontSize: 16,
+    fontSize: 20,
     textAlign: 'center',
     color: '#FFFFFF',
     fontWeight: '500',
   },
   shareButtonLabel: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
   buttonSpacer: {
-    width: 10,
+    width: 8,
+  },
+  labelButtonSpacer: {
+    width: 0,
   },
 });
 

@@ -67,38 +67,7 @@ async function createTables(database: SQLite.SQLiteDatabase): Promise<void> {
     );
   `);
 
-  // stocks 테이블 - 기존 테이블이 있으면 삭제 후 재생성 (스키마 변경 대응)
-  try {
-    // 기존 테이블의 컬럼 확인
-    const tableInfo = await database.getAllAsync(`PRAGMA table_info(stocks);`);
-    const hasQuantity = tableInfo.some((col: any) => col.name === 'quantity');
-    const hasScenarioTag = tableInfo.some((col: any) => col.name === 'scenario_tag');
-    
-    // UNIQUE 제약 조건 확인
-    const indexInfo = await database.getAllAsync<any>(`PRAGMA index_list(stocks);`);
-    const hasUniqueConstraint = indexInfo.some((idx: any) => idx.name === 'sqlite_autoindex_stocks_1' || idx.unique === 1);
-    
-    // 스키마가 변경된 경우 (quantity가 없거나 scenario_tag가 있거나 UNIQUE 제약이 있으면)
-    if (!hasQuantity || hasScenarioTag || hasUniqueConstraint) {
-      console.log('🔄 데이터베이스 스키마 변경 감지, 마이그레이션 시작...');
-      
-      // 기존 데이터 백업 (선택사항)
-      // stocks 데이터를 임시 테이블로 복사
-      await database.execAsync(`
-        CREATE TABLE IF NOT EXISTS stocks_backup AS SELECT * FROM stocks;
-      `);
-      
-      // 기존 테이블 삭제
-      await database.execAsync(`DROP TABLE IF EXISTS stocks;`);
-      
-      console.log('✅ 기존 stocks 테이블 삭제 완료');
-    }
-  } catch (error) {
-    // 테이블이 없으면 그냥 생성
-    console.log('📝 stocks 테이블이 없어 새로 생성합니다.');
-  }
-
-  // stocks 테이블 생성 (새 스키마, UNIQUE 제약 제거 - 같은 종목명으로 여러 종목 생성 가능)
+  // stocks 테이블 생성 (스키마가 안정화되었으므로 IF NOT EXISTS만 사용)
   await database.execAsync(`
     CREATE TABLE IF NOT EXISTS stocks (
       id TEXT PRIMARY KEY,
@@ -116,34 +85,7 @@ async function createTables(database: SQLite.SQLiteDatabase): Promise<void> {
   `);
 
   // averaging_records 테이블 (매수/매도 통합 거래 기록)
-  // 기존 테이블 구조 확인 및 마이그레이션
-  try {
-    const tableInfo = await database.getAllAsync<any>(
-      `PRAGMA table_info(averaging_records);`
-    );
-    const hasTypeColumn = tableInfo.some((col: any) => col.name === 'type');
-    const hasBuyPriceColumn = tableInfo.some((col: any) => col.name === 'buy_price');
-    
-    if (hasBuyPriceColumn && !hasTypeColumn) {
-      // 기존 구조: buy_price 컬럼이 있으면 마이그레이션 필요
-      console.log('🔄 averaging_records 테이블 마이그레이션 시작...');
-      
-      // 기존 데이터 백업
-      await database.execAsync(`
-        CREATE TABLE IF NOT EXISTS averaging_records_backup AS SELECT * FROM averaging_records;
-      `);
-      
-      // 기존 테이블 삭제
-      await database.execAsync(`DROP TABLE IF EXISTS averaging_records;`);
-      
-      console.log('✅ 기존 테이블 백업 완료');
-    }
-  } catch (error) {
-    // 테이블이 없으면 새로 생성
-    console.log('📝 averaging_records 테이블이 없어 새로 생성합니다.');
-  }
-  
-  // 새로운 구조로 테이블 생성
+  // 스키마가 안정화되었으므로 IF NOT EXISTS만 사용
   await database.execAsync(`
     CREATE TABLE IF NOT EXISTS averaging_records (
       id TEXT PRIMARY KEY,
@@ -164,30 +106,13 @@ async function createTables(database: SQLite.SQLiteDatabase): Promise<void> {
     );
   `);
   
-  // 기존 데이터 마이그레이션 (backup 테이블에서 새 구조로 변환)
+  // 기존 백업 테이블 정리 (더 이상 사용하지 않음)
   try {
-    const backupExists = await database.getFirstAsync<any>(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name='averaging_records_backup';`
-    );
-    
-    if (backupExists) {
-      await database.execAsync(`
-        INSERT INTO averaging_records (
-          id, stock_id, type, price, quantity, currency, exchange_rate,
-          average_price_before, average_price_after,
-          total_quantity_before, total_quantity_after, created_at
-        )
-        SELECT 
-          id, stock_id, 'BUY' as type, buy_price as price, quantity, currency, exchange_rate,
-          average_price_before, average_price_after,
-          total_quantity_before, total_quantity_after, created_at
-        FROM averaging_records_backup
-        WHERE NOT EXISTS (SELECT 1 FROM averaging_records WHERE averaging_records.id = averaging_records_backup.id);
-      `);
-      console.log('✅ 기존 데이터 마이그레이션 완료');
-    }
+    await database.execAsync(`DROP TABLE IF EXISTS stocks_backup;`);
+    await database.execAsync(`DROP TABLE IF EXISTS averaging_records_backup;`);
+    console.log('✅ 기존 백업 테이블 정리 완료');
   } catch (error) {
-    console.log('⚠️ 데이터 마이그레이션 중 오류 (무시 가능):', error);
+    // 백업 테이블이 없으면 무시
   }
 
   // 인덱스 생성 (성능 최적화)
