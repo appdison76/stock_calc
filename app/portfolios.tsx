@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   portfolioName: {
-    fontSize: 17,
+    fontSize: 19,
     fontWeight: '600',
     color: '#FFFFFF',
   },

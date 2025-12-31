@@ -14,7 +14,8 @@ import {
   initDatabase,
   getAllAccounts, 
   getStocksByAccountId, 
-  getTradingRecordsByStockId 
+  getTradingRecordsByStockId,
+  updateStockCurrentPrice
 } from '../src/services/DatabaseService';
 import { Account } from '../src/models/Account';
 import { Stock } from '../src/models/Stock';
@@ -67,6 +68,26 @@ export default function VisualizationScreen() {
         allStocks.push(...stocks);
       }
 
+      // 각 종목의 현재가 갱신 (백그라운드에서 실행, 실패해도 계속 진행)
+      try {
+        for (const stock of allStocks) {
+          if (stock.ticker) {
+            await updateStockCurrentPrice(stock.id);
+            // Rate Limit 방지를 위한 딜레이
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        }
+        // 갱신 후 다시 종목 목록 가져오기
+        allStocks.length = 0;
+        for (const account of accounts) {
+          const stocks = await getStocksByAccountId(account.id);
+          allStocks.push(...stocks);
+        }
+      } catch (priceError) {
+        console.warn('현재가 갱신 실패:', priceError);
+        // 현재가 갱신 실패해도 계속 진행
+      }
+      
       // 각 종목에 대해 차트 데이터 생성
       const charts: ChartData[] = [];
       
@@ -94,7 +115,7 @@ export default function VisualizationScreen() {
           }));
         
         // 디버깅: 데이터 확인
-        console.log(`[Visualization] Stock: ${stock.name}, Buy: ${buyRecords.length}, Sell: ${sellRecords.length}`);
+        console.log(`[Visualization] Stock: ${stock.name || stock.officialName || stock.ticker}, Buy: ${buyRecords.length}, Sell: ${sellRecords.length}`);
         if (sellRecords.length > 0) {
           console.log(`[Visualization] Sell records:`, sellRecords);
         }
@@ -110,31 +131,40 @@ export default function VisualizationScreen() {
 
       setChartsData(charts);
       
-      // 쿼리 파라미터로 전달된 stockId가 있으면 해당 종목 선택 (우선순위 1)
-      if (currentStockId && charts.length > 0) {
-        const foundIndex = charts.findIndex(chart => chart.stock.id === currentStockId);
-        if (foundIndex !== -1) {
-          setSelectedChartIndex(foundIndex);
-          previousSelectedStockIdRef.current = currentStockId;
-          return; // stockId가 있으면 다른 로직 무시
+      // 차트 데이터가 있으면 선택된 인덱스 설정
+      if (charts.length > 0) {
+        // 쿼리 파라미터로 전달된 stockId가 있으면 해당 종목 선택 (우선순위 1)
+        if (currentStockId) {
+          const foundIndex = charts.findIndex(chart => chart.stock.id === currentStockId);
+          if (foundIndex !== -1) {
+            setSelectedChartIndex(foundIndex);
+            previousSelectedStockIdRef.current = currentStockId;
+          } else {
+            // stockId가 있지만 찾지 못한 경우 첫 번째 항목 선택
+            setSelectedChartIndex(0);
+            previousSelectedStockIdRef.current = charts[0]?.stock.id || null;
+          }
         }
-      }
-      
-      // 이전에 선택했던 종목이 있으면 그 종목을 찾아서 선택 (우선순위 2)
-      if (previousSelectedStockId && charts.length > 0) {
-        const foundIndex = charts.findIndex(chart => chart.stock.id === previousSelectedStockId);
-        if (foundIndex !== -1) {
-          setSelectedChartIndex(foundIndex);
-          previousSelectedStockIdRef.current = previousSelectedStockId; // 유지
+        // 이전에 선택했던 종목이 있으면 그 종목을 찾아서 선택 (우선순위 2)
+        else if (previousSelectedStockId) {
+          const foundIndex = charts.findIndex(chart => chart.stock.id === previousSelectedStockId);
+          if (foundIndex !== -1) {
+            setSelectedChartIndex(foundIndex);
+            previousSelectedStockIdRef.current = previousSelectedStockId; // 유지
+          } else {
+            // 이전 선택한 종목이 없어졌으면 첫 번째 항목 선택
+            setSelectedChartIndex(0);
+            previousSelectedStockIdRef.current = charts[0]?.stock.id || null;
+          }
         } else {
-          // 이전 선택한 종목이 없어졌으면 첫 번째 항목 선택
+          // 선택된 인덱스가 없거나 유효하지 않을 때 첫 번째 항목 선택
           setSelectedChartIndex(0);
           previousSelectedStockIdRef.current = charts[0]?.stock.id || null;
         }
-      } else if (charts.length > 0) {
-        // 선택된 인덱스가 없거나 유효하지 않을 때만 첫 번째 항목 선택
-        setSelectedChartIndex(0);
-        previousSelectedStockIdRef.current = charts[0]?.stock.id || null;
+      } else {
+        // 차트 데이터가 없으면 선택 인덱스 초기화
+        setSelectedChartIndex(null);
+        previousSelectedStockIdRef.current = null;
       }
     } catch (error) {
       console.error('Failed to load visualization data:', error);
@@ -239,7 +269,7 @@ export default function VisualizationScreen() {
                     selectedChartIndex === index && styles.stockTabTextActive,
                   ]}
                 >
-                  {chart.stock.name || chart.stock.ticker}
+                  {chart.stock.name || chart.stock.officialName || chart.stock.ticker}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -306,10 +336,17 @@ function DotChart({ stock, averagePrice, currentPrice, buyRecords, sellRecords }
   const allAmounts = allRecords.map(getTotalAmount);
   const maxAmount = Math.max(...allAmounts, 1);
   
-  // 가격 범위 계산
+  // 가격 범위 계산 (현재가, 평균 단가 포함)
   const allPrices = allRecords.map(r => r.price);
-  const minPrice = allPrices.length > 0 ? Math.min(...allPrices) : 0;
-  const maxPrice = allPrices.length > 0 ? Math.max(...allPrices) : 100000;
+  const pricesWithCurrent = [...allPrices];
+  if (currentPrice && currentPrice > 0) {
+    pricesWithCurrent.push(currentPrice);
+  }
+  if (averagePrice && averagePrice > 0) {
+    pricesWithCurrent.push(averagePrice);
+  }
+  const minPrice = pricesWithCurrent.length > 0 ? Math.min(...pricesWithCurrent) : 0;
+  const maxPrice = pricesWithCurrent.length > 0 ? Math.max(...pricesWithCurrent) : 100000;
 
   // 가격의 Y 위치 계산 (위에서 아래로 - 가격이 높을수록 위)
   const getPriceYPosition = (price: number): number => {
@@ -401,6 +438,60 @@ function DotChart({ stock, averagePrice, currentPrice, buyRecords, sellRecords }
                 />
               );
             })}
+            
+            {/* 평균 단가 라인 */}
+            {averagePrice && averagePrice > 0 && (
+              <>
+                <View
+                  style={[
+                    styles.averagePriceLine,
+                    {
+                      top: getPriceYPosition(averagePrice),
+                      left: chartAreaPaddingLeft,
+                      width: effectiveWidth,
+                    },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.averagePriceLabel,
+                    {
+                      top: getPriceYPosition(averagePrice) - 10,
+                      left: chartAreaPaddingLeft + 10,
+                    },
+                  ]}
+                >
+                  평균단가: {formatPrice(averagePrice)}
+                </Text>
+              </>
+            )}
+            
+            {/* 현재가 라인 */}
+            {currentPrice && currentPrice > 0 && (
+              <>
+                <View
+                  style={[
+                    styles.currentPriceLine,
+                    {
+                      top: getPriceYPosition(currentPrice),
+                      left: chartAreaPaddingLeft,
+                      width: effectiveWidth,
+                    },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.currentPriceLabel,
+                    {
+                      top: getPriceYPosition(currentPrice) - 10,
+                      left: chartAreaPaddingLeft + effectiveWidth - 80,
+                    },
+                  ]}
+                >
+                  현재가: {formatPrice(currentPrice)}
+                </Text>
+              </>
+            )}
             
             {/* Y축 가격 레이블 (왼쪽에 배치) */}
             {Array.from({ length: 5 }, (_, i) => {
@@ -578,6 +669,44 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: '100%',
     height: '100%',
+  },
+  averagePriceLine: {
+    position: 'absolute',
+    height: 2,
+    backgroundColor: '#FFC107',
+    opacity: 0.8,
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: '#FFC107',
+  },
+  averagePriceLabel: {
+    position: 'absolute',
+    fontSize: 11,
+    color: '#FFC107',
+    fontWeight: '600',
+    backgroundColor: 'rgba(13, 27, 42, 0.9)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  currentPriceLine: {
+    position: 'absolute',
+    height: 2,
+    backgroundColor: '#4CAF50',
+    opacity: 0.8,
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  currentPriceLabel: {
+    position: 'absolute',
+    fontSize: 11,
+    color: '#4CAF50',
+    fontWeight: '600',
+    backgroundColor: 'rgba(13, 27, 42, 0.9)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   dot: {
     position: 'absolute',

@@ -12,10 +12,11 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { getAccountById, getStocksByAccountId, deleteStock, createStock, updateStock, initDatabase, getTradingRecordsByStockId } from '../src/services/DatabaseService';
+import { getAccountById, getStocksByAccountId, deleteStock, createStock, updateStock, initDatabase, getTradingRecordsByStockId, updateStockCurrentPrice, updatePortfolioCurrentPrices } from '../src/services/DatabaseService';
 import { Account } from '../src/models/Account';
 import { Stock } from '../src/models/Stock';
 import { Currency } from '../src/models/Currency';
+import StockSearchModal from '../src/components/StockSearchModal';
 
 export default function PortfolioDetailScreen() {
   const router = useRouter();
@@ -27,9 +28,13 @@ export default function PortfolioDetailScreen() {
   const [showStockModal, setShowStockModal] = useState(false);
   const [showEditStockModal, setShowEditStockModal] = useState(false);
   const [editingStock, setEditingStock] = useState<Stock | null>(null);
-  const [stockNameInput, setStockNameInput] = useState('');
+  const [stockNameInput, setStockNameInput] = useState(''); // 편집 모달용
   const [quantityInput, setQuantityInput] = useState('');
   const [averagePriceInput, setAveragePriceInput] = useState('');
+  const [selectedTickerForAdd, setSelectedTickerForAdd] = useState<string | null>(null);
+  const [selectedOfficialNameForAdd, setSelectedOfficialNameForAdd] = useState<string | null>(null);
+  const [showStockNameInputForAdd, setShowStockNameInputForAdd] = useState(false);
+  const [stockNameInputForAdd, setStockNameInputForAdd] = useState('');
 
   useFocusEffect(
     React.useCallback(() => {
@@ -59,6 +64,19 @@ export default function PortfolioDetailScreen() {
       const portfolioStocks = await getStocksByAccountId(id);
       setStocks(portfolioStocks);
       
+      // 현재가 갱신 (백그라운드에서 실행, 실패해도 계속 진행)
+      try {
+        await updatePortfolioCurrentPrices(id);
+        // 갱신 후 다시 종목 목록 가져오기
+        const updatedStocks = await getStocksByAccountId(id);
+        setStocks(updatedStocks);
+        portfolioStocks.length = 0; // portfolioStocks를 updatedStocks로 대체
+        portfolioStocks.push(...updatedStocks);
+      } catch (priceError) {
+        console.warn('현재가 갱신 실패:', priceError);
+        // 현재가 갱신 실패해도 계속 진행
+      }
+      
       // 각 종목의 매매기록 개수 확인
       const stocksWithCount = await Promise.all(
         portfolioStocks.map(async (stock) => {
@@ -77,46 +95,76 @@ export default function PortfolioDetailScreen() {
   };
 
   const handleAddStock = () => {
-    setStockNameInput('');
     setShowStockModal(true);
   };
 
-  const handleStockConfirm = async () => {
-    if (!stockNameInput.trim()) {
-      Alert.alert('오류', '종목명을 입력해주세요.');
+  const handleStockSelect = async (ticker: string, officialName: string) => {
+    setShowStockModal(false);
+    
+    // 선택한 종목 정보 저장
+    setSelectedTickerForAdd(ticker);
+    setSelectedOfficialNameForAdd(officialName);
+    
+    // 별명 입력 모달 표시 (기본값은 officialName이 있으면 officialName, 없으면 ticker)
+    setStockNameInputForAdd(officialName || ticker);
+    setShowStockNameInputForAdd(true);
+  };
+  
+  const handleStockNameConfirmForAdd = async () => {
+    if (!portfolio || !selectedTickerForAdd) {
+      Alert.alert('오류', '종목 정보가 없습니다.');
       return;
     }
-
-    if (!portfolio) {
-      Alert.alert('오류', '포트폴리오 정보가 없습니다.');
-      return;
-    }
-
+    
+    const stockName = stockNameInputForAdd.trim() || selectedOfficialNameForAdd || selectedTickerForAdd;
+    setShowStockNameInputForAdd(false);
+    
     try {
-      // 종목명을 티커로도 사용 (나중에 Yahoo 연동 시 업데이트 예정)
-      const ticker = stockNameInput.trim();
       // 보유 주식수와 평균 단가는 실적에 의해서만 결정되므로 초기값은 0
-      await createStock(
+      // 직접 입력의 경우 officialName이 빈 문자열이므로 null로 변환
+      const officialNameForSave = selectedOfficialNameForAdd && selectedOfficialNameForAdd.trim() 
+        ? selectedOfficialNameForAdd 
+        : undefined;
+      
+      const newStock = await createStock(
         portfolio.id,
-        ticker,
+        selectedTickerForAdd,
         portfolio.currency,
         0,
         0,
-        stockNameInput.trim()
+        officialNameForSave, // 실제 종목명 (직접 입력이면 undefined)
+        stockName  // 종목 별명
       );
-      setShowStockModal(false);
-      setStockNameInput('');
+      
+      // 현재가 자동 조회
+      try {
+        await updateStockCurrentPrice(newStock.id);
+      } catch (priceError) {
+        console.warn('현재가 조회 실패 (종목은 추가됨):', priceError);
+        // 현재가 조회 실패해도 종목 추가는 성공한 것으로 처리
+      }
+      
+      // 상태 초기화
+      setSelectedTickerForAdd(null);
+      setSelectedOfficialNameForAdd(null);
+      setStockNameInputForAdd('');
+      
       await loadPortfolioDetail();
     } catch (error: any) {
       console.error('종목 추가 오류:', error);
       const errorMessage = error?.message || '종목 추가에 실패했습니다.';
-      Alert.alert('오류', errorMessage.includes('이미 존재') ? errorMessage : '종목 추가에 실패했습니다. 이미 존재하는 종목일 수 있습니다.');
+      Alert.alert('오류', errorMessage.includes('이미 존재') ? errorMessage : '종목 추가에 실패했습니다.');
+      
+      // 상태 초기화
+      setSelectedTickerForAdd(null);
+      setSelectedOfficialNameForAdd(null);
+      setStockNameInputForAdd('');
     }
   };
 
   const handleEditStock = (stock: Stock) => {
     setEditingStock(stock);
-    setStockNameInput(stock.name || stock.ticker);
+    setStockNameInput(stock.name || stock.officialName || stock.ticker);
     setShowEditStockModal(true);
   };
 
@@ -146,7 +194,7 @@ export default function PortfolioDetailScreen() {
   const handleDeleteStock = (stock: Stock) => {
     Alert.alert(
       '종목 삭제',
-      `"${stock.name || stock.ticker}" 종목을 삭제하시겠습니까?\n포함된 모든 물타기 기록이 삭제됩니다.`,
+      `"${stock.name || stock.officialName || stock.ticker}" 종목을 삭제하시겠습니까?\n포함된 모든 물타기 기록이 삭제됩니다.`,
       [
         {
           text: '취소',
@@ -172,9 +220,9 @@ export default function PortfolioDetailScreen() {
   const formatPrice = (price?: number, currency: Currency = Currency.KRW) => {
     if (price === undefined || price === null) return 'N/A';
     if (currency === Currency.KRW) {
-      return `${price.toLocaleString()}원`;
+      return `${Math.round(price).toLocaleString('ko-KR')}원`;
     } else {
-      return `$${price.toLocaleString()}`;
+      return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
   };
 
@@ -247,9 +295,17 @@ export default function PortfolioDetailScreen() {
                     <View style={styles.stockCardContent}>
                       <View style={styles.stockCardLeft}>
                         <View style={styles.stockNameRow}>
-                          <Text style={styles.stockTicker}>
-                            {stock.name || stock.ticker}
-                          </Text>
+                          <View style={styles.stockNameContainer}>
+                            <Text style={styles.stockTicker}>
+                              {stock.name || stock.officialName || stock.ticker}
+                            </Text>
+                            {/* 매칭된 종목(officialName과 ticker가 모두 있는 경우)은 항상 표시 */}
+                            {stock.officialName && stock.ticker && (
+                              <Text style={styles.stockOfficialName}>
+                                {stock.officialName} · {stock.ticker}
+                              </Text>
+                            )}
+                          </View>
                           {stock.recordCount > 0 && (
                             <TouchableOpacity
                               style={styles.chartIconButton}
@@ -284,14 +340,44 @@ export default function PortfolioDetailScreen() {
                             </Text>
                           </View>
                           
-                          {/* 현재가 */}
-                          {stock.currentPrice && (
-                            <View style={styles.stockDetailRow}>
-                              <Text style={styles.stockDetailLabel}>현재가</Text>
-                              <Text style={styles.stockDetailValueSecondary}>
-                                {formatPrice(stock.currentPrice, stock.currency)}
-                              </Text>
-                            </View>
+                          {/* 현재가 및 평단가 비교 */}
+                          {stock.currentPrice && stock.currentPrice > 0 && (
+                            <>
+                              <View style={styles.stockDetailRow}>
+                                <Text style={styles.stockDetailLabel}>현재가</Text>
+                                <Text style={[styles.stockDetailValueSecondary, styles.currentPriceText]}>
+                                  {formatPrice(stock.currentPrice, stock.currency)}
+                                </Text>
+                              </View>
+                              {stock.averagePrice > 0 && (
+                                <View style={styles.stockDetailRow}>
+                                  <Text style={styles.stockDetailLabel}>평단가 대비</Text>
+                                  <View style={styles.priceComparisonContainer}>
+                                    {(() => {
+                                      const profitRate = ((stock.currentPrice - stock.averagePrice) / stock.averagePrice) * 100;
+                                      const profitAmount = (stock.currentPrice - stock.averagePrice) * stock.quantity;
+                                      const isProfit = profitRate >= 0;
+                                      return (
+                                        <>
+                                          <Text style={[
+                                            styles.stockDetailValueSecondary,
+                                            isProfit ? styles.profitText : styles.lossText
+                                          ]}>
+                                            {isProfit ? '+' : ''}{profitRate.toFixed(2)}%
+                                          </Text>
+                                          <Text style={[
+                                            styles.profitAmountText,
+                                            isProfit ? styles.profitText : styles.lossText
+                                          ]}>
+                                            ({isProfit ? '+' : ''}{formatPrice(profitAmount, stock.currency)})
+                                          </Text>
+                                        </>
+                                      );
+                                    })()}
+                                  </View>
+                                </View>
+                              )}
+                            </>
                           )}
                         </View>
                       </View>
@@ -339,45 +425,64 @@ export default function PortfolioDetailScreen() {
         </ScrollView>
       </LinearGradient>
 
-      {/* 종목 추가 모달 */}
-      <Modal
+      {/* 종목 검색 모달 */}
+      <StockSearchModal
         visible={showStockModal}
+        onClose={() => setShowStockModal(false)}
+        onSelect={handleStockSelect}
+        title="새 종목 추가"
+        placeholder="예: 삼성전자, Apple Inc"
+      />
+
+      {/* 종목 별명 입력 모달 (추가용) */}
+      <Modal
+        visible={showStockNameInputForAdd}
         transparent={true}
         animationType="fade"
         onRequestClose={() => {
-          setShowStockModal(false);
-          setStockNameInput('');
+          setShowStockNameInputForAdd(false);
+          setSelectedTickerForAdd(null);
+          setSelectedOfficialNameForAdd(null);
+          setStockNameInputForAdd('');
         }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>새 종목 추가</Text>
+            <Text style={styles.modalTitle}>종목 별명 설정</Text>
             
-            <Text style={styles.modalLabel}>종목명</Text>
+            {selectedOfficialNameForAdd && (
+              <Text style={styles.modalHelperText}>
+                실제 종목명: {selectedOfficialNameForAdd}
+              </Text>
+            )}
+            
             <TextInput
               style={styles.modalInput}
-              placeholder="예: 삼성전자, Apple Inc"
+              placeholder="종목 별명을 입력하세요"
               placeholderTextColor="#757575"
-              value={stockNameInput}
-              onChangeText={setStockNameInput}
-              autoFocus
+              value={stockNameInputForAdd}
+              onChangeText={setStockNameInputForAdd}
+              autoFocus={true}
+              selectTextOnFocus={true}
             />
-
+            
             <View style={styles.modalButtonRow}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonCancel]}
                 onPress={() => {
-                  setShowStockModal(false);
-                  setStockNameInput('');
+                  setShowStockNameInputForAdd(false);
+                  setSelectedTickerForAdd(null);
+                  setSelectedOfficialNameForAdd(null);
+                  setStockNameInputForAdd('');
                 }}
               >
                 <Text style={styles.modalButtonText}>취소</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonConfirm]}
-                onPress={handleStockConfirm}
+                onPress={handleStockNameConfirmForAdd}
               >
-                <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>추가</Text>
+                <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>저장</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -399,7 +504,12 @@ export default function PortfolioDetailScreen() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>종목 수정</Text>
             
-            <Text style={styles.modalLabel}>종목명</Text>
+            <Text style={styles.modalLabel}>종목 별명</Text>
+            {editingStock?.officialName && (
+              <Text style={styles.modalHelperText}>
+                실제 종목명: {editingStock.officialName} ({editingStock.ticker})
+              </Text>
+            )}
             <TextInput
               style={styles.modalInput}
               placeholder="예: 삼성전자, Apple Inc"
@@ -550,9 +660,10 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   stockCardRight: {
-    marginLeft: 16,
+    marginLeft: 12,
     alignItems: 'center',
     gap: 8,
+    flexShrink: 0,
   },
   chartIconButton: {
     padding: 8,
@@ -606,11 +717,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
+  stockNameContainer: {
+    flex: 1,
+  },
   stockTicker: {
     fontSize: 22,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    flex: 1,
+  },
+  stockOfficialName: {
+    fontSize: 13,
+    color: '#B0BEC5',
+    marginTop: 4,
   },
   stockDetails: {
     gap: 10,
@@ -624,16 +742,38 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#B0BEC5',
     fontWeight: '500',
+    flexShrink: 1,
   },
   stockDetailValue: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    flexShrink: 0,
   },
   stockDetailValueSecondary: {
     fontSize: 16,
     fontWeight: '600',
     color: '#E0E0E0',
+    flexShrink: 0,
+  },
+  currentPriceText: {
+    color: '#4CAF50',
+  },
+  priceComparisonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  profitText: {
+    color: '#F44336', // 빨간색 (수익)
+  },
+  lossText: {
+    color: '#42A5F5', // 파란색 (손실)
+  },
+  profitAmountText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   addButton: {
     borderRadius: 16,
@@ -691,6 +831,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     marginBottom: 8,
+  },
+  modalHelperText: {
+    fontSize: 12,
+    color: '#757575',
+    marginBottom: 12,
   },
   modalInput: {
     backgroundColor: 'rgba(27, 38, 59, 0.6)',

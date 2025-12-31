@@ -4,6 +4,7 @@ import { Stock } from '../models/Stock';
 import { AveragingRecord } from '../models/AveragingRecord';
 import { TradingRecord } from '../models/TradingRecord';
 import { Currency } from '../models/Currency';
+import { getStockQuote } from './YahooFinanceService';
 
 const DB_NAME = 'stock_calculator.db';
 const DB_VERSION = 1;
@@ -73,6 +74,7 @@ async function createTables(database: SQLite.SQLiteDatabase): Promise<void> {
       id TEXT PRIMARY KEY,
       account_id TEXT NOT NULL,
       ticker TEXT NOT NULL,
+      official_name TEXT,
       name TEXT,
       quantity INTEGER NOT NULL DEFAULT 0,
       average_price REAL NOT NULL DEFAULT 0,
@@ -83,6 +85,27 @@ async function createTables(database: SQLite.SQLiteDatabase): Promise<void> {
       FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
     );
   `);
+
+  // official_name 컬럼이 없는 경우 추가 (마이그레이션)
+  try {
+    await database.execAsync(`
+      ALTER TABLE stocks ADD COLUMN official_name TEXT;
+    `);
+  } catch (error: any) {
+    // 컬럼이 이미 존재하는 경우 무시 (SQLite는 에러 발생)
+    if (!error?.message?.includes('duplicate column') && !error?.message?.includes('already exists')) {
+      console.warn('official_name 컬럼 추가 실패 (이미 존재할 수 있음):', error);
+    }
+  }
+
+  // 기존 데이터 마이그레이션: official_name이 NULL인 경우 name으로 채우기
+  try {
+    await database.execAsync(`
+      UPDATE stocks SET official_name = name WHERE official_name IS NULL AND name IS NOT NULL;
+    `);
+  } catch (error) {
+    console.warn('기존 데이터 마이그레이션 실패:', error);
+  }
 
   // averaging_records 테이블 (매수/매도 통합 거래 기록)
   // 스키마가 안정화되었으므로 IF NOT EXISTS만 사용
@@ -247,16 +270,22 @@ export async function createStock(
   currency: Currency,
   quantity: number,
   averagePrice: number,
+  officialName?: string,
   name?: string,
   currentPrice?: number
 ): Promise<Stock> {
   const database = await initDatabase();
   const now = Date.now();
+  
+  // name이 없으면 officialName을 사용
+  const finalName = name || officialName;
+  
   const stock: Stock = {
     id: generateId(),
     accountId,
     ticker: ticker.toUpperCase(),
-    name,
+    officialName: officialName || null,
+    name: finalName || null,
     quantity,
     averagePrice,
     currentPrice,
@@ -267,12 +296,13 @@ export async function createStock(
 
   try {
     await database.runAsync(
-      `INSERT INTO stocks (id, account_id, ticker, name, quantity, average_price, current_price, currency, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO stocks (id, account_id, ticker, official_name, name, quantity, average_price, current_price, currency, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         stock.id,
         stock.accountId,
         stock.ticker,
+        stock.officialName || null,
         stock.name || null,
         stock.quantity,
         stock.averagePrice,
@@ -283,7 +313,7 @@ export async function createStock(
       ]
     );
   } catch (error: any) {
-    // UNIQUE 제약조건 위반인 경우 더 명확한 오류 메시지
+    // UNIQUE 제약조건 위반인 경우 더 명확한 오류 메시지 (ticker 중복 체크는 제거했으므로 발생하지 않을 수 있음)
     if (error?.message?.includes('UNIQUE constraint') || error?.message?.includes('unique')) {
       throw new Error(`이미 존재하는 종목입니다: ${ticker}`);
     }
@@ -303,6 +333,7 @@ export async function getStocksByAccountId(accountId: string): Promise<Stock[]> 
       id, 
       account_id as accountId, 
       ticker, 
+      official_name as officialName,
       name, 
       quantity, 
       average_price as averagePrice, 
@@ -328,6 +359,7 @@ export async function getStockById(id: string): Promise<Stock | null> {
       id, 
       account_id as accountId, 
       ticker, 
+      official_name as officialName,
       name, 
       quantity, 
       average_price as averagePrice, 
@@ -355,6 +387,7 @@ export async function getStockByTicker(
       id, 
       account_id as accountId, 
       ticker, 
+      official_name as officialName,
       name, 
       quantity, 
       average_price as averagePrice, 
@@ -379,6 +412,7 @@ export async function updateStock(
     quantity?: number;
     averagePrice?: number;
     currentPrice?: number;
+    officialName?: string; // 일반적으로는 변경하지 않지만, 마이그레이션 등에서 사용 가능
   }
 ): Promise<void> {
   const database = await initDatabase();
@@ -402,6 +436,10 @@ export async function updateStock(
     updatesList.push('current_price = ?');
     values.push(updates.currentPrice);
   }
+  if (updates.officialName !== undefined) {
+    updatesList.push('official_name = ?');
+    values.push(updates.officialName);
+  }
 
   updatesList.push('updated_at = ?');
   values.push(now);
@@ -419,6 +457,62 @@ export async function updateStock(
 export async function deleteStock(id: string): Promise<void> {
   const database = await initDatabase();
   await database.runAsync(`DELETE FROM stocks WHERE id = ?`, [id]);
+}
+
+/**
+ * 종목의 현재가를 Yahoo Finance에서 가져와서 DB에 업데이트
+ * @param stockId 종목 ID
+ * @returns 업데이트 성공 여부
+ */
+export async function updateStockCurrentPrice(stockId: string): Promise<boolean> {
+  try {
+    const stock = await getStockById(stockId);
+    if (!stock || !stock.ticker) {
+      console.warn(`종목을 찾을 수 없거나 티커가 없습니다: ${stockId}`);
+      return false;
+    }
+
+    const quote = await getStockQuote(stock.ticker);
+    if (quote && quote.price) {
+      await updateStock(stockId, { currentPrice: quote.price });
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    // 백그라운드 작업이므로 조용히 처리 (사용자에게 오류 표시하지 않음)
+    // console.warn(`종목 현재가 업데이트 오류 (${stockId}):`, error);
+    return false;
+  }
+}
+
+/**
+ * 포트폴리오의 모든 종목 현재가를 한 번에 업데이트
+ * @param accountId 포트폴리오 ID
+ * @returns 업데이트된 종목 수
+ */
+export async function updatePortfolioCurrentPrices(accountId: string): Promise<number> {
+  try {
+    const stocks = await getStocksByAccountId(accountId);
+    let updatedCount = 0;
+
+    // 순차 처리로 Rate Limit 방지 (각 요청 사이에 약간의 딜레이)
+    for (const stock of stocks) {
+      if (stock.ticker) {
+        const success = await updateStockCurrentPrice(stock.id);
+        if (success) {
+          updatedCount++;
+        }
+        // Rate Limit 방지를 위한 딜레이 (200ms)
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+
+    return updatedCount;
+  } catch (error) {
+    console.error(`포트폴리오 현재가 업데이트 오류 (${accountId}):`, error);
+    return 0;
+  }
 }
 
 // ==================== Averaging Records ====================
@@ -715,7 +809,9 @@ function generateUniqueStockName(baseName: string, existingNames: string[]): str
 
 export async function saveCalculationAsScenario(
   accountId: string,
-  stockName: string, // 종목명 (name 필드에 저장됨)
+  ticker: string, // 종목 티커 (Yahoo Finance 형식)
+  officialName: string, // 실제 종목명 (Yahoo Finance에서 가져온 이름)
+  stockName: string, // 종목 별명 (name 필드에 저장됨, 기본값: officialName)
   calculationHistory: Array<{
     additionalBuyPrice: number;
     additionalQuantity: number;
@@ -730,22 +826,16 @@ export async function saveCalculationAsScenario(
 ): Promise<{ stock: Stock; records: AveragingRecord[] }> {
   const database = await initDatabase();
 
-  // 1. 같은 포트폴리오의 모든 종목 조회 (이름 중복 체크용)
-  const existingStocks = await getStocksByAccountId(accountId);
-  const existingNames = existingStocks.map(s => s.name || '').filter(n => n); // name만 사용
-
-  // 2. 종목명 생성 (같은 이름이 있으면 자동으로 번호 추가)
-  const uniqueStockName = generateUniqueStockName(stockName, existingNames);
-
-  // 3. 새 종목 생성 (항상 새로 생성, 기존 종목 덮어쓰지 않음)
+  // 새 종목 생성 (name 중복 허용, 사용자가 원하는 이름 그대로 저장)
   const lastCalc = calculationHistory[calculationHistory.length - 1];
   const stock = await createStock(
     accountId,
-    uniqueStockName.toUpperCase(), // ticker는 name을 대문자로 (나중에 Yahoo Finance 연동 시 사용)
+    ticker.toUpperCase(), // 티커는 검색 결과에서 가져온 티커 사용
     currency,
     lastCalc.newTotalQuantity,
     lastCalc.newAveragePriceWithoutFee,
-    uniqueStockName // name은 중복 방지된 이름 사용
+    officialName, // 실제 종목명
+    stockName || officialName // 종목 별명 (없으면 officialName 사용)
   );
 
   // 3. 계산 히스토리를 물타기 기록으로 변환하여 저장

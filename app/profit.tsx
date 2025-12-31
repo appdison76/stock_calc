@@ -78,6 +78,56 @@ export default function ProfitCalculatorView() {
     }
   };
 
+  // 콤마 제거 함수
+  const removeCommas = (value: string): string => {
+    return value.replace(/,/g, '');
+  };
+
+  // 가격 입력 핸들러 (천단위 콤마 자동 추가)
+  const handlePriceInputChange = (text: string, setter: (value: string) => void, currency: Currency) => {
+    const cleaned = text.replace(/[^0-9.]/g, '');
+    const parts = cleaned.split('.');
+    const formatted = parts.length > 2 
+      ? parts[0] + '.' + parts.slice(1).join('')
+      : cleaned;
+    
+    if (formatted === '' || formatted === '.') {
+      setter(formatted);
+      return;
+    }
+
+    if (currency === Currency.USD) {
+      setter(addCommas(formatted));
+    } else {
+      const integerOnly = formatted.split('.')[0];
+      if (integerOnly === '') {
+        setter('');
+      } else {
+        setter(addCommas(integerOnly));
+      }
+    }
+  };
+
+  // 수량 입력 핸들러 (천단위 콤마 자동 추가)
+  const handleQuantityInputChange = (text: string, setter: (value: string) => void) => {
+    const cleaned = text.replace(/[^0-9]/g, '');
+    if (cleaned === '') {
+      setter('');
+    } else {
+      setter(addCommas(cleaned));
+    }
+  };
+
+  // 환율 입력 핸들러 (천단위 콤마 자동 추가)
+  const handleExchangeRateInputChange = (text: string) => {
+    const cleaned = text.replace(/[^0-9]/g, '');
+    if (cleaned === '') {
+      setUsdExchangeRate('');
+    } else {
+      setUsdExchangeRate(addCommas(cleaned));
+    }
+  };
+
   const reset = () => {
     if (selectedCurrency === Currency.KRW) {
       setKrwBuyPrice('');
@@ -113,10 +163,10 @@ export default function ProfitCalculatorView() {
       return;
     }
 
-    const buyPriceNum = parseFloat(buyPrice);
-    const sellPriceNum = parseFloat(sellPrice);
-    const quantityNum = parseInt(quantity, 10);
-    const exchangeRateNum = selectedCurrency === Currency.USD ? parseFloat(usdExchangeRate) : undefined;
+    const buyPriceNum = parseFloat(removeCommas(buyPrice));
+    const sellPriceNum = parseFloat(removeCommas(sellPrice));
+    const quantityNum = parseInt(removeCommas(quantity), 10);
+    const exchangeRateNum = selectedCurrency === Currency.USD ? parseFloat(removeCommas(usdExchangeRate)) : undefined;
 
     if (isNaN(buyPriceNum) || buyPriceNum <= 0) {
       Alert.alert('입력 오류', '올바른 매수가를 입력하세요.');
@@ -290,7 +340,7 @@ export default function ProfitCalculatorView() {
                 placeholder="환율 (USD → KRW)"
                 placeholderTextColor="#757575"
                 value={exchangeRate}
-                onChangeText={setExchangeRate}
+                onChangeText={handleExchangeRateInputChange}
                 keyboardType="numeric"
               />
               <Text style={styles.helperText}>예: 1350 (1달러 = 1350원)</Text>
@@ -302,7 +352,7 @@ export default function ProfitCalculatorView() {
             placeholder={selectedCurrency === Currency.USD ? '매수가 (USD)' : '매수가 (원)'}
             placeholderTextColor="#757575"
             value={buyPrice}
-            onChangeText={setBuyPrice}
+            onChangeText={(text) => handlePriceInputChange(text, setBuyPrice, selectedCurrency)}
             keyboardType="numeric"
           />
           {selectedCurrency === Currency.USD &&
@@ -319,7 +369,7 @@ export default function ProfitCalculatorView() {
             placeholder={selectedCurrency === Currency.USD ? '매도가 (USD)' : '매도가 (원)'}
             placeholderTextColor="#757575"
             value={sellPrice}
-            onChangeText={setSellPrice}
+            onChangeText={(text) => handlePriceInputChange(text, setSellPrice, selectedCurrency)}
             keyboardType="numeric"
           />
           {selectedCurrency === Currency.USD &&
@@ -336,7 +386,7 @@ export default function ProfitCalculatorView() {
             placeholder="수량 (주)"
             placeholderTextColor="#757575"
             value={quantity}
-            onChangeText={setQuantity}
+            onChangeText={(text) => handleQuantityInputChange(text, setQuantity)}
             keyboardType="numeric"
           />
 

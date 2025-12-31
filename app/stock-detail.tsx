@@ -19,12 +19,13 @@ import {
   createSellRecord,
   deleteTradingRecord,
   updateStock,
-  initDatabase 
+  initDatabase,
+  updateStockCurrentPrice
 } from '../src/services/DatabaseService';
 import { Stock } from '../src/models/Stock';
 import { TradingRecord } from '../src/models/TradingRecord';
 import { Currency } from '../src/models/Currency';
-import { formatCurrency, formatNumber as formatNumberUtil } from '../src/utils/formatUtils';
+import { formatCurrency, formatNumber as formatNumberUtil, addCommas } from '../src/utils/formatUtils';
 import { SettingsService } from '../src/services/SettingsService';
 
 export default function StockDetailScreen() {
@@ -49,15 +50,89 @@ export default function StockDetailScreen() {
     return formatNumberUtil(num, Currency.KRW).replace('원', '');
   };
 
+  // 콤마 제거 함수
+  const removeCommas = (value: string): string => {
+    return value.replace(/,/g, '');
+  };
+
+  // 가격 입력 핸들러 (천단위 콤마 자동 추가)
+  const handlePriceInputChange = (text: string) => {
+    // 콤마와 숫자, 소수점만 허용
+    const cleaned = text.replace(/[^0-9.]/g, '');
+    // 소수점이 여러 개인 경우 마지막 것만 유지
+    const parts = cleaned.split('.');
+    const formatted = parts.length > 2 
+      ? parts[0] + '.' + parts.slice(1).join('')
+      : cleaned;
+    
+    if (formatted === '' || formatted === '.') {
+      setPriceInput(formatted);
+      return;
+    }
+
+    // USD인 경우 소수점 포함하여 포맷팅 (천단위 콤마도 추가)
+    if (stock?.currency === Currency.USD) {
+      setPriceInput(addCommas(formatted));
+    } else {
+      // KRW인 경우 정수만 처리하고 천단위 콤마 추가
+      const integerOnly = formatted.split('.')[0];
+      if (integerOnly === '') {
+        setPriceInput('');
+      } else {
+        setPriceInput(addCommas(integerOnly));
+      }
+    }
+  };
+
+  // 수량 입력 핸들러 (천단위 콤마 자동 추가)
+  const handleQuantityInputChange = (text: string) => {
+    // 콤마와 숫자만 허용 (수량은 정수만)
+    const cleaned = text.replace(/[^0-9]/g, '');
+    if (cleaned === '') {
+      setQuantityInput('');
+    } else {
+      setQuantityInput(addCommas(cleaned));
+    }
+  };
+
   useEffect(() => {
     loadStockDetail();
   }, [id]);
+
+  // 모달이 열릴 때 매핑된 종목이면 현재가를 자동 설정
+  useEffect(() => {
+    if (showAddRecordModal && stock) {
+      // 매핑된 종목(officialName과 ticker가 모두 있는 경우)이고 현재가가 있으면
+      if (stock.officialName && stock.ticker && stock.currentPrice && stock.currentPrice > 0) {
+        // 현재가를 포맷팅하여 설정
+        const currentPriceStr = stock.currency === Currency.KRW 
+          ? addCommas(Math.round(stock.currentPrice).toString())
+          : stock.currentPrice.toString();
+        setPriceInput(currentPriceStr);
+      } else {
+        // 매핑되지 않은 종목이거나 현재가가 없으면 빈 문자열
+        setPriceInput('');
+      }
+      // 수량은 항상 빈 문자열로 시작
+      setQuantityInput('');
+    }
+  }, [showAddRecordModal, stock]);
 
   const loadStockDetail = async () => {
     if (!id) return;
     
     try {
+      setIsLoading(true);
       await initDatabase();
+      
+      // 현재가 갱신 (백그라운드에서 실행, 실패해도 계속 진행)
+      try {
+        await updateStockCurrentPrice(id);
+      } catch (priceError) {
+        console.warn('현재가 갱신 실패:', priceError);
+        // 현재가 갱신 실패해도 계속 진행
+      }
+      
       const stockData = await getStockById(id);
       if (stockData) {
         setStock(stockData);
@@ -85,8 +160,9 @@ export default function StockDetailScreen() {
       return;
     }
 
-    const price = parseFloat(priceInput);
-    const quantity = parseFloat(quantityInput);
+    // 콤마 제거 후 파싱
+    const price = parseFloat(removeCommas(priceInput));
+    const quantity = parseFloat(removeCommas(quantityInput));
     
     if (isNaN(price) || price <= 0) {
       Alert.alert('오류', `올바른 ${recordType === 'BUY' ? '매수가' : '매도가'}를 입력해주세요.`);
@@ -317,7 +393,15 @@ export default function StockDetailScreen() {
           {/* 종목 정보 카드 */}
           <View style={styles.stockInfoCard}>
             <View style={styles.stockNameContainer}>
-              <Text style={styles.stockName}>{stock.name || stock.ticker}</Text>
+              <View style={styles.stockNameTextContainer}>
+                <Text style={styles.stockName}>{stock.name || stock.officialName || stock.ticker}</Text>
+                {/* 매칭된 종목(officialName과 ticker가 모두 있는 경우)은 항상 표시 */}
+                {stock.officialName && stock.ticker && (
+                  <Text style={styles.stockOfficialName}>
+                    {stock.officialName} · {stock.ticker}
+                  </Text>
+                )}
+              </View>
               {records.length > 0 && (
                 <TouchableOpacity
                   style={styles.chartIconButton}
@@ -349,14 +433,44 @@ export default function StockDetailScreen() {
                 </Text>
               </View>
               
-              {/* 현재가 */}
-              {stock.currentPrice && (
-                <View style={styles.stockDetailRow}>
-                  <Text style={styles.stockDetailLabel}>현재가</Text>
-                  <Text style={styles.stockDetailValueSecondary}>
-                    {formatPrice(stock.currentPrice, stock.currency)}
-                  </Text>
-                </View>
+              {/* 현재가 및 평단가 비교 */}
+              {stock.currentPrice && stock.currentPrice > 0 && (
+                <>
+                  <View style={styles.stockDetailRow}>
+                    <Text style={styles.stockDetailLabel}>현재가</Text>
+                    <Text style={[styles.stockDetailValueSecondary, styles.currentPriceText]}>
+                      {formatPrice(stock.currentPrice, stock.currency)}
+                    </Text>
+                  </View>
+                  {stock.averagePrice > 0 && (
+                    <View style={styles.stockDetailRow}>
+                      <Text style={styles.stockDetailLabel}>평단가 대비</Text>
+                      <View style={styles.priceComparisonContainer}>
+                        {(() => {
+                          const profitRate = ((stock.currentPrice - stock.averagePrice) / stock.averagePrice) * 100;
+                          const profitAmount = (stock.currentPrice - stock.averagePrice) * stock.quantity;
+                          const isProfit = profitRate >= 0;
+                          return (
+                            <>
+                              <Text style={[
+                                styles.stockDetailValueSecondary,
+                                isProfit ? styles.profitText : styles.lossText
+                              ]}>
+                                {isProfit ? '+' : ''}{profitRate.toFixed(2)}%
+                              </Text>
+                              <Text style={[
+                                styles.profitAmountText,
+                                isProfit ? styles.profitText : styles.lossText
+                              ]}>
+                                ({isProfit ? '+' : ''}{formatPrice(profitAmount, stock.currency)})
+                              </Text>
+                            </>
+                          );
+                        })()}
+                      </View>
+                    </View>
+                  )}
+                </>
               )}
             </View>
           </View>
@@ -377,7 +491,6 @@ export default function StockDetailScreen() {
                 end={{ x: 1, y: 0 }}
                 style={styles.addButtonGradient}
               >
-                <Text style={styles.addButtonIcon}>+</Text>
                 <Text style={styles.addButtonText}>매수 추가</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -396,7 +509,6 @@ export default function StockDetailScreen() {
                 end={{ x: 1, y: 0 }}
                 style={styles.addButtonGradient}
               >
-                <Text style={styles.addButtonIcon}>-</Text>
                 <Text style={styles.addButtonText}>매도 추가</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -606,10 +718,10 @@ export default function StockDetailScreen() {
             </Text>
             <TextInput
               style={styles.modalInput}
-              placeholder={stock.currency === Currency.KRW ? "예: 50000" : "예: 150.50"}
+              placeholder={stock.currency === Currency.KRW ? "예: 50,000" : "예: 150.50"}
               placeholderTextColor="#757575"
               value={priceInput}
-              onChangeText={setPriceInput}
+              onChangeText={handlePriceInputChange}
               keyboardType="numeric"
               autoFocus
             />
@@ -622,7 +734,7 @@ export default function StockDetailScreen() {
               placeholder={recordType === 'SELL' ? `최대: ${formatNumber(stock.quantity)}주` : "예: 10"}
               placeholderTextColor="#757575"
               value={quantityInput}
-              onChangeText={setQuantityInput}
+              onChangeText={handleQuantityInputChange}
               keyboardType="numeric"
             />
 
@@ -686,14 +798,22 @@ const styles = StyleSheet.create({
   stockNameContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 20,
+  },
+  stockNameTextContainer: {
+    flex: 1,
+    flexDirection: 'column',
   },
   stockName: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    flex: 1,
+  },
+  stockOfficialName: {
+    fontSize: 15,
+    color: '#B0BEC5',
+    marginTop: 4,
   },
   chartIconButton: {
     padding: 8,
@@ -706,28 +826,51 @@ const styles = StyleSheet.create({
   },
   stockDetails: {
     gap: 16,
+    width: '100%',
   },
   stockDetailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 0,
+    width: '100%',
   },
   stockDetailLabel: {
     fontSize: 15,
     color: '#B0BEC5',
     fontWeight: '500',
+    flexShrink: 1,
   },
   stockDetailValue: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    flexShrink: 0,
   },
   stockDetailValueSecondary: {
     fontSize: 18,
     fontWeight: '600',
     color: '#E0E0E0',
+    flexShrink: 0,
+  },
+  currentPriceText: {
+    color: '#4CAF50',
+  },
+  priceComparisonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  profitText: {
+    color: '#F44336', // 빨간색 (수익)
+  },
+  lossText: {
+    color: '#42A5F5', // 파란색 (손실)
+  },
+  profitAmountText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   addButtonContainer: {
     flexDirection: 'row',
@@ -901,11 +1044,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   recordLabel: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#B0BEC5',
   },
   recordValue: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#FFFFFF',
     fontWeight: '600',
   },

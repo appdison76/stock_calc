@@ -13,6 +13,7 @@ import {
   Keyboard,
   Animated,
   Vibration,
+  Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -27,7 +28,8 @@ import { CoupangBannerSection, CoupangBannerSectionRef } from '../src/components
 import { formatCurrency, formatNumber, getKrwEquivalent, addCommas } from '../src/utils/formatUtils';
 import { Share } from 'react-native';
 import { useRouter } from 'expo-router';
-import { initDatabase, saveCalculationAsScenario, getAllAccounts, createAccount } from '../src/services/DatabaseService';
+import { initDatabase, saveCalculationAsScenario, getAllAccounts, createAccount, updateStockCurrentPrice } from '../src/services/DatabaseService';
+import StockSearchModal from '../src/components/StockSearchModal';
 
 export default function AveragingCalculatorView() {
   const router = useRouter();
@@ -52,6 +54,10 @@ export default function AveragingCalculatorView() {
   const [isSavingScenario, setIsSavingScenario] = useState(false);
   const [showTickerInput, setShowTickerInput] = useState(false);
   const [tickerInput, setTickerInput] = useState('');
+  const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+  const [selectedOfficialName, setSelectedOfficialName] = useState<string | null>(null);
+  const [showStockNameInput, setShowStockNameInput] = useState(false);
+  const [stockNameInput, setStockNameInput] = useState('');
   const coupangBannerRef = useRef<CoupangBannerSectionRef>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const resultOpacity = useRef(new Animated.Value(0)).current;
@@ -85,6 +91,56 @@ export default function AveragingCalculatorView() {
     } catch (e) {
       setIsLoadingExchangeRate(false);
       setIsExchangeRateLoaded(false);
+    }
+  };
+
+  // 콤마 제거 함수
+  const removeCommas = (value: string): string => {
+    return value.replace(/,/g, '');
+  };
+
+  // 가격 입력 핸들러 (천단위 콤마 자동 추가)
+  const handlePriceInputChange = (text: string, setter: (value: string) => void, currency: Currency) => {
+    const cleaned = text.replace(/[^0-9.]/g, '');
+    const parts = cleaned.split('.');
+    const formatted = parts.length > 2 
+      ? parts[0] + '.' + parts.slice(1).join('')
+      : cleaned;
+    
+    if (formatted === '' || formatted === '.') {
+      setter(formatted);
+      return;
+    }
+
+    if (currency === Currency.USD) {
+      setter(addCommas(formatted));
+    } else {
+      const integerOnly = formatted.split('.')[0];
+      if (integerOnly === '') {
+        setter('');
+      } else {
+        setter(addCommas(integerOnly));
+      }
+    }
+  };
+
+  // 수량 입력 핸들러 (천단위 콤마 자동 추가)
+  const handleQuantityInputChange = (text: string, setter: (value: string) => void) => {
+    const cleaned = text.replace(/[^0-9]/g, '');
+    if (cleaned === '') {
+      setter('');
+    } else {
+      setter(addCommas(cleaned));
+    }
+  };
+
+  // 환율 입력 핸들러 (천단위 콤마 자동 추가)
+  const handleExchangeRateInputChange = (text: string) => {
+    const cleaned = text.replace(/[^0-9]/g, '');
+    if (cleaned === '') {
+      setUsdExchangeRate('');
+    } else {
+      setUsdExchangeRate(addCommas(cleaned));
     }
   };
 
@@ -125,11 +181,11 @@ export default function AveragingCalculatorView() {
       return;
     }
 
-    const currentAveragePriceNum = parseFloat(currentAveragePrice);
-    const currentQuantityNum = parseInt(currentQuantity, 10);
-    const additionalBuyPriceNum = parseFloat(additionalBuyPrice);
-    const additionalQuantityNum = parseInt(additionalQuantity, 10);
-    const exchangeRateNum = selectedCurrency === Currency.USD ? parseFloat(usdExchangeRate) : undefined;
+    const currentAveragePriceNum = parseFloat(removeCommas(currentAveragePrice));
+    const currentQuantityNum = parseInt(removeCommas(currentQuantity), 10);
+    const additionalBuyPriceNum = parseFloat(removeCommas(additionalBuyPrice));
+    const additionalQuantityNum = parseInt(removeCommas(additionalQuantity), 10);
+    const exchangeRateNum = selectedCurrency === Currency.USD ? parseFloat(removeCommas(usdExchangeRate)) : undefined;
 
     if (isNaN(currentAveragePriceNum) || currentAveragePriceNum <= 0) {
       Alert.alert('입력 오류', '올바른 현재 평균 단가를 입력하세요.');
@@ -190,14 +246,21 @@ export default function AveragingCalculatorView() {
       exchangeRate: exchangeRateNum,
     });
 
-    setCalculationHistory([...calculationHistory, newCalculation]);
+    const updatedHistory = [...calculationHistory, newCalculation];
+    setCalculationHistory(updatedHistory);
     setIsCalculating(false);
     
-    // 통화별로 추가 매수 정보 초기화
+    // 현재 보유 정보를 계산 결과로 업데이트 (천단위 콤마 포함)
     if (selectedCurrency === Currency.KRW) {
+      // KRW는 정수로 반올림하고 천단위 콤마 추가
+      setKrwCurrentAveragePrice(addCommas(Math.round(newCalculation.newAveragePriceWithoutFee).toString()));
+      setKrwCurrentQuantity(addCommas(newCalculation.newTotalQuantity.toString()));
       setKrwAdditionalBuyPrice('');
       setKrwAdditionalQuantity('');
     } else {
+      // USD는 소수점 두자리 유지하고 천단위 콤마 추가
+      setUsdCurrentAveragePrice(addCommas(newCalculation.newAveragePriceWithoutFee.toFixed(2)));
+      setUsdCurrentQuantity(addCommas(newCalculation.newTotalQuantity.toString()));
       setUsdAdditionalBuyPrice('');
       setUsdAdditionalQuantity('');
     }
@@ -222,13 +285,15 @@ export default function AveragingCalculatorView() {
 
     const lastCalc = calculationHistory[calculationHistory.length - 1];
     if (selectedCurrency === Currency.KRW) {
-      setKrwCurrentAveragePrice(lastCalc.newAveragePriceWithoutFee.toFixed(2));
-      setKrwCurrentQuantity(lastCalc.newTotalQuantity.toString());
+      // KRW는 정수로 반올림하고 천단위 콤마 추가
+      setKrwCurrentAveragePrice(addCommas(Math.round(lastCalc.newAveragePriceWithoutFee).toString()));
+      setKrwCurrentQuantity(addCommas(lastCalc.newTotalQuantity.toString()));
       setKrwAdditionalBuyPrice('');
       setKrwAdditionalQuantity('');
     } else {
-      setUsdCurrentAveragePrice(lastCalc.newAveragePriceWithoutFee.toFixed(2));
-      setUsdCurrentQuantity(lastCalc.newTotalQuantity.toString());
+      // USD는 소수점 두자리 유지하고 천단위 콤마 추가
+      setUsdCurrentAveragePrice(addCommas(lastCalc.newAveragePriceWithoutFee.toFixed(2)));
+      setUsdCurrentQuantity(addCommas(lastCalc.newTotalQuantity.toString()));
       setUsdAdditionalBuyPrice('');
       setUsdAdditionalQuantity('');
     }
@@ -299,33 +364,57 @@ export default function AveragingCalculatorView() {
     }
   };
 
-  const handleTickerInputConfirm = async () => {
-    if (!tickerInput || tickerInput.trim() === '') {
-      Alert.alert('오류', '종목명을 입력해주세요.');
+  const handleStockSelect = async (ticker: string, officialName: string) => {
+    setShowTickerInput(false);
+    
+    // 선택한 종목 정보 저장
+    setSelectedTicker(ticker);
+    setSelectedOfficialName(officialName);
+    
+    // 별명 입력 모달 표시 (기본값은 officialName)
+    setStockNameInput(officialName);
+    setShowStockNameInput(true);
+  };
+  
+  const handleStockNameConfirm = async () => {
+    if (!selectedTicker || !selectedOfficialName) {
+      Alert.alert('오류', '종목 정보가 없습니다.');
       return;
     }
-
-    setShowTickerInput(false);
-    const ticker = tickerInput.trim();
-
-    // 계좌 조회 및 선택
-    const accounts = await getAllAccounts();
-    const sameCurrencyAccounts = accounts.filter(a => a.currency === selectedCurrency);
-    let account = sameCurrencyAccounts.find(a => a.name === '나의 포트폴리오') 
-      || sameCurrencyAccounts[0];
     
-    // 같은 통화의 포트폴리오가 없으면 기본 포트폴리오 생성
-    if (!account) {
-      account = await createAccount('나의 포트폴리오', selectedCurrency);
-    }
+    const stockName = stockNameInput.trim() || selectedOfficialName;
+    setShowStockNameInput(false);
+    
+    try {
+      // 계좌 조회 및 선택
+      const accounts = await getAllAccounts();
+      const sameCurrencyAccounts = accounts.filter(a => a.currency === selectedCurrency);
+      let account = sameCurrencyAccounts.find(a => a.name === '나의 포트폴리오') 
+        || sameCurrencyAccounts[0];
+      
+      // 같은 통화의 포트폴리오가 없으면 기본 포트폴리오 생성
+      if (!account) {
+        account = await createAccount('나의 포트폴리오', selectedCurrency);
+      }
 
-    // 종목 저장
-    await saveScenario(account, ticker);
+      // 종목 저장 (별명 사용)
+      await saveScenario(account, selectedTicker, selectedOfficialName, stockName);
+      
+      // 상태 초기화
+      setSelectedTicker(null);
+      setSelectedOfficialName(null);
+      setStockNameInput('');
+    } catch (error) {
+      console.error('종목 저장 오류:', error);
+      Alert.alert('오류', '종목 저장에 실패했습니다.');
+    }
   };
 
   const saveScenario = async (
     account: { id: string; name: string },
-    ticker: string
+    ticker: string,
+    officialName: string,
+    stockName: string
   ) => {
     try {
       // 계산 히스토리를 데이터베이스 형식으로 변환
@@ -340,20 +429,37 @@ export default function AveragingCalculatorView() {
         currentQuantity: calc.currentQuantity,
       }));
 
-      await saveCalculationAsScenario(
+      const result = await saveCalculationAsScenario(
         account.id,
-        ticker, // 종목명으로 사용 (사용자가 입력한 이름)
+        ticker,
+        officialName,
+        stockName || officialName,
         historyData,
         selectedCurrency
       );
 
+      // 현재가 자동 조회
+      try {
+        await updateStockCurrentPrice(result.stock.id);
+      } catch (priceError) {
+        console.warn('현재가 조회 실패 (종목은 저장됨):', priceError);
+        // 현재가 조회 실패해도 종목 저장은 성공한 것으로 처리
+      }
+
       Alert.alert(
         '저장 완료',
-        `종목이 저장되었습니다.\n\n포트폴리오: ${account.name}\n종목: ${ticker}`,
+        `종목이 저장되었습니다.\n\n포트폴리오: ${account.name}\n종목: ${stockName || officialName}`,
         [
           {
             text: '확인',
             onPress: () => setIsSavingScenario(false),
+          },
+          {
+            text: '종목 상세 보기',
+            onPress: () => {
+              setIsSavingScenario(false);
+              router.push(`/stock-detail?id=${result.stock.id}`);
+            },
           },
         ]
       );
@@ -473,10 +579,10 @@ export default function AveragingCalculatorView() {
                 placeholder="환율 (USD → KRW)"
                 placeholderTextColor="#757575"
                 value={exchangeRate}
-                onChangeText={setExchangeRate}
+                onChangeText={handleExchangeRateInputChange}
                 keyboardType="numeric"
               />
-              <Text style={styles.helperText}>예: 1350 (1달러 = 1350원)</Text>
+              <Text style={styles.helperText}>예: 1,350 (1달러 = 1350원)</Text>
             </>
           )}
 
@@ -489,7 +595,7 @@ export default function AveragingCalculatorView() {
             }
             placeholderTextColor="#757575"
             value={currentAveragePrice}
-            onChangeText={setCurrentAveragePrice}
+            onChangeText={(text) => handlePriceInputChange(text, setCurrentAveragePrice, selectedCurrency)}
             keyboardType="numeric"
           />
           {selectedCurrency === Currency.USD &&
@@ -508,7 +614,7 @@ export default function AveragingCalculatorView() {
             placeholder="현재 보유 수량 (주)"
             placeholderTextColor="#757575"
             value={currentQuantity}
-            onChangeText={setCurrentQuantity}
+            onChangeText={(text) => handleQuantityInputChange(text, setCurrentQuantity)}
             keyboardType="numeric"
           />
 
@@ -521,7 +627,7 @@ export default function AveragingCalculatorView() {
             }
             placeholderTextColor="#757575"
             value={additionalBuyPrice}
-            onChangeText={setAdditionalBuyPrice}
+            onChangeText={(text) => handlePriceInputChange(text, setAdditionalBuyPrice, selectedCurrency)}
             keyboardType="numeric"
           />
           {selectedCurrency === Currency.USD &&
@@ -540,7 +646,7 @@ export default function AveragingCalculatorView() {
             placeholder="추가 매수 수량 (주)"
             placeholderTextColor="#757575"
             value={additionalQuantity}
-            onChangeText={setAdditionalQuantity}
+            onChangeText={(text) => handleQuantityInputChange(text, setAdditionalQuantity)}
             keyboardType="numeric"
           />
 
@@ -776,44 +882,74 @@ export default function AveragingCalculatorView() {
         )}
         </ScrollView>
 
-        {/* 종목명 입력 모달 */}
-        {showTickerInput && (
+        {/* 종목 검색 모달 */}
+        <StockSearchModal
+          visible={showTickerInput}
+          onClose={() => {
+            setShowTickerInput(false);
+            setIsSavingScenario(false);
+          }}
+          onSelect={handleStockSelect}
+          title="종목 검색 및 저장"
+          placeholder="예: 삼성전자, Apple Inc"
+        />
+        
+        {/* 별명 입력 모달 */}
+        <Modal
+          visible={showStockNameInput}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => {
+            setShowStockNameInput(false);
+            setSelectedTicker(null);
+            setSelectedOfficialName(null);
+            setStockNameInput('');
+            setIsSavingScenario(false);
+          }}
+        >
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>종목명 입력</Text>
-              <Text style={styles.modalDescription}>
-                저장할 종목명을 입력하세요.{'\n'}예: 삼성전자, Apple
-              </Text>
+              <Text style={styles.modalTitle}>종목 별명 설정</Text>
+              
+              {selectedOfficialName && (
+                <Text style={styles.modalHelperText}>
+                  실제 종목명: {selectedOfficialName}
+                </Text>
+              )}
+              
               <TextInput
                 style={styles.modalInput}
-                placeholder="종목명"
+                placeholder="종목 별명을 입력하세요"
                 placeholderTextColor="#757575"
-                value={tickerInput}
-                onChangeText={setTickerInput}
-                autoFocus
-                keyboardType="default"
-                autoCapitalize="none"
+                value={stockNameInput}
+                onChangeText={setStockNameInput}
+                autoFocus={true}
+                selectTextOnFocus={true}
               />
+              
               <View style={styles.modalButtonRow}>
                 <TouchableOpacity
                   style={[styles.modalButton, styles.modalButtonCancel]}
                   onPress={() => {
-                    setShowTickerInput(false);
+                    setShowStockNameInput(false);
+                    setSelectedTicker(null);
+                    setSelectedOfficialName(null);
+                    setStockNameInput('');
                     setIsSavingScenario(false);
                   }}
                 >
-                  <Text style={styles.modalButtonText}>취소</Text>
+                  <Text style={styles.modalButtonCancelText}>취소</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.modalButton, styles.modalButtonConfirm]}
-                  onPress={handleTickerInputConfirm}
+                  onPress={handleStockNameConfirm}
                 >
-                  <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>확인</Text>
+                  <Text style={styles.modalButtonConfirmText}>저장</Text>
                 </TouchableOpacity>
               </View>
             </View>
           </View>
-        )}
+        </Modal>
       </LinearGradient>
     </KeyboardAvoidingView>
   );
@@ -1019,6 +1155,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(66, 165, 245, 0.3)',
   },
+  modalHelperText: {
+    fontSize: 13,
+    color: '#B0BEC5',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
   modalButtonConfirm: {
     backgroundColor: '#42A5F5',
   },
@@ -1026,6 +1168,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#B0BEC5',
+  },
+  modalButtonCancelText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#B0BEC5',
+  },
+  modalButtonConfirmText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
 });
 
