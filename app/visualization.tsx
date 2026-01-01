@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -44,6 +44,7 @@ export default function VisualizationScreen() {
   const [chartsData, setChartsData] = useState<ChartData[]>([]);
   const [selectedChartIndex, setSelectedChartIndex] = useState<number | null>(null);
   const previousSelectedStockIdRef = useRef<string | null>(null);
+  const stockTabsScrollRef = useRef<ScrollView>(null);
 
   const loadData = async () => {
     try {
@@ -180,6 +181,27 @@ export default function VisualizationScreen() {
     }, [stockId]) // stockId가 변경되면 다시 로드
   );
 
+  useEffect(() => {
+    scrollToSelectedStock();
+  }, [selectedChartIndex, chartsData]);
+
+  const scrollToSelectedStock = () => {
+    if (selectedChartIndex === null || !stockTabsScrollRef.current || chartsData.length === 0) return;
+    
+    // 약간의 지연을 두어 레이아웃이 완료된 후 스크롤
+    setTimeout(() => {
+      // 각 탭의 대략적인 너비: paddingHorizontal(20*2) + marginRight(12) + 텍스트 너비(약 80-100)
+      // 대략 120-140px 정도로 추정, 안전하게 150으로 설정
+      const estimatedTabWidth = 150;
+      const scrollX = selectedChartIndex * estimatedTabWidth - 50; // 약간 왼쪽 여유 공간
+      
+      stockTabsScrollRef.current?.scrollTo({
+        x: Math.max(0, scrollX),
+        animated: true,
+      });
+    }, 200);
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -237,6 +259,16 @@ export default function VisualizationScreen() {
             <Text style={styles.backButtonText}>←</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>매매기록 차트</Text>
+          {selectedChart && (
+            <TouchableOpacity
+              onPress={() => router.push(`/stock-chart?id=${selectedChart.stock.id}`)}
+              style={styles.headerIconButton}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.headerIcon}>📈</Text>
+              <Text style={styles.headerIconLabel}>종목차트</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <ScrollView
@@ -539,26 +571,40 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 60,
+    paddingTop: 40,
     paddingHorizontal: 24,
-    paddingBottom: 20,
+    paddingBottom: 16,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginRight: 16,
+    padding: 8,
   },
   backButtonText: {
-    fontSize: 28,
-    color: '#42A5F5',
-    fontWeight: '600',
+    fontSize: 24,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    flex: 1,
+  },
+  headerIconButton: {
+    marginLeft: 'auto',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  headerIcon: {
+    fontSize: 18,
+  },
+  headerIconLabel: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    marginTop: 2,
+    fontWeight: '500',
   },
   scrollView: {
     flex: 1,

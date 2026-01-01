@@ -637,6 +637,22 @@ export default function StockDetailScreen() {
           </View>
 
           {/* 거래 추가 버튼들 */}
+          {/* 차트 보기 버튼 */}
+          <TouchableOpacity
+            style={styles.chartButton}
+            onPress={() => router.push(`/stock-chart?id=${stock.id}`)}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={['#42A5F5', '#1E88E5']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.chartButtonGradient}
+            >
+              <Text style={styles.chartButtonText}>📈 종목차트 보기</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
           <View style={styles.addButtonContainer}>
             <TouchableOpacity
               style={[styles.addButton, styles.buyButton]}

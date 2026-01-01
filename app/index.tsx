@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Linking,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -32,7 +33,7 @@ import { NewsItem } from '../src/models/NewsItem';
 interface CalculatorCardProps {
   title: string;
   description: string | string[];
-  icon: string;
+  icon: string | number; // string for emoji, number for image resource
   color: string;
   onPress: () => void;
 }
@@ -58,7 +59,11 @@ const CalculatorCard: React.FC<CalculatorCardProps> = ({
       >
         <View style={styles.cardContent}>
           <View style={[styles.iconContainer, { borderColor: `${color}40` }]}>
-            <Text style={[styles.icon, { color }]}>{icon}</Text>
+            {typeof icon === 'number' ? (
+              <Image source={icon} style={styles.iconImage} />
+            ) : (
+              <Text style={[styles.icon, { color }]}>{icon}</Text>
+            )}
           </View>
           <View style={styles.textContainer}>
             <Text style={styles.cardTitle}>{title}</Text>
@@ -339,7 +344,9 @@ export default function MainScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#0D1B2A', '#1B263B', '#0F1419']}
+        colors={['#0A1628', '#1B263B', '#2D3748', '#1A2332']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
         <ScrollView
@@ -399,62 +406,104 @@ export default function MainScreen() {
                 <TouchableOpacity
                   style={styles.menuBannerCard}
                   onPress={() => router.push('/portfolios')}
-                  activeOpacity={0.7}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.menuBannerIcon}>📊</Text>
-                  <Text style={styles.menuBannerText}>포트{'\n'}폴리오</Text>
+                  <LinearGradient
+                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
+                    style={styles.menuBannerGradient}
+                  >
+                    <Text style={styles.menuBannerIcon}>📊</Text>
+                    <Text style={styles.menuBannerText}>포트{'\n'}폴리오</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.menuBannerCard}
                   onPress={() => router.push('/visualization')}
-                  activeOpacity={0.7}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.menuBannerIcon}>📉</Text>
-                  <Text style={styles.menuBannerText}>매매기록</Text>
+                  <LinearGradient
+                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
+                    style={styles.menuBannerGradient}
+                  >
+                    <Text style={styles.menuBannerIcon}>📉</Text>
+                    <Text style={styles.menuBannerText}>매매{'\n'}기록</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.menuBannerCard}
                   onPress={() => router.push('/news')}
-                  activeOpacity={0.7}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.menuBannerIcon}>📰</Text>
-                  <Text style={styles.menuBannerText}>주식뉴스</Text>
+                  <LinearGradient
+                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
+                    style={styles.menuBannerGradient}
+                  >
+                    <Text style={styles.menuBannerIcon}>📰</Text>
+                    <Text style={styles.menuBannerText}>주식{'\n'}뉴스</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.menuBannerCard}
                   onPress={() => router.push('/settings')}
-                  activeOpacity={0.7}
+                  activeOpacity={0.8}
                 >
-                  <Text style={[styles.menuBannerIcon, { color: '#64B5F6' }]}>⚙</Text>
-                  <Text style={styles.menuBannerText}>환경설정</Text>
+                  <LinearGradient
+                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
+                    style={styles.menuBannerGradient}
+                  >
+                    <Text style={[styles.menuBannerIcon, { color: '#64B5F6' }]}>⚙</Text>
+                    <Text style={styles.menuBannerText}>환경{'\n'}설정</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
 
-              {/* 계산기 배너 (수익률 계산기, 물타기 계산기) */}
+              {/* 계산기 배너 (수익률 계산기, 물타기 계산기, 종목차트) */}
               <View style={styles.menuBannersContainer}>
                 <TouchableOpacity
                   style={styles.menuBannerCard}
                   onPress={() => router.push('/profit')}
-                  activeOpacity={0.7}
+                  activeOpacity={0.8}
                 >
-                  <Text style={[styles.menuBannerIcon, { color: '#42A5F5' }]}>%</Text>
-                  <Text style={styles.menuBannerText}>수익률{'\n'}계산기</Text>
+                  <LinearGradient
+                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
+                    style={styles.menuBannerGradient}
+                  >
+                    <Text style={[styles.menuBannerIcon, { color: '#42A5F5' }]}>%</Text>
+                    <Text style={styles.menuBannerText}>수익률{'\n'}계산기</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.menuBannerCard}
                   onPress={() => router.push('/averaging')}
-                  activeOpacity={0.7}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.menuBannerIcon}>💧</Text>
-                  <Text style={styles.menuBannerText}>물타기{'\n'}계산기</Text>
+                  <LinearGradient
+                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
+                    style={styles.menuBannerGradient}
+                  >
+                    <Text style={styles.menuBannerIcon}>💧</Text>
+                    <Text style={styles.menuBannerText}>물타기{'\n'}계산기</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
-                <View style={styles.menuBannerCard} />
-                <View style={styles.menuBannerCard} />
+                <TouchableOpacity
+                  style={styles.menuBannerCard}
+                  onPress={() => router.push('/stock-chart')}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
+                    style={styles.menuBannerGradient}
+                  >
+                    <Text style={styles.menuBannerIcon}>📈</Text>
+                    <Text style={styles.menuBannerText}>종목{'\n'}차트</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+                <View style={styles.menuBannerCardEmpty} />
               </View>
 
               <View style={styles.header}>
             <View style={styles.headerIconContainer}>
-              <Text style={styles.headerIcon}>📈</Text>
+              <Image source={require('../assets/icon.png')} style={styles.headerIconImage} />
             </View>
             <Text style={styles.headerTitle}>스마트 물타기 계산기</Text>
             <Text style={styles.headerSubtitle}>
@@ -829,6 +878,18 @@ export default function MainScreen() {
             />
           </View>
 
+          <View style={styles.cardSpacer} />
+
+          <View style={styles.cardsContainer}>
+            <CalculatorCard
+              title="종목차트"
+              description={['포트폴리오 종목의', '주가 차트를 확인합니다']}
+              icon="📈"
+              color="#E91E63"
+              onPress={() => router.push('/stock-chart')}
+            />
+          </View>
+
           <View style={styles.adSpacer} />
 
           <View style={styles.cardsContainer}>
@@ -927,6 +988,7 @@ const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
+    backgroundColor: '#0D1B2A',
   },
   scrollContent: {
     padding: 24,
@@ -948,13 +1010,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
-    borderWidth: 2,
-    borderColor: 'rgba(66, 165, 245, 0.3)',
+    borderWidth: 0,
+    overflow: 'hidden',
   },
   headerIcon: {
     fontSize: 56,
     fontWeight: '700',
     color: '#42A5F5',
+  },
+  headerIconImage: {
+    width: 104,
+    height: 104,
+    resizeMode: 'contain',
   },
   headerTitle: {
     fontSize: 38,
@@ -1029,6 +1096,11 @@ const styles = StyleSheet.create({
   icon: {
     fontSize: 32,
     fontWeight: '600',
+  },
+  iconImage: {
+    width: 48,
+    height: 48,
+    resizeMode: 'contain',
   },
   textContainer: {
     flex: 1,
@@ -1201,29 +1273,42 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    marginBottom: 24,
-    gap: 8,
+    marginBottom: 20,
+    gap: 10,
   },
   menuBannerCard: {
     flex: 1,
-    backgroundColor: 'rgba(66, 165, 245, 0.1)',
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    minHeight: 80,
+  },
+  menuBannerGradient: {
+    flex: 1,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
-    minHeight: 70,
     justifyContent: 'center',
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.15)',
+    borderRadius: 16,
+  },
+  menuBannerCardEmpty: {
+    flex: 1,
   },
   menuBannerIcon: {
-    fontSize: 20,
-    marginBottom: 6,
+    fontSize: 24,
+    marginBottom: 8,
   },
   menuBannerText: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
+    lineHeight: 16,
   },
   dashboardSection: {
     width: '100%',

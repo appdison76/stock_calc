@@ -369,9 +369,115 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
   }
 }
 
+/**
+ * 과거 주가 데이터 인터페이스
+ */
+export interface HistoricalPriceData {
+  date: number; // Unix timestamp (초)
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
 
+/**
+ * Yahoo Finance에서 과거 주가 데이터 조회
+ * @param ticker 종목 코드 (예: 'AAPL', '005930.KS')
+ * @param range 기간 ('1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max')
+ * @param interval 간격 ('1d', '1wk', '1mo')
+ * @returns 과거 주가 데이터 배열
+ */
+export async function getHistoricalData(
+  ticker: string,
+  range: string = '1mo',
+  interval: string = '1d'
+): Promise<HistoricalPriceData[]> {
+  try {
+    // 티커 정규화
+    let normalizedTicker = ticker;
+    if (!ticker.includes('.')) {
+      if (/^\d{6}$/.test(ticker)) {
+        normalizedTicker = `${ticker}.KS`;
+      }
+    }
+    
+    // Yahoo Finance API 엔드포인트
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${normalizedTicker}?interval=${interval}&range=${range}`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data.chart || !data.chart.result || data.chart.result.length === 0) {
+      return [];
+    }
+    
+    const result = data.chart.result[0];
+    const timestamps = result.timestamp || [];
+    const indicators = result.indicators || {};
+    const quote = indicators.quote?.[0] || {};
+    
+    const opens = quote.open || [];
+    const highs = quote.high || [];
+    const lows = quote.low || [];
+    const closes = quote.close || [];
+    const volumes = quote.volume || [];
+    
+    // 데이터 배열 생성
+    const historicalData: HistoricalPriceData[] = [];
+    
+    for (let i = 0; i < timestamps.length; i++) {
+      // null 값 제외
+      if (opens[i] == null || highs[i] == null || lows[i] == null || closes[i] == null) {
+        continue;
+      }
+      
+      historicalData.push({
+        date: timestamps[i],
+        open: opens[i],
+        high: highs[i],
+        low: lows[i],
+        close: closes[i],
+        volume: volumes[i] || 0,
+      });
+    }
+    
+    return historicalData;
+  } catch (error) {
+    console.error('Yahoo Finance historical data API 오류:', error);
+    return [];
+  }
+}
 
-
+/**
+ * 이동평균선 계산
+ * @param prices 가격 배열
+ * @param period 기간 (예: 5, 20, 60)
+ * @returns 이동평균 배열
+ */
+export function calculateMovingAverage(prices: number[], period: number): number[] {
+  const movingAverages: number[] = [];
+  
+  for (let i = 0; i < prices.length; i++) {
+    if (i < period - 1) {
+      movingAverages.push(NaN);
+    } else {
+      const sum = prices.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+      movingAverages.push(sum / period);
+    }
+  }
+  
+  return movingAverages;
+}
 
 
 

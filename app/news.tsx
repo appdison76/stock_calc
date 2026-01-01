@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, Text, ActivityIndicator, Linking, TextInput, TouchableOpacity, Keyboard, ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import NewsList from '../src/components/NewsList';
@@ -28,6 +28,77 @@ export default function NewsScreen() {
   // 종목 탭 관련
   const [portfolioStocks, setPortfolioStocks] = useState<Stock[]>([]);
   const [selectedStockId, setSelectedStockId] = useState<number | null>(null); // null이면 "전체"
+  const stockTabsScrollRef = useRef<ScrollView>(null);
+
+  // 선택된 종목 탭으로 스크롤
+  useEffect(() => {
+    // portfolioStocks가 로드되고 selectedStockId가 설정된 후에 스크롤
+    if (portfolioStocks.length > 0) {
+      scrollToSelectedStock();
+    }
+  }, [selectedStockId, portfolioStocks, scrollToSelectedStock]);
+
+  // 화면 포커스 시에도 스크롤 실행 (다른 화면에서 이동할 때)
+  useFocusEffect(
+    useCallback(() => {
+      // URL 파라미터에서 종목 ID를 읽어서 스크롤
+      if (portfolioStocks.length > 0 && stockIdParam) {
+        const stockId = parseInt(stockIdParam, 10);
+        if (!isNaN(stockId)) {
+          // 약간의 지연을 두어 화면이 완전히 렌더링된 후 스크롤
+          const timer = setTimeout(() => {
+            const selectedIndex = portfolioStocks.findIndex(s => parseInt(s.id, 10) === stockId);
+            if (selectedIndex === -1 || !stockTabsScrollRef.current) return;
+
+            const estimatedTabWidth = 120;
+            const scrollX = 80 + (selectedIndex * estimatedTabWidth) - 50;
+            
+            stockTabsScrollRef.current.scrollTo({
+              x: Math.max(0, scrollX),
+              animated: true,
+            });
+          }, 800);
+          return () => clearTimeout(timer);
+        }
+      } else if (portfolioStocks.length > 0 && selectedStockId !== null) {
+        // stockIdParam이 없지만 selectedStockId가 설정된 경우
+        const timer = setTimeout(() => {
+          scrollToSelectedStock();
+        }, 800);
+        return () => clearTimeout(timer);
+      }
+    }, [portfolioStocks, stockIdParam, selectedStockId, scrollToSelectedStock])
+  );
+
+  const scrollToSelectedStock = useCallback(() => {
+    if (!stockTabsScrollRef.current || portfolioStocks.length === 0) return;
+    
+    // 약간의 지연을 두어 레이아웃이 완료된 후 스크롤
+    setTimeout(() => {
+      if (selectedStockId === null) {
+        // "전체" 탭이 선택된 경우, 맨 왼쪽으로 스크롤
+        stockTabsScrollRef.current?.scrollTo({
+          x: 0,
+          animated: true,
+        });
+      } else {
+        // 선택된 종목의 인덱스 찾기
+        const selectedIndex = portfolioStocks.findIndex(s => parseInt(s.id, 10) === selectedStockId);
+        if (selectedIndex === -1) return;
+
+        // 각 탭의 대략적인 너비: paddingHorizontal(16*2) + gap(8) + 텍스트 너비(약 60-100)
+        // 대략 100-120px 정도로 추정, 안전하게 120으로 설정
+        const estimatedTabWidth = 120;
+        // "전체" 탭 너비도 고려 (약 80px)
+        const scrollX = 80 + (selectedIndex * estimatedTabWidth) - 50; // 약간 왼쪽 여유 공간
+        
+        stockTabsScrollRef.current?.scrollTo({
+          x: Math.max(0, scrollX),
+          animated: true,
+        });
+      }
+    }, 400); // 지연 시간을 늘려서 레이아웃 완료 보장
+  }, [selectedStockId, portfolioStocks]);
 
   const loadNews = async (forceRefresh: boolean = false, query?: string, days: number = 7, append: boolean = false, targetLanguage?: 'ko' | 'en', targetStockId?: number | null) => {
     try {
@@ -283,6 +354,7 @@ export default function NewsScreen() {
         <View>
           {/* 종목 선택 탭 */}
           <ScrollView 
+            ref={stockTabsScrollRef}
             horizontal 
             showsHorizontalScrollIndicator={false}
             style={styles.stockTabsContainer}

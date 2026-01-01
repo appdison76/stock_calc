@@ -161,6 +161,12 @@ export default function RootLayout() {
             title: '주요 지표',
           }}
         />
+        <Stack.Screen
+          name="stock-chart"
+          options={{
+            headerShown: false,
+          }}
+        />
       </Stack>
     </>
   );
