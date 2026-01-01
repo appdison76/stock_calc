@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,27 @@ import {
   StyleSheet,
   Modal,
   Platform,
+  ActivityIndicator,
+  RefreshControl,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { AdmobBanner } from '../src/components/AdmobBanner';
+import { 
+  initDatabase, 
+  getAllAccounts, 
+  getStocksByAccountId, 
+  updatePortfolioCurrentPrices 
+} from '../src/services/DatabaseService';
+import { Stock } from '../src/models/Stock';
+import { Account } from '../src/models/Account';
+import { Currency } from '../src/models/Currency';
+import { formatCurrency } from '../src/utils/formatUtils';
+import { ExchangeRateService } from '../src/services/ExchangeRateService';
+import { getStockQuote } from '../src/services/YahooFinanceService';
+import { fetchGeneralNews, fetchStockNews, fetchGoogleNewsRSS } from '../src/services/NewsService';
+import { NewsItem } from '../src/models/NewsItem';
 
 interface CalculatorCardProps {
   title: string;
@@ -60,9 +77,264 @@ const CalculatorCard: React.FC<CalculatorCardProps> = ({
   );
 };
 
+interface PortfolioStock extends Stock {
+  accountName: string;
+}
+
+interface MarketIndicator {
+  name: string;
+  symbol: string;
+  price: number;
+  change?: number;
+  changePercent?: number;
+  currency: string;
+}
+
 export default function MainScreen() {
   const router = useRouter();
   const [isPrivacyModalVisible, setIsPrivacyModalVisible] = useState(false);
+  const [portfolioStocks, setPortfolioStocks] = useState<PortfolioStock[]>([]);
+  const [marketIndicators, setMarketIndicators] = useState<MarketIndicator[]>([]);
+  const [latestNews, setLatestNews] = useState<NewsItem[]>([]);
+  const [latestNewsKo, setLatestNewsKo] = useState<NewsItem[]>([]);
+  const [latestNewsEn, setLatestNewsEn] = useState<NewsItem[]>([]);
+  const [latestNewsLanguage, setLatestNewsLanguage] = useState<'ko' | 'en'>('ko');
+  const [relatedNews, setRelatedNews] = useState<NewsItem[]>([]);
+  // 종목별 뉴스 저장: stockId -> {ko: NewsItem[], en: NewsItem[]}
+  const [stockNewsMap, setStockNewsMap] = useState<Map<number, {ko: NewsItem[], en: NewsItem[]}>>(new Map());
+  const [selectedStockIndex, setSelectedStockIndex] = useState<number>(0); // 선택된 종목 인덱스
+  const [relatedNewsLanguage, setRelatedNewsLanguage] = useState<'ko' | 'en'>('ko');
+  // 관련 뉴스를 보여줄 종목 목록 (최대 5개)
+  const [relatedNewsStocks, setRelatedNewsStocks] = useState<PortfolioStock[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [exchangeRate, setExchangeRate] = useState<number>(1350);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboardData();
+    }, [])
+  );
+
+  const loadDashboardData = async (forceRefresh: boolean = false) => {
+    try {
+      if (forceRefresh) {
+        setRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
+
+      await initDatabase();
+
+      // 포트폴리오 종목 가져오기
+      const accounts = await getAllAccounts();
+      const allStocks: PortfolioStock[] = [];
+      
+      for (const account of accounts) {
+        const stocks = await getStocksByAccountId(account.id);
+        // 현재가 업데이트 (백그라운드)
+        if (forceRefresh && stocks.length > 0) {
+          updatePortfolioCurrentPrices(account.id).catch(err => 
+            console.warn('현재가 업데이트 실패:', err)
+          );
+        }
+        stocks.forEach(stock => {
+          allStocks.push({
+            ...stock,
+            accountName: account.name,
+          });
+        });
+      }
+
+      // 업데이트 후 다시 가져오기
+      if (forceRefresh) {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 업데이트 대기
+        allStocks.length = 0;
+        for (const account of accounts) {
+          const stocks = await getStocksByAccountId(account.id);
+          stocks.forEach(stock => {
+            allStocks.push({
+              ...stock,
+              accountName: account.name,
+            });
+          });
+        }
+      }
+
+      setPortfolioStocks(allStocks);
+
+      // 중요 지표 가져오기 (비트코인, 금, 유가, 환율)
+      await loadMarketIndicators();
+
+      // 최신 뉴스 가져오기 (한글/영문 둘 다)
+      try {
+        const [newsKo, newsEn] = await Promise.all([
+          fetchGeneralNews(forceRefresh, undefined, '7d', 'ko').catch(err => {
+            console.warn('한글 최신 뉴스 로드 실패:', err);
+            return [];
+          }),
+          fetchGeneralNews(forceRefresh, undefined, '7d', 'en').catch(err => {
+            console.warn('영문 최신 뉴스 로드 실패:', err);
+            return [];
+          }),
+        ]);
+        setLatestNewsKo(newsKo.slice(0, 3));
+        setLatestNewsEn(newsEn.slice(0, 3));
+        // latestNews는 useEffect에서 latestNewsLanguage와 동기화됨
+      } catch (error) {
+        console.warn('뉴스 로드 실패:', error);
+      }
+
+      // 포트폴리오 종목 관련 뉴스 가져오기 (종목별로 분리)
+      if (allStocks.length > 0) {
+        try {
+          // 최대 5개 종목 선택 (중복 제거: 같은 ticker 중 가장 최근 것만)
+          const uniqueStocksMap = new Map<string, PortfolioStock>();
+          allStocks.forEach(stock => {
+            const existing = uniqueStocksMap.get(stock.ticker);
+            if (!existing || (stock.id && existing.id && stock.id > existing.id)) {
+              uniqueStocksMap.set(stock.ticker, stock);
+            }
+          });
+          const uniqueStocks = Array.from(uniqueStocksMap.values()).slice(0, 5);
+          setRelatedNewsStocks(uniqueStocks);
+          
+          // 첫 번째 종목을 기본 선택으로 설정
+          if (uniqueStocks.length > 0 && selectedStockIndex >= uniqueStocks.length) {
+            setSelectedStockIndex(0);
+          }
+
+          // 종목별로 한글/영문 뉴스 가져오기
+          const newsMap = new Map<number, {ko: NewsItem[], en: NewsItem[]}>();
+          
+          const newsPromises = uniqueStocks.map(async (stock) => {
+            try {
+              const [newsKo, newsEn] = await Promise.all([
+                fetchGoogleNewsRSS(
+                  stock.officialName || stock.name || stock.ticker,
+                  stock.officialName || stock.name,
+                  stock.ticker,
+                  'ko',
+                  7
+                ).catch(err => {
+                  console.warn(`종목 ${stock.ticker} 한글 뉴스 로드 실패:`, err);
+                  return [];
+                }),
+                fetchGoogleNewsRSS(
+                  stock.officialName || stock.name || stock.ticker,
+                  stock.officialName || stock.name,
+                  stock.ticker,
+                  'en',
+                  7
+                ).catch(err => {
+                  console.warn(`종목 ${stock.ticker} 영문 뉴스 로드 실패:`, err);
+                  return [];
+                }),
+              ]);
+              
+              newsMap.set(stock.id, {
+                ko: newsKo.slice(0, 3), // 종목당 최대 3개
+                en: newsEn.slice(0, 3),
+              });
+            } catch (error) {
+              console.warn(`종목 ${stock.ticker} 뉴스 로드 실패:`, error);
+              newsMap.set(stock.id, { ko: [], en: [] });
+            }
+          });
+
+          await Promise.all(newsPromises);
+          setStockNewsMap(newsMap);
+          
+          // 선택된 종목의 뉴스 설정
+          if (uniqueStocks.length > 0) {
+            const selectedStock = uniqueStocks[selectedStockIndex] || uniqueStocks[0];
+            const selectedNews = newsMap.get(selectedStock.id) || { ko: [], en: [] };
+            setRelatedNews(relatedNewsLanguage === 'ko' ? selectedNews.ko : selectedNews.en);
+          } else {
+            setRelatedNews([]);
+          }
+        } catch (error) {
+          console.warn('관련 뉴스 로드 실패:', error);
+          setRelatedNews([]);
+          setStockNewsMap(new Map());
+          setRelatedNewsStocks([]);
+        }
+      } else {
+        setRelatedNews([]);
+        setStockNewsMap(new Map());
+        setRelatedNewsStocks([]);
+      }
+
+    } catch (error) {
+      console.error('대시보드 데이터 로드 오류:', error);
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const loadMarketIndicators = async () => {
+    try {
+      const indicators: MarketIndicator[] = [];
+
+      // 환율
+      const rate = await ExchangeRateService.getUsdToKrwRate();
+      setExchangeRate(rate);
+      indicators.push({
+        name: '환율',
+        symbol: 'USDKRW',
+        price: rate,
+        currency: 'KRW',
+      });
+
+      // 비트코인 (BTC-USD)
+      const btcQuote = await getStockQuote('BTC-USD');
+      if (btcQuote) {
+        indicators.push({
+          name: '비트코인',
+          symbol: 'BTC',
+          price: btcQuote.price,
+          change: btcQuote.change,
+          changePercent: btcQuote.changePercent,
+          currency: 'USD',
+        });
+      }
+
+      // 금 (GC=F)
+      const goldQuote = await getStockQuote('GC=F');
+      if (goldQuote) {
+        indicators.push({
+          name: '금',
+          symbol: 'GC',
+          price: goldQuote.price,
+          change: goldQuote.change,
+          changePercent: goldQuote.changePercent,
+          currency: 'USD',
+        });
+      }
+
+      // 유가 (CL=F)
+      const oilQuote = await getStockQuote('CL=F');
+      if (oilQuote) {
+        indicators.push({
+          name: '유가',
+          symbol: 'CL',
+          price: oilQuote.price,
+          change: oilQuote.change,
+          changePercent: oilQuote.changePercent,
+          currency: 'USD',
+        });
+      }
+
+      setMarketIndicators(indicators);
+    } catch (error) {
+      console.warn('중요 지표 로드 실패:', error);
+    }
+  };
+
+  const handleRefresh = () => {
+    loadDashboardData(true);
+  };
 
   return (
     <View style={styles.container}>
@@ -73,8 +345,114 @@ export default function MainScreen() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor="#FFFFFF"
+              colors={['#FFFFFF']}
+            />
+          }
         >
-          <View style={styles.header}>
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#42A5F5" />
+              <Text style={styles.loadingText}>데이터를 불러오는 중...</Text>
+            </View>
+          ) : (
+            <>
+              {/* 주요 지표 (최상단, 작게 일렬로) */}
+              {marketIndicators.length > 0 && (
+                <View style={styles.topIndicatorsContainer}>
+                  {marketIndicators.map((indicator, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={styles.topIndicatorCard}
+                      onPress={() => router.push('/market-indicators')}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.topIndicatorName}>{indicator.name}</Text>
+                      <Text style={styles.topIndicatorPrice}>
+                        {indicator.currency === 'USD' 
+                          ? `$${indicator.price.toLocaleString(undefined, { minimumFractionDigits: indicator.price < 100 ? 2 : 0, maximumFractionDigits: indicator.price < 100 ? 2 : 0 })}`
+                          : `${Math.round(indicator.price).toLocaleString()}원`
+                        }
+                      </Text>
+                      {indicator.changePercent !== undefined && (
+                        <Text
+                          style={[
+                            styles.topIndicatorChange,
+                            indicator.changePercent >= 0 ? styles.positive : styles.negative,
+                          ]}
+                        >
+                          {indicator.changePercent >= 0 ? '+' : ''}
+                          {indicator.changePercent.toFixed(2)}%
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {/* 메뉴 배너 (포트폴리오, 매매기록, 주식뉴스, 환경설정) */}
+              <View style={styles.menuBannersContainer}>
+                <TouchableOpacity
+                  style={styles.menuBannerCard}
+                  onPress={() => router.push('/portfolios')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.menuBannerIcon}>📊</Text>
+                  <Text style={styles.menuBannerText}>포트{'\n'}폴리오</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuBannerCard}
+                  onPress={() => router.push('/visualization')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.menuBannerIcon}>📉</Text>
+                  <Text style={styles.menuBannerText}>매매기록</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuBannerCard}
+                  onPress={() => router.push('/news')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.menuBannerIcon}>📰</Text>
+                  <Text style={styles.menuBannerText}>주식뉴스</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuBannerCard}
+                  onPress={() => router.push('/settings')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.menuBannerIcon, { color: '#64B5F6' }]}>⚙</Text>
+                  <Text style={styles.menuBannerText}>환경설정</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 계산기 배너 (수익률 계산기, 물타기 계산기) */}
+              <View style={styles.menuBannersContainer}>
+                <TouchableOpacity
+                  style={styles.menuBannerCard}
+                  onPress={() => router.push('/profit')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.menuBannerIcon, { color: '#42A5F5' }]}>%</Text>
+                  <Text style={styles.menuBannerText}>수익률{'\n'}계산기</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuBannerCard}
+                  onPress={() => router.push('/averaging')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.menuBannerIcon}>💧</Text>
+                  <Text style={styles.menuBannerText}>물타기{'\n'}계산기</Text>
+                </TouchableOpacity>
+                <View style={styles.menuBannerCard} />
+                <View style={styles.menuBannerCard} />
+              </View>
+
+              <View style={styles.header}>
             <View style={styles.headerIconContainer}>
               <Text style={styles.headerIcon}>📈</Text>
             </View>
@@ -92,6 +470,87 @@ export default function MainScreen() {
             </View>
           </View>
 
+          {/* 포트폴리오 종목 섹션 */}
+          {portfolioStocks.length > 0 && (
+            <View style={styles.dashboardSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>내 포트폴리오</Text>
+                <TouchableOpacity
+                  onPress={() => router.push('/portfolios')}
+                  style={styles.moreButton}
+                >
+                  <Text style={styles.moreButtonText}>전체 보기 →</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.stocksContainer}>
+                {portfolioStocks.slice(0, 5).map((stock) => {
+                  const changePercent = stock.currentPrice && stock.averagePrice > 0
+                    ? ((stock.currentPrice - stock.averagePrice) / stock.averagePrice) * 100
+                    : null;
+                  const changeAmount = stock.currentPrice && stock.averagePrice
+                    ? stock.currentPrice - stock.averagePrice
+                    : null;
+                  
+                  return (
+                    <TouchableOpacity
+                      key={stock.id}
+                      style={styles.stockCard}
+                      onPress={() => router.push(`/stock-detail?id=${stock.id}`)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.stockCardHeader}>
+                        <View style={styles.stockCardNameContainer}>
+                          <Text style={styles.stockCardName} numberOfLines={1}>
+                            {stock.name || stock.officialName || stock.ticker}
+                          </Text>
+                          <Text style={styles.stockCardAccount}>{stock.accountName}</Text>
+                        </View>
+                        {stock.currentPrice && stock.currentPrice > 0 ? (
+                          <Text style={styles.stockCardPrice}>
+                            {formatCurrency(stock.currentPrice, stock.currency)}
+                          </Text>
+                        ) : (
+                          <Text style={styles.stockCardPriceUnavailable}>-</Text>
+                        )}
+                      </View>
+                      {changePercent !== null && changeAmount !== null && (
+                        <View style={styles.stockCardChange}>
+                          <Text
+                            style={[
+                              styles.stockCardChangeText,
+                              changePercent >= 0 ? styles.positive : styles.negative,
+                            ]}
+                          >
+                            {changePercent >= 0 ? '+' : ''}{changePercent.toFixed(2)}%
+                          </Text>
+                          <Text
+                            style={[
+                              styles.stockCardChangeAmount,
+                              changeAmount >= 0 ? styles.positive : styles.negative,
+                            ]}
+                          >
+                            ({changeAmount >= 0 ? '+' : ''}{formatCurrency(Math.abs(changeAmount), stock.currency)})
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {portfolioStocks.length > 5 && (
+                <TouchableOpacity
+                  style={styles.showMoreButton}
+                  onPress={() => router.push('/portfolios')}
+                >
+                  <Text style={styles.showMoreButtonText}>
+                    + {portfolioStocks.length - 5}개 더 보기
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* 계산기 카드들 */}
           <View style={styles.cardsContainer}>
             <CalculatorCard
               title="수익률 계산기"
@@ -111,6 +570,247 @@ export default function MainScreen() {
             />
             <View style={styles.cardSpacer} />
 
+          </View>
+
+          <View style={styles.adSpacer} />
+
+          <View style={styles.adContainer}>
+            <AdmobBanner />
+          </View>
+
+          <View style={styles.adSpacer} />
+
+          {/* 관련 뉴스 섹션 (포트폴리오가 있을 때만) */}
+          {relatedNewsStocks.length > 0 && (
+            <View style={styles.dashboardSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>관련 뉴스</Text>
+                {relatedNewsStocks[selectedStockIndex] && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      // 주식뉴스 화면으로 이동 (선택된 종목과 언어 정보 포함)
+                      const selectedStock = relatedNewsStocks[selectedStockIndex];
+                      router.push(`/news?lang=${relatedNewsLanguage}&stockId=${selectedStock.id}`);
+                    }}
+                    style={styles.moreButton}
+                  >
+                    <Text style={styles.moreButtonText}>전체 보기 →</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              
+              {/* 종목 선택 탭 */}
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                style={styles.stockTabsContainer}
+                contentContainerStyle={styles.stockTabsContent}
+              >
+                {relatedNewsStocks.map((stock, index) => (
+                  <TouchableOpacity
+                    key={stock.id}
+                    style={[
+                      styles.stockTab,
+                      selectedStockIndex === index && styles.stockTabActive,
+                    ]}
+                    onPress={() => {
+                      setSelectedStockIndex(index);
+                      const stockNews = stockNewsMap.get(stock.id) || { ko: [], en: [] };
+                      setRelatedNews(relatedNewsLanguage === 'ko' ? stockNews.ko : stockNews.en);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.stockTabText,
+                        selectedStockIndex === index && styles.stockTabTextActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {stock.name || stock.officialName || stock.ticker}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              
+              {/* 언어 선택 탭 */}
+              <View style={styles.languageTabs}>
+                <TouchableOpacity
+                  style={[
+                    styles.languageTab,
+                    relatedNewsLanguage === 'ko' && styles.languageTabActive,
+                  ]}
+                  onPress={() => {
+                    setRelatedNewsLanguage('ko');
+                    const selectedStock = relatedNewsStocks[selectedStockIndex];
+                    if (selectedStock) {
+                      const stockNews = stockNewsMap.get(selectedStock.id) || { ko: [], en: [] };
+                      setRelatedNews(stockNews.ko);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.languageTabText,
+                      relatedNewsLanguage === 'ko' && styles.languageTabTextActive,
+                    ]}
+                  >
+                    한글 기사
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.languageTab,
+                    relatedNewsLanguage === 'en' && styles.languageTabActive,
+                  ]}
+                  onPress={() => {
+                    setRelatedNewsLanguage('en');
+                    const selectedStock = relatedNewsStocks[selectedStockIndex];
+                    if (selectedStock) {
+                      const stockNews = stockNewsMap.get(selectedStock.id) || { ko: [], en: [] };
+                      setRelatedNews(stockNews.en);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.languageTabText,
+                      relatedNewsLanguage === 'en' && styles.languageTabTextActive,
+                    ]}
+                  >
+                    영문 기사
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              
+              {relatedNews.length > 0 ? (
+                relatedNews.slice(0, 3).map((news) => (
+                  <TouchableOpacity
+                    key={news.id}
+                    style={styles.newsCard}
+                    onPress={() => {
+                      Linking.openURL(news.link).catch(err =>
+                        console.error('링크 열기 실패:', err)
+                      );
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.newsTitle} numberOfLines={2}>
+                      {news.title}
+                    </Text>
+                    <Text style={styles.newsSource}>
+                      {news.source} · {new Date(news.publishedAt).toLocaleDateString('ko-KR')}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.emptyNewsContainer}>
+                  <Text style={styles.emptyNewsText}>
+                    {relatedNewsLanguage === 'ko' ? '한글 관련 뉴스가 없습니다.' : '영문 관련 뉴스가 없습니다.'}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* 최신 뉴스 섹션 */}
+          {(latestNewsKo.length > 0 || latestNewsEn.length > 0) && (
+            <View style={styles.dashboardSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>최신 뉴스</Text>
+                <TouchableOpacity
+                  onPress={() => router.push(`/news?lang=${latestNewsLanguage}`)}
+                  style={styles.moreButton}
+                >
+                  <Text style={styles.moreButtonText}>전체 보기 →</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {/* 언어 선택 탭 */}
+              <View style={styles.languageTabs}>
+                <TouchableOpacity
+                  style={[
+                    styles.languageTab,
+                    latestNewsLanguage === 'ko' && styles.languageTabActive,
+                  ]}
+                  onPress={() => {
+                    setLatestNewsLanguage('ko');
+                    if (latestNewsKo.length > 0) {
+                      setLatestNews(latestNewsKo.slice(0, 3));
+                    } else {
+                      setLatestNews([]);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.languageTabText,
+                      latestNewsLanguage === 'ko' && styles.languageTabTextActive,
+                    ]}
+                  >
+                    한글 기사
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.languageTab,
+                    latestNewsLanguage === 'en' && styles.languageTabActive,
+                  ]}
+                  onPress={() => {
+                    setLatestNewsLanguage('en');
+                    if (latestNewsEn.length > 0) {
+                      setLatestNews(latestNewsEn.slice(0, 3));
+                    } else {
+                      setLatestNews([]);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.languageTabText,
+                      latestNewsLanguage === 'en' && styles.languageTabTextActive,
+                    ]}
+                  >
+                    영문 기사
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              
+              {latestNews.length > 0 ? (
+                latestNews.map((news) => (
+                  <TouchableOpacity
+                    key={news.id}
+                    style={styles.newsCard}
+                    onPress={() => {
+                      Linking.openURL(news.link).catch(err =>
+                        console.error('링크 열기 실패:', err)
+                      );
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.newsTitle} numberOfLines={2}>
+                      {news.title}
+                    </Text>
+                    <Text style={styles.newsSource}>
+                      {news.source} · {new Date(news.publishedAt).toLocaleDateString('ko-KR')}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.emptyNewsContainer}>
+                  <Text style={styles.emptyNewsText}>
+                    {latestNewsLanguage === 'ko' ? '한글 최신 뉴스가 없습니다.' : '영문 최신 뉴스가 없습니다.'}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          <View style={styles.cardsContainer}>
             <CalculatorCard
               title="포트폴리오"
               description={['나의 포트폴리오와 종목을 저장하여', '매매기록을 관리합니다']}
@@ -131,13 +831,16 @@ export default function MainScreen() {
 
           <View style={styles.adSpacer} />
 
-          <View style={styles.adContainer}>
-            <AdmobBanner />
-          </View>
-
-          <View style={styles.adSpacer} />
-
           <View style={styles.cardsContainer}>
+            <CalculatorCard
+              title="주식 뉴스"
+              description={['최신 주식 뉴스를', '한눈에 확인하세요']}
+              icon="📰"
+              color="#FF5722"
+              onPress={() => router.push('/news')}
+            />
+            <View style={styles.cardSpacer} />
+
             <CalculatorCard
               title="환경설정"
               description={['거래세와 수수료를', '원화/달러별로 설정합니다']}
@@ -157,6 +860,8 @@ export default function MainScreen() {
               <Text style={styles.privacyLink}>개인정보처리방침</Text>
             </TouchableOpacity>
           </View>
+            </>
+          )}
         </ScrollView>
       </LinearGradient>
 
@@ -439,11 +1144,287 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   adSpacer: {
-    height: 12,
+    height: 24,
   },
   adContainer: {
     width: '100%',
     marginTop: 0,
     marginBottom: 0,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+    minHeight: 300,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#B0BEC5',
+  },
+  topIndicatorsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 24,
+    gap: 8,
+  },
+  topIndicatorCard: {
+    flex: 1,
+    backgroundColor: 'rgba(66, 165, 245, 0.1)',
+    borderRadius: 8,
+    padding: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.2)',
+    minHeight: 70,
+    justifyContent: 'center',
+  },
+  topIndicatorName: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  topIndicatorPrice: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  topIndicatorChange: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  menuBannersContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 24,
+    gap: 8,
+  },
+  menuBannerCard: {
+    flex: 1,
+    backgroundColor: 'rgba(66, 165, 245, 0.1)',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.2)',
+    minHeight: 70,
+    justifyContent: 'center',
+  },
+  menuBannerIcon: {
+    fontSize: 20,
+    marginBottom: 6,
+  },
+  menuBannerText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  dashboardSection: {
+    width: '100%',
+    marginBottom: 32,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  moreButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  moreButtonText: {
+    fontSize: 14,
+    color: '#42A5F5',
+    fontWeight: '600',
+  },
+  stocksContainer: {
+    gap: 12,
+  },
+  stockCard: {
+    backgroundColor: 'rgba(13, 27, 42, 0.6)',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.2)',
+  },
+  stockCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  stockCardNameContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  stockCardName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  stockCardAccount: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  stockCardPrice: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  stockCardPriceUnavailable: {
+    fontSize: 16,
+    color: '#94A3B8',
+  },
+  stockCardChange: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stockCardChangeText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  stockCardChangeAmount: {
+    fontSize: 12,
+  },
+  positive: {
+    color: '#4CAF50',
+  },
+  negative: {
+    color: '#EF5350',
+  },
+  showMoreButton: {
+    marginTop: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: 'rgba(66, 165, 245, 0.1)',
+  },
+  showMoreButtonText: {
+    fontSize: 14,
+    color: '#42A5F5',
+    fontWeight: '600',
+  },
+  indicatorsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  indicatorCard: {
+    flex: 1,
+    minWidth: '47%',
+    backgroundColor: 'rgba(13, 27, 42, 0.6)',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.2)',
+  },
+  indicatorName: {
+    fontSize: 14,
+    color: '#94A3B8',
+    marginBottom: 8,
+  },
+  indicatorPrice: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  indicatorChange: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  newsCard: {
+    backgroundColor: 'rgba(13, 27, 42, 0.6)',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.2)',
+  },
+  newsTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  newsSource: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  stockTabsContainer: {
+    marginBottom: 12,
+  },
+  stockTabsContent: {
+    gap: 8,
+    paddingRight: 24,
+  },
+  stockTab: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: 'rgba(66, 165, 245, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.2)',
+    marginRight: 8,
+  },
+  stockTabActive: {
+    backgroundColor: '#42A5F5',
+    borderColor: '#42A5F5',
+  },
+  stockTabText: {
+    fontSize: 14,
+    color: '#42A5F5',
+    fontWeight: '600',
+  },
+  stockTabTextActive: {
+    color: '#FFFFFF',
+  },
+  languageTabs: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    gap: 8,
+  },
+  languageTab: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: 'rgba(66, 165, 245, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.2)',
+  },
+  languageTabActive: {
+    backgroundColor: '#42A5F5',
+    borderColor: '#42A5F5',
+  },
+  languageTabText: {
+    fontSize: 14,
+    color: '#42A5F5',
+    fontWeight: '600',
+  },
+  languageTabTextActive: {
+    color: '#FFFFFF',
+  },
+  emptyNewsContainer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  emptyNewsText: {
+    fontSize: 14,
+    color: '#94A3B8',
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
   TextInput,
   Modal,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -27,10 +28,15 @@ import { TradingRecord } from '../src/models/TradingRecord';
 import { Currency } from '../src/models/Currency';
 import { formatCurrency, formatNumber as formatNumberUtil, addCommas } from '../src/utils/formatUtils';
 import { SettingsService } from '../src/services/SettingsService';
+import { fetchStockNews, fetchGoogleNewsRSS } from '../src/services/NewsService';
+import { NewsItem } from '../src/models/NewsItem';
+import NewsList from '../src/components/NewsList';
 
 export default function StockDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, lang, scrollToNews } = useLocalSearchParams<{ id: string; lang?: string; scrollToNews?: string }>();
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [newsContainerY, setNewsContainerY] = useState<number | null>(null);
   const [stock, setStock] = useState<Stock | null>(null);
   const [records, setRecords] = useState<TradingRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,6 +46,20 @@ export default function StockDetailScreen() {
   // 실적 추가 입력값
   const [priceInput, setPriceInput] = useState('');
   const [quantityInput, setQuantityInput] = useState('');
+
+  // 관련 뉴스
+  const [relatedNews, setRelatedNews] = useState<NewsItem[]>([]);
+  const [relatedNewsKo, setRelatedNewsKo] = useState<NewsItem[]>([]);
+  const [relatedNewsEn, setRelatedNewsEn] = useState<NewsItem[]>([]);
+  const [relatedNewsLanguage, setRelatedNewsLanguage] = useState<'ko' | 'en'>(() => {
+    // URL 파라미터에서 언어 정보 가져오기, 없으면 기본값 'ko'
+    return (lang === 'en' ? 'en' : 'ko') as 'ko' | 'en';
+  });
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [newsRefreshing, setNewsRefreshing] = useState(false);
+  const [newsLoadingMore, setNewsLoadingMore] = useState(false);
+  const [newsDaysBack, setNewsDaysBack] = useState(7);
+  const [newsHasMore, setNewsHasMore] = useState(true);
 
   const formatPrice = (price?: number, currency: Currency = Currency.KRW) => {
     if (price === undefined || price === null) return formatCurrency(0, currency);
@@ -98,6 +118,32 @@ export default function StockDetailScreen() {
   useEffect(() => {
     loadStockDetail();
   }, [id]);
+
+  useEffect(() => {
+    // URL 파라미터에서 언어 정보 가져오기
+    if (lang === 'en') {
+      setRelatedNewsLanguage('en');
+    } else if (lang === 'ko') {
+      setRelatedNewsLanguage('ko');
+    }
+  }, [lang]);
+
+  useEffect(() => {
+    if (stock) {
+      // 초기 로딩 시에도 강제 새로고침하여 필터링된 뉴스만 가져오기
+      loadRelatedNews(true, 7, false, relatedNewsLanguage);
+    }
+  }, [stock, relatedNewsLanguage]);
+
+  // 관련 뉴스가 로드되고 scrollToNews 파라미터가 있으면 스크롤
+  useEffect(() => {
+    if (scrollToNews === 'true' && !newsLoading && relatedNews.length > 0 && newsContainerY !== null) {
+      // 약간의 지연을 두고 스크롤 (레이아웃이 완전히 렌더링된 후)
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y: newsContainerY - 20, animated: true });
+      }, 500);
+    }
+  }, [scrollToNews, newsLoading, relatedNews.length, newsContainerY]);
 
   // 모달이 열릴 때 매핑된 종목이면 현재가를 자동 설정
   useEffect(() => {
@@ -256,6 +302,117 @@ export default function StockDetailScreen() {
     }
   };
 
+  const loadRelatedNews = async (forceRefresh: boolean = false, days: number = 7, append: boolean = false, targetLang?: 'ko' | 'en') => {
+    if (!stock) return;
+    
+    const language = targetLang || relatedNewsLanguage;
+    
+    try {
+      if (forceRefresh && !append) {
+        setNewsRefreshing(true);
+      } else if (!append) {
+        setNewsLoading(true);
+      } else {
+        setNewsLoadingMore(true);
+      }
+
+      const stockName = stock.officialName || stock.name || stock.ticker;
+      console.log(`종목별 뉴스 로드 시작: ${stock.ticker}, ${stockName}, 언어: ${language}, ${days}일`);
+      
+      // 한글/영문 뉴스를 각각 가져오기
+      const [newsKo, newsEn] = await Promise.all([
+        fetchGoogleNewsRSS(stockName, stock.officialName || stock.name, stock.ticker, 'ko', days).catch(err => {
+          console.warn(`한글 뉴스 로드 실패:`, err);
+          return [];
+        }),
+        fetchGoogleNewsRSS(stockName, stock.officialName || stock.name, stock.ticker, 'en', days).catch(err => {
+          console.warn(`영문 뉴스 로드 실패:`, err);
+          return [];
+        }),
+      ]);
+
+      console.log(`종목별 뉴스 로드 완료: 한글 ${newsKo.length}개, 영문 ${newsEn.length}개`);
+      
+      if (append) {
+        // 기존 뉴스에 추가 (중복 제거)
+        if (language === 'ko') {
+          const existingIds = new Set(relatedNewsKo.map(n => n.id));
+          const newNews = newsKo.filter(n => !existingIds.has(n.id));
+          setRelatedNewsKo(prev => {
+            const updated = [...prev, ...newNews];
+            if (relatedNewsLanguage === 'ko') {
+              setRelatedNews(updated);
+            }
+            return updated;
+          });
+          
+          if (newNews.length === 0 && days >= 365) {
+            setNewsHasMore(false);
+          }
+        } else {
+          const existingIds = new Set(relatedNewsEn.map(n => n.id));
+          const newNews = newsEn.filter(n => !existingIds.has(n.id));
+          setRelatedNewsEn(prev => {
+            const updated = [...prev, ...newNews];
+            if (relatedNewsLanguage === 'en') {
+              setRelatedNews(updated);
+            }
+            return updated;
+          });
+          
+          if (newNews.length === 0 && days >= 365) {
+            setNewsHasMore(false);
+          }
+        }
+      } else {
+        // 초기 로드 또는 새로고침
+        setRelatedNewsKo(newsKo);
+        setRelatedNewsEn(newsEn);
+        
+        // 현재 선택된 언어의 뉴스 설정
+        setRelatedNews(language === 'ko' ? newsKo : newsEn);
+        setNewsHasMore(days < 365); // 365일까지는 더 불러올 수 있음
+      }
+    } catch (error) {
+      console.error('관련 뉴스 로드 오류:', error);
+      setNewsHasMore(false);
+    } finally {
+      setNewsLoading(false);
+      setNewsRefreshing(false);
+      setNewsLoadingMore(false);
+    }
+  };
+
+  const handleNewsRefresh = () => {
+    setNewsDaysBack(7);
+    setNewsHasMore(true);
+    loadRelatedNews(true, 7, false, relatedNewsLanguage);
+  };
+
+  const handleNewsLoadMore = () => {
+    if (newsLoadingMore || !newsHasMore || !stock) return;
+    
+    // 기간을 확장하여 더 많은 뉴스 가져오기
+    let newDaysBack = newsDaysBack;
+    if (newsDaysBack < 30) {
+      newDaysBack = 30;
+    } else if (newsDaysBack < 365) {
+      newDaysBack = 365;
+    } else {
+      setNewsHasMore(false);
+      return;
+    }
+    
+    setNewsDaysBack(newDaysBack);
+    loadRelatedNews(true, newDaysBack, true, relatedNewsLanguage);
+  };
+
+  const handleNewsPress = (newsItem: NewsItem) => {
+    Linking.openURL(newsItem.link).catch(err => 
+      console.error('링크 열기 실패:', err)
+    );
+  };
+
   const handleDeleteRecord = async (record: TradingRecord) => {
     if (!stock) return;
 
@@ -386,9 +543,13 @@ export default function StockDetailScreen() {
         colors={['#0D1B2A', '#1B263B', '#0F1419']}
         style={styles.gradient}
       >
+        {/* 상단 고정 영역 (종목 정보, 버튼, 거래 기록) */}
         <ScrollView
+          ref={scrollViewRef}
+          style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          nestedScrollEnabled={true}
         >
           {/* 종목 정보 카드 */}
           <View style={styles.stockInfoCard}>
@@ -687,6 +848,99 @@ export default function StockDetailScreen() {
               ))
             )}
           </View>
+
+          {/* 관련 뉴스 섹션 */}
+          {stock && (
+            <View 
+              style={styles.newsContainer}
+              onLayout={(event) => {
+                const { y } = event.nativeEvent.layout;
+                setNewsContainerY(y);
+              }}
+            >
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>관련 뉴스</Text>
+                <TouchableOpacity
+                  onPress={handleNewsRefresh}
+                  style={styles.refreshButton}
+                  disabled={newsRefreshing}
+                >
+                  {newsRefreshing ? (
+                    <ActivityIndicator size="small" color="#42A5F5" />
+                  ) : (
+                    <Text style={styles.refreshButtonText}>새로고침</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+              
+              {/* 언어 선택 탭 */}
+              <View style={styles.languageTabs}>
+                <TouchableOpacity
+                  style={[
+                    styles.languageTab,
+                    relatedNewsLanguage === 'ko' && styles.languageTabActive,
+                  ]}
+                  onPress={() => {
+                    setRelatedNewsLanguage('ko');
+                    setRelatedNews(relatedNewsKo);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.languageTabText,
+                      relatedNewsLanguage === 'ko' && styles.languageTabTextActive,
+                    ]}
+                  >
+                    한글 기사
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.languageTab,
+                    relatedNewsLanguage === 'en' && styles.languageTabActive,
+                  ]}
+                  onPress={() => {
+                    setRelatedNewsLanguage('en');
+                    setRelatedNews(relatedNewsEn);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.languageTabText,
+                      relatedNewsLanguage === 'en' && styles.languageTabTextActive,
+                    ]}
+                  >
+                    영문 기사
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              
+              {newsLoading ? (
+                <View style={styles.emptyContainer}>
+                  <ActivityIndicator size="small" color="#42A5F5" />
+                  <Text style={styles.emptyText}>뉴스를 불러오는 중...</Text>
+                </View>
+              ) : (
+                <NewsList
+                  news={relatedNews}
+                  onRefresh={undefined}
+                  refreshing={false}
+                  onNewsPress={handleNewsPress}
+                  emptyMessage={`${stock.officialName || stock.name || stock.ticker} 관련 뉴스가 없습니다.`}
+                  nestedScrollEnabled={false}
+                  loadingMore={newsLoadingMore}
+                />
+              )}
+              {newsLoadingMore && (
+                <View style={styles.loadingMoreContainer}>
+                  <ActivityIndicator size="small" color="#42A5F5" />
+                  <Text style={styles.loadingMoreText}>더 많은 뉴스를 불러오는 중...</Text>
+                </View>
+              )}
+            </View>
+          )}
         </ScrollView>
       </LinearGradient>
 
@@ -770,6 +1024,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#0D1B2A',
   },
   gradient: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  scrollView: {
     flex: 1,
   },
   scrollContent: {
@@ -936,6 +1194,22 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
+  newsContainer: {
+    paddingHorizontal: 8,
+    paddingTop: 24,
+    paddingBottom: 0,
+    marginTop: 24,
+  },
+  loadingMoreContainer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingMoreText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#94A3B8',
+  },
   recordsContainer: {
     marginTop: 8,
   },
@@ -960,6 +1234,42 @@ const styles = StyleSheet.create({
     color: '#F44336',
     fontSize: 14,
     fontWeight: '600',
+  },
+  refreshButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+  },
+  refreshButtonText: {
+    color: '#42A5F5',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  languageTabs: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    gap: 8,
+  },
+  languageTab: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: 'rgba(66, 165, 245, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.2)',
+  },
+  languageTabActive: {
+    backgroundColor: '#42A5F5',
+    borderColor: '#42A5F5',
+  },
+  languageTabText: {
+    fontSize: 14,
+    color: '#42A5F5',
+    fontWeight: '600',
+  },
+  languageTabTextActive: {
+    color: '#FFFFFF',
   },
   emptyContainer: {
     alignItems: 'center',

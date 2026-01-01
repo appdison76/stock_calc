@@ -34,18 +34,24 @@ export default function RootLayout() {
         console.error('Google Mobile Ads initialization error:', error);
       });
 
-    // 알림 초기화
+    // 알림 초기화 (Firebase 설정 전까지는 비활성화)
     const initializeNotifications = async () => {
       try {
         // 알림 토큰 생성 (권한 요청 포함)
+        // Firebase 설정 전까지는 오류를 조용히 무시
         const token = await getNotificationToken();
         if (token) {
           console.log('알림 토큰 생성 완료:', token);
           // TODO: 나중에 서버/Firebase 연동 시 토큰을 서버에 등록
           // await registerTokenToServer(token);
         }
-      } catch (error) {
-        console.error('알림 초기화 오류:', error);
+      } catch (error: any) {
+        // Firebase 미설정 시 발생하는 오류는 무시
+        if (error?.message?.includes('FirebaseApp') || error?.message?.includes('Firebase')) {
+          console.log('알림 기능: Firebase 설정 필요 (현재 비활성화)');
+        } else {
+          console.error('알림 초기화 오류:', error);
+        }
       }
     };
 
@@ -114,6 +120,12 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="news"
+          options={{
+            title: '주식 뉴스',
+          }}
+        />
+        <Stack.Screen
           name="settings"
           options={{
             title: '환경설정',
@@ -141,6 +153,12 @@ export default function RootLayout() {
           name="visualization"
           options={{
             headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="market-indicators"
+          options={{
+            title: '주요 지표',
           }}
         />
       </Stack>

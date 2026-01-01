@@ -71,23 +71,41 @@ export async function getNotificationToken(): Promise<string | null> {
       return savedToken;
     }
 
-    // 새 토큰 생성
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: '36134970-204f-47ae-854f-4b91bde8c562', // EAS project ID
-    });
+    // 새 토큰 생성 시도
+    try {
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: '36134970-204f-47ae-854f-4b91bde8c562', // EAS project ID
+      });
 
-    const token = tokenData.data;
-    
-    // 토큰 저장
-    await AsyncStorage.setItem(NOTIFICATION_TOKEN_KEY, token);
-    
-    console.log('알림 토큰 생성:', token);
-    
-    // TODO: 나중에 서버/Firebase 연동 시 여기서 토큰을 서버에 등록
-    // await registerTokenToServer(token);
-    
-    return token;
-  } catch (error) {
+      const token = tokenData.data;
+      
+      // 토큰 저장
+      await AsyncStorage.setItem(NOTIFICATION_TOKEN_KEY, token);
+      
+      console.log('알림 토큰 생성:', token);
+      
+      // TODO: 나중에 서버/Firebase 연동 시 여기서 토큰을 서버에 등록
+      // await registerTokenToServer(token);
+      
+      return token;
+    } catch (tokenError: any) {
+      // Firebase 미설정 등으로 인한 오류는 조용히 처리
+      if (tokenError?.message?.includes('FirebaseApp') || 
+          tokenError?.message?.includes('Firebase') ||
+          tokenError?.message?.includes('Make sure to')) {
+        console.log('알림 토큰: Firebase 설정 필요 (현재 비활성화)');
+        return null;
+      }
+      throw tokenError;
+    }
+  } catch (error: any) {
+    // Firebase 관련 오류는 조용히 무시
+    if (error?.message?.includes('FirebaseApp') || 
+        error?.message?.includes('Firebase') ||
+        error?.message?.includes('Make sure to')) {
+      console.log('알림 토큰: Firebase 설정 필요 (현재 비활성화)');
+      return null;
+    }
     console.error('알림 토큰 가져오기 오류:', error);
     return null;
   }
@@ -149,8 +167,13 @@ export function setupNotificationListeners(
 
   return {
     remove: () => {
-      Notifications.removeNotificationSubscription(receivedListener);
-      Notifications.removeNotificationSubscription(responseListener);
+      // subscription 객체의 remove() 메서드 직접 호출
+      if (receivedListener && typeof receivedListener.remove === 'function') {
+        receivedListener.remove();
+      }
+      if (responseListener && typeof responseListener.remove === 'function') {
+        responseListener.remove();
+      }
     },
   };
 }
