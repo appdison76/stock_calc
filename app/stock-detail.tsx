@@ -28,6 +28,8 @@ import { TradingRecord } from '../src/models/TradingRecord';
 import { Currency } from '../src/models/Currency';
 import { formatCurrency, formatNumber as formatNumberUtil, addCommas } from '../src/utils/formatUtils';
 import { SettingsService } from '../src/services/SettingsService';
+import { ExchangeRateService } from '../src/services/ExchangeRateService';
+import { getStockQuote } from '../src/services/YahooFinanceService';
 import { fetchStockNews, fetchGoogleNewsRSS } from '../src/services/NewsService';
 import { NewsItem } from '../src/models/NewsItem';
 import NewsList from '../src/components/NewsList';
@@ -60,10 +62,18 @@ export default function StockDetailScreen() {
   const [newsLoadingMore, setNewsLoadingMore] = useState(false);
   const [newsDaysBack, setNewsDaysBack] = useState(7);
   const [newsHasMore, setNewsHasMore] = useState(true);
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
 
   const formatPrice = (price?: number, currency: Currency = Currency.KRW) => {
     if (price === undefined || price === null) return formatCurrency(0, currency);
     return formatCurrency(price, currency);
+  };
+
+  // USD 가격에 대한 원화 변환값 표시 (작은 글씨)
+  const getKrwEquivalentForDisplay = (usdValue: number | undefined | null): string | null => {
+    if (usdValue === undefined || usdValue === null || !exchangeRate) return null;
+    const krwValue = usdValue * exchangeRate;
+    return `원화 ${addCommas(krwValue.toFixed(0))}원`;
   };
 
   const formatNumber = (num: number) => {
@@ -170,6 +180,21 @@ export default function StockDetailScreen() {
     try {
       setIsLoading(true);
       await initDatabase();
+      
+      // 환율 로드 (USD 종목인 경우)
+      try {
+        const usdkrwQuote = await getStockQuote('USDKRW=X');
+        if (usdkrwQuote) {
+          setExchangeRate(usdkrwQuote.price);
+        } else {
+          const rate = await ExchangeRateService.getUsdToKrwRate();
+          setExchangeRate(rate);
+        }
+      } catch (rateError) {
+        console.warn('환율 로드 실패:', rateError);
+        const rate = await ExchangeRateService.getUsdToKrwRate();
+        setExchangeRate(rate);
+      }
       
       // 현재가 갱신 (백그라운드에서 실행, 실패해도 계속 진행)
       try {
@@ -563,21 +588,37 @@ export default function StockDetailScreen() {
                   </Text>
                 )}
               </View>
-              {records.length > 0 && (
+              <View style={styles.chartIconsContainer}>
                 <TouchableOpacity
                   style={styles.chartIconButton}
-                  onPress={() => router.push(`/visualization?stockId=${stock.id}`)}
+                  onPress={() => router.push(`/stock-chart?id=${stock.id}`)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.chartIcon}>📉</Text>
+                  <Text style={styles.chartIcon}>📈</Text>
+                  <Text style={styles.chartIconLabel}>종목차트</Text>
                 </TouchableOpacity>
-              )}
+                {records.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.chartIconButton}
+                    onPress={() => router.push(`/visualization?stockId=${stock.id}`)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.chartIcon}>📉</Text>
+                    <Text style={styles.chartIconLabel}>매매기록</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
             <View style={styles.stockDetails}>
               {/* 평단가 - 강조 */}
               <View style={styles.stockDetailRow}>
                 <Text style={styles.stockDetailLabel}>평균 단가</Text>
-                <Text style={styles.stockDetailValue}>{formatPrice(stock.averagePrice, stock.currency)}</Text>
+                <View style={styles.priceWithKrwContainer}>
+                  <Text style={[styles.stockDetailValue, styles.averagePriceText]}>{formatPrice(stock.averagePrice, stock.currency)}</Text>
+                  {stock.currency === Currency.USD && getKrwEquivalentForDisplay(stock.averagePrice) && (
+                    <Text style={styles.krwEquivalentText}>{getKrwEquivalentForDisplay(stock.averagePrice)}</Text>
+                  )}
+                </View>
               </View>
               
               {/* 보유 수량 - 강조 */}
@@ -589,9 +630,14 @@ export default function StockDetailScreen() {
               {/* 총 매수 금액 */}
               <View style={styles.stockDetailRow}>
                 <Text style={styles.stockDetailLabel}>총 매수 금액</Text>
-                <Text style={styles.stockDetailValueSecondary}>
-                  {formatPrice((stock.averagePrice || 0) * (stock.quantity || 0), stock.currency)}
-                </Text>
+                <View style={styles.priceWithKrwContainer}>
+                  <Text style={styles.stockDetailValueSecondary}>
+                    {formatPrice((stock.averagePrice || 0) * (stock.quantity || 0), stock.currency)}
+                  </Text>
+                  {stock.currency === Currency.USD && getKrwEquivalentForDisplay((stock.averagePrice || 0) * (stock.quantity || 0)) && (
+                    <Text style={styles.krwEquivalentText}>{getKrwEquivalentForDisplay((stock.averagePrice || 0) * (stock.quantity || 0))}</Text>
+                  )}
+                </View>
               </View>
               
               {/* 현재가 및 평단가 비교 */}
@@ -599,9 +645,14 @@ export default function StockDetailScreen() {
                 <>
                   <View style={styles.stockDetailRow}>
                     <Text style={styles.stockDetailLabel}>현재가</Text>
-                    <Text style={[styles.stockDetailValueSecondary, styles.currentPriceText]}>
-                      {formatPrice(stock.currentPrice, stock.currency)}
-                    </Text>
+                    <View style={styles.priceWithKrwContainer}>
+                      <Text style={[styles.stockDetailValueSecondary, styles.currentPriceText]}>
+                        {formatPrice(stock.currentPrice, stock.currency)}
+                      </Text>
+                      {stock.currency === Currency.USD && getKrwEquivalentForDisplay(stock.currentPrice) && (
+                        <Text style={styles.krwEquivalentText}>{getKrwEquivalentForDisplay(stock.currentPrice)}</Text>
+                      )}
+                    </View>
                   </View>
                   {stock.averagePrice > 0 && (
                     <View style={styles.stockDetailRow}>
@@ -619,12 +670,17 @@ export default function StockDetailScreen() {
                               ]}>
                                 {isProfit ? '+' : ''}{profitRate.toFixed(2)}%
                               </Text>
-                              <Text style={[
-                                styles.profitAmountText,
-                                isProfit ? styles.profitText : styles.lossText
-                              ]}>
-                                ({isProfit ? '+' : ''}{formatPrice(profitAmount, stock.currency)})
-                              </Text>
+                              <View style={styles.priceWithKrwContainer}>
+                                <Text style={[
+                                  styles.profitAmountText,
+                                  isProfit ? styles.profitText : styles.lossText
+                                ]}>
+                                  ({isProfit ? '+' : ''}{formatPrice(profitAmount, stock.currency)})
+                                </Text>
+                                {stock.currency === Currency.USD && getKrwEquivalentForDisplay(profitAmount) && (
+                                  <Text style={[styles.krwEquivalentText, isProfit ? styles.profitText : styles.lossText]}>{getKrwEquivalentForDisplay(profitAmount)}</Text>
+                                )}
+                              </View>
                             </>
                           );
                         })()}
@@ -637,22 +693,6 @@ export default function StockDetailScreen() {
           </View>
 
           {/* 거래 추가 버튼들 */}
-          {/* 차트 보기 버튼 */}
-          <TouchableOpacity
-            style={styles.chartButton}
-            onPress={() => router.push(`/stock-chart?id=${stock.id}`)}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={['#42A5F5', '#1E88E5']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.chartButtonGradient}
-            >
-              <Text style={styles.chartButtonText}>📈 종목차트 보기</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
           <View style={styles.addButtonContainer}>
             <TouchableOpacity
               style={[styles.addButton, styles.buyButton]}
@@ -736,9 +776,14 @@ export default function StockDetailScreen() {
                       <>
                         <View style={styles.recordRow}>
                           <Text style={styles.recordLabel}>매수가</Text>
-                          <Text style={styles.recordValue}>
-                            {formatPrice(record.price, record.currency)}
-                          </Text>
+                          <View style={styles.priceWithKrwContainer}>
+                            <Text style={styles.recordValue}>
+                              {formatPrice(record.price, record.currency)}
+                            </Text>
+                            {record.currency === Currency.USD && getKrwEquivalentForDisplay(record.price) && (
+                              <Text style={styles.krwEquivalentText}>{getKrwEquivalentForDisplay(record.price)}</Text>
+                            )}
+                          </View>
                         </View>
                         <View style={styles.recordRow}>
                           <Text style={styles.recordLabel}>매수 수량</Text>
@@ -750,22 +795,32 @@ export default function StockDetailScreen() {
                           <>
                             <View style={styles.recordRow}>
                               <Text style={styles.recordLabel}>매수 전 평단가</Text>
-                              <Text style={styles.recordValue}>
-                                {formatPrice(record.averagePriceBefore, record.currency)}
-                              </Text>
+                              <View style={styles.priceWithKrwContainer}>
+                                <Text style={styles.recordValue}>
+                                  {formatPrice(record.averagePriceBefore, record.currency)}
+                                </Text>
+                                {record.currency === Currency.USD && getKrwEquivalentForDisplay(record.averagePriceBefore) && (
+                                  <Text style={styles.krwEquivalentText}>{getKrwEquivalentForDisplay(record.averagePriceBefore)}</Text>
+                                )}
+                              </View>
                             </View>
                             {record.averagePriceAfter !== undefined && (
                               <>
                                 <View style={styles.recordRow}>
                                   <Text style={styles.recordLabel}>매수 후 평단가</Text>
-                                  <Text style={[
-                                    styles.recordValue, 
-                                    styles.recordValueHighlight,
-                                    record.averagePriceAfter > record.averagePriceBefore ? styles.priceUp : 
-                                    record.averagePriceAfter < record.averagePriceBefore ? styles.priceDown : null
-                                  ]}>
-                                    {formatPrice(record.averagePriceAfter, record.currency)}
-                                  </Text>
+                                  <View style={styles.priceWithKrwContainer}>
+                                    <Text style={[
+                                      styles.recordValue, 
+                                      styles.recordValueHighlight,
+                                      record.averagePriceAfter > record.averagePriceBefore ? styles.priceUp : 
+                                      record.averagePriceAfter < record.averagePriceBefore ? styles.priceDown : null
+                                    ]}>
+                                      {formatPrice(record.averagePriceAfter, record.currency)}
+                                    </Text>
+                                    {record.currency === Currency.USD && getKrwEquivalentForDisplay(record.averagePriceAfter) && (
+                                      <Text style={styles.krwEquivalentText}>{getKrwEquivalentForDisplay(record.averagePriceAfter)}</Text>
+                                    )}
+                                  </View>
                                 </View>
                                 <View style={styles.recordRow}>
                                   <Text style={styles.recordLabel}>평단 변화량</Text>
@@ -774,13 +829,18 @@ export default function StockDetailScreen() {
                                     const isUp = change > 0;
                                     const isDown = change < 0;
                                     return (
-                                      <Text style={[
-                                        styles.recordValue,
-                                        isUp ? styles.priceUp : isDown ? styles.priceDown : null
-                                      ]}>
-                                        {isUp ? '↑ ' : isDown ? '↓ ' : ''}
-                                        {formatPrice(Math.abs(change), record.currency)}
-                                      </Text>
+                                      <View style={styles.priceWithKrwContainer}>
+                                        <Text style={[
+                                          styles.recordValue,
+                                          isUp ? styles.priceUp : isDown ? styles.priceDown : null
+                                        ]}>
+                                          {isUp ? '+ ' : isDown ? '- ' : ''}
+                                          {formatPrice(Math.abs(change), record.currency)}
+                                        </Text>
+                                        {record.currency === Currency.USD && getKrwEquivalentForDisplay(Math.abs(change)) && (
+                                          <Text style={[styles.krwEquivalentText, isUp ? styles.priceUp : isDown ? styles.priceDown : null]}>{getKrwEquivalentForDisplay(Math.abs(change))}</Text>
+                                        )}
+                                      </View>
                                     );
                                   })()}
                                 </View>
@@ -795,7 +855,7 @@ export default function StockDetailScreen() {
                                         styles.recordValue,
                                         isUp ? styles.priceUp : isDown ? styles.priceDown : null
                                       ]}>
-                                        {isUp ? '↑ ' : isDown ? '↓ ' : ''}
+                                        {isUp ? '+ ' : isDown ? '- ' : ''}
                                         {Math.abs(changeRate).toFixed(2)}%
                                       </Text>
                                     );
@@ -810,9 +870,14 @@ export default function StockDetailScreen() {
                       <>
                         <View style={styles.recordRow}>
                           <Text style={styles.recordLabel}>매도가</Text>
-                          <Text style={styles.recordValue}>
-                            {formatPrice(record.price, record.currency)}
-                          </Text>
+                          <View style={styles.priceWithKrwContainer}>
+                            <Text style={styles.recordValue}>
+                              {formatPrice(record.price, record.currency)}
+                            </Text>
+                            {record.currency === Currency.USD && getKrwEquivalentForDisplay(record.price) && (
+                              <Text style={styles.krwEquivalentText}>{getKrwEquivalentForDisplay(record.price)}</Text>
+                            )}
+                          </View>
                         </View>
                         <View style={styles.recordRow}>
                           <Text style={styles.recordLabel}>매도 수량</Text>
@@ -823,22 +888,32 @@ export default function StockDetailScreen() {
                         {record.averagePriceAtSell !== undefined && (
                           <View style={styles.recordRow}>
                             <Text style={styles.recordLabel}>매도 시 평단가</Text>
-                            <Text style={styles.recordValue}>
-                              {formatPrice(record.averagePriceAtSell, record.currency)}
-                            </Text>
+                            <View style={styles.priceWithKrwContainer}>
+                              <Text style={styles.recordValue}>
+                                {formatPrice(record.averagePriceAtSell, record.currency)}
+                              </Text>
+                              {record.currency === Currency.USD && getKrwEquivalentForDisplay(record.averagePriceAtSell) && (
+                                <Text style={styles.krwEquivalentText}>{getKrwEquivalentForDisplay(record.averagePriceAtSell)}</Text>
+                              )}
+                            </View>
                           </View>
                         )}
                         {record.profit !== undefined && (
                           <View style={styles.recordRow}>
                             <Text style={styles.recordLabel}>손익</Text>
-                            <Text style={[
-                              styles.recordValue,
-                              record.profit > 0 ? styles.priceUp : 
-                              record.profit < 0 ? styles.priceDown : null
-                            ]}>
-                              {record.profit > 0 ? '+' : ''}
-                              {formatPrice(record.profit, record.currency)}
-                            </Text>
+                            <View style={styles.priceWithKrwContainer}>
+                              <Text style={[
+                                styles.recordValue,
+                                record.profit > 0 ? styles.priceUp : 
+                                record.profit < 0 ? styles.priceDown : null
+                              ]}>
+                                {record.profit > 0 ? '+' : ''}
+                                {formatPrice(record.profit, record.currency)}
+                              </Text>
+                              {record.currency === Currency.USD && getKrwEquivalentForDisplay(record.profit) && (
+                                <Text style={[styles.krwEquivalentText, record.profit > 0 ? styles.priceUp : record.profit < 0 ? styles.priceDown : null]}>{getKrwEquivalentForDisplay(record.profit)}</Text>
+                              )}
+                            </View>
                           </View>
                         )}
                       </>
@@ -1089,14 +1164,25 @@ const styles = StyleSheet.create({
     color: '#B0BEC5',
     marginTop: 4,
   },
+  chartIconsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
   chartIconButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(156, 39, 176, 0.15)',
-    marginLeft: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   chartIcon: {
-    fontSize: 20,
+    fontSize: 18,
+  },
+  chartIconLabel: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    marginTop: 2,
+    fontWeight: '500',
   },
   stockDetails: {
     gap: 16,
@@ -1128,7 +1214,10 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   currentPriceText: {
-    color: '#4CAF50',
+    color: '#FFC107', // 밝은 노란색/골드
+  },
+  averagePriceText: {
+    color: '#4DD0E1', // 밝은 시안
   },
   priceComparisonContainer: {
     flexDirection: 'row',
@@ -1137,19 +1226,30 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   profitText: {
-    color: '#F44336', // 빨간색 (수익)
+    color: '#4CAF50', // 녹색 (수익) - 미국 스타일
   },
   lossText: {
-    color: '#42A5F5', // 파란색 (손실)
+    color: '#F44336', // 빨간색 (손실) - 미국 스타일
   },
   profitAmountText: {
     fontSize: 14,
     fontWeight: '500',
   },
+  priceWithKrwContainer: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    flexShrink: 0,
+  },
+  krwEquivalentText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontWeight: 'normal',
+    marginTop: 2,
+  },
   addButtonContainer: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   addButton: {
     flex: 1,
@@ -1171,8 +1271,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
   },
   addButtonIcon: {
     fontSize: 24,
@@ -1180,7 +1280,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   addButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
@@ -1383,10 +1483,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   priceUp: {
-    color: '#EF5350',
+    color: '#4CAF50', // 녹색 (상승) - 미국 스타일
   },
   priceDown: {
-    color: '#42A5F5',
+    color: '#F44336', // 빨간색 (하락) - 미국 스타일
   },
   modalOverlay: {
     flex: 1,

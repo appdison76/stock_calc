@@ -68,3 +68,4 @@ with open('korean-stocks.json', 'w', encoding='utf-8') as f:
 생성된 데이터를 `src/services/YahooFinanceService.ts`의 `KOREAN_STOCK_MAP`과 `KOREAN_TICKER_TO_NAME_MAP`에 추가합니다.
 
 
+

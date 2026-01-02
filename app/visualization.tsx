@@ -21,6 +21,9 @@ import { Account } from '../src/models/Account';
 import { Stock } from '../src/models/Stock';
 import { TradingRecord } from '../src/models/TradingRecord';
 import { Currency } from '../src/models/Currency';
+import { formatCurrency, addCommas } from '../src/utils/formatUtils';
+import { getStockQuote } from '../src/services/YahooFinanceService';
+import { ExchangeRateService } from '../src/services/ExchangeRateService';
 
 interface DotData {
   price: number;
@@ -32,6 +35,8 @@ interface ChartData {
   stock: Stock;
   averagePrice: number;
   currentPrice: number;
+  priceChange: number | null;
+  priceChangePercent: number | null;
   buyRecords: DotData[];
   sellRecords: DotData[];
 }
@@ -45,10 +50,33 @@ export default function VisualizationScreen() {
   const [selectedChartIndex, setSelectedChartIndex] = useState<number | null>(null);
   const previousSelectedStockIdRef = useRef<string | null>(null);
   const stockTabsScrollRef = useRef<ScrollView>(null);
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+
+  // USD 가격에 대한 원화 변환값 표시 (작은 글씨)
+  const getKrwEquivalentForDisplay = (usdValue: number | undefined | null): string | null => {
+    if (usdValue === undefined || usdValue === null || !exchangeRate) return null;
+    const krwValue = usdValue * exchangeRate;
+    return `원화 ${addCommas(krwValue.toFixed(0))}원`;
+  };
 
   const loadData = async () => {
     try {
       setLoading(true);
+      
+      // 환율 로드
+      try {
+        const usdkrwQuote = await getStockQuote('USDKRW=X');
+        if (usdkrwQuote) {
+          setExchangeRate(usdkrwQuote.price);
+        } else {
+          const rate = await ExchangeRateService.getUsdToKrwRate();
+          setExchangeRate(rate);
+        }
+      } catch (rateError) {
+        console.warn('환율 로드 실패:', rateError);
+        const rate = await ExchangeRateService.getUsdToKrwRate();
+        setExchangeRate(rate);
+      }
       
       // 이전에 선택했던 종목 ID 저장 (데이터 로드 전에)
       const previousSelectedStockId = previousSelectedStockIdRef.current;
@@ -121,10 +149,27 @@ export default function VisualizationScreen() {
           console.log(`[Visualization] Sell records:`, sellRecords);
         }
         
+        // 현재가 및 변화량 정보 조회
+        let priceChange: number | null = null;
+        let priceChangePercent: number | null = null;
+        if (stock.ticker) {
+          try {
+            const quote = await getStockQuote(stock.ticker);
+            if (quote) {
+              priceChange = quote.change || null;
+              priceChangePercent = quote.changePercent || null;
+            }
+          } catch (error) {
+            console.warn(`종목 ${stock.ticker} 변화량 정보 조회 실패:`, error);
+          }
+        }
+        
         charts.push({
           stock,
           averagePrice: stock.averagePrice,
           currentPrice: stock.currentPrice || stock.averagePrice,
+          priceChange,
+          priceChangePercent,
           buyRecords,
           sellRecords,
         });
@@ -306,6 +351,72 @@ export default function VisualizationScreen() {
               </TouchableOpacity>
             ))}
           </ScrollView>
+
+          {/* 종목 정보 */}
+          {selectedChart && (
+            <View style={styles.stockInfo}>
+              <Text style={styles.stockName}>
+                {selectedChart.stock.name || selectedChart.stock.officialName || selectedChart.stock.ticker}
+              </Text>
+              <Text style={styles.stockTicker}>{selectedChart.stock.ticker}</Text>
+            </View>
+          )}
+
+          {/* 현재가 정보 */}
+          {selectedChart && selectedChart.currentPrice !== null && selectedChart.currentPrice > 0 && (
+            <View style={styles.priceInfo}>
+              <View style={styles.priceWithKrwContainer}>
+                <Text style={styles.currentPrice}>
+                  {formatCurrency(selectedChart.currentPrice, selectedChart.stock.currency || Currency.KRW)}
+                </Text>
+                {selectedChart.stock.currency === Currency.USD && getKrwEquivalentForDisplay(selectedChart.currentPrice) && (
+                  <Text style={styles.krwEquivalentText}>{getKrwEquivalentForDisplay(selectedChart.currentPrice)}</Text>
+                )}
+              </View>
+              {selectedChart.priceChange !== null && selectedChart.priceChangePercent !== null && (
+                <View style={styles.changeInfo}>
+                  <Text
+                    style={[
+                      styles.changeText,
+                      selectedChart.priceChange >= 0 ? styles.positive : styles.negative,
+                    ]}
+                  >
+                    {selectedChart.priceChange >= 0 ? '+' : ''}
+                    {formatCurrency(selectedChart.priceChange, selectedChart.stock.currency || Currency.KRW)} ({selectedChart.priceChangePercent >= 0 ? '+' : ''}
+                    {selectedChart.priceChangePercent.toFixed(2)}%)
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* 평균단가 및 보유수량 정보 */}
+          {selectedChart && (
+            <View style={styles.averageInfo}>
+              <View style={styles.averageInfoRow}>
+                <Text style={styles.averageInfoLabel}>평균단가:</Text>
+                <View style={styles.averagePriceContainer}>
+                  <View style={styles.averagePriceRow}>
+                    <Text style={styles.averageInfoValue}>
+                      {formatCurrency(
+                        typeof selectedChart.stock.averagePrice === 'number' ? selectedChart.stock.averagePrice : 0,
+                        selectedChart.stock.currency || Currency.KRW
+                      )}
+                    </Text>
+                  </View>
+                  {selectedChart.stock.currency === Currency.USD && getKrwEquivalentForDisplay(typeof selectedChart.stock.averagePrice === 'number' ? selectedChart.stock.averagePrice : 0) && (
+                    <Text style={styles.krwEquivalentTextSmall}>{getKrwEquivalentForDisplay(typeof selectedChart.stock.averagePrice === 'number' ? selectedChart.stock.averagePrice : 0)}</Text>
+                  )}
+                </View>
+              </View>
+              <View style={styles.averageInfoRow}>
+                <Text style={styles.averageInfoLabel}>보유수량:</Text>
+                <Text style={styles.averageInfoValue}>
+                  {`${(typeof selectedChart.stock.quantity === 'number' ? selectedChart.stock.quantity : 0).toLocaleString()}주`}
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* 점 차트 */}
           {selectedChart && (
@@ -611,7 +722,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 24,
-    paddingBottom: 40,
+    paddingBottom: 80,
   },
   loadingContainer: {
     flex: 1,
@@ -719,16 +830,16 @@ const styles = StyleSheet.create({
   averagePriceLine: {
     position: 'absolute',
     height: 2,
-    backgroundColor: '#FFC107',
+    backgroundColor: '#4DD0E1', // 밝은 시안 (평균단가)
     opacity: 0.8,
     borderStyle: 'dashed',
     borderWidth: 1,
-    borderColor: '#FFC107',
+    borderColor: '#4DD0E1',
   },
   averagePriceLabel: {
     position: 'absolute',
     fontSize: 11,
-    color: '#FFC107',
+    color: '#4DD0E1', // 밝은 시안 (평균단가)
     fontWeight: '600',
     backgroundColor: 'rgba(13, 27, 42, 0.9)',
     paddingHorizontal: 6,
@@ -738,16 +849,16 @@ const styles = StyleSheet.create({
   currentPriceLine: {
     position: 'absolute',
     height: 2,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#FFC107', // 밝은 노란색/골드 (현재가)
     opacity: 0.8,
     borderStyle: 'dashed',
     borderWidth: 1,
-    borderColor: '#4CAF50',
+    borderColor: '#FFC107',
   },
   currentPriceLabel: {
     position: 'absolute',
     fontSize: 11,
-    color: '#4CAF50',
+    color: '#FFC107', // 밝은 노란색/골드 (현재가)
     fontWeight: '600',
     backgroundColor: 'rgba(13, 27, 42, 0.9)',
     paddingHorizontal: 6,
@@ -805,6 +916,92 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  stockInfo: {
+    marginBottom: 16,
+  },
+  stockName: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  stockTicker: {
+    color: '#94A3B8',
+    fontSize: 14,
+  },
+  priceInfo: {
+    marginBottom: 12,
+  },
+  priceWithKrwContainer: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  krwEquivalentText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontWeight: 'normal',
+    marginTop: 2,
+  },
+  currentPrice: {
+    color: '#FFFFFF',
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginBottom: 0,
+  },
+  averagePriceContainer: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+  },
+  averagePriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  krwEquivalentTextSmall: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: 'normal',
+    marginTop: 2,
+  },
+  changeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  changeText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  positive: {
+    color: '#10B981',
+  },
+  negative: {
+    color: '#EF4444',
+  },
+  averageInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 8,
+    marginBottom: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(27, 38, 59, 0.5)',
+    borderRadius: 12,
+  },
+  averageInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  averageInfoLabel: {
+    fontSize: 14,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  averageInfoValue: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   xAxis: {
     marginTop: 16,

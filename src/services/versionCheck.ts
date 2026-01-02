@@ -4,8 +4,8 @@ import Constants from 'expo-constants';
 
 // 최소 필수 버전 (이 버전보다 낮으면 강제 업데이트)
 // TODO: 나중에 API 서버에서 가져오도록 변경 가능
-// 1.0.7 버전 배포 시 1.0.6 이하 사용자들이 강제 업데이트 받도록 설정
-const MIN_REQUIRED_VERSION = '1.0.7';
+// 1.0.8 버전 배포 시 1.0.7 이하 사용자들이 강제 업데이트 받도록 설정
+const MIN_REQUIRED_VERSION = '1.0.8';
 
 // Google Play Store URL (패키지명으로 변경 필요)
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.neovisioning.stockcalc';

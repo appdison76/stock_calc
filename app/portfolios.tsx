@@ -218,6 +218,7 @@ export default function PortfoliosScreen() {
                       <View style={styles.cardLeft}>
                         <View style={styles.textContainer}>
                           <View style={styles.portfolioNameRow}>
+                            <Text style={styles.portfolioIcon}>📊</Text>
                             <Text style={styles.portfolioName}>{portfolio.name}</Text>
                             {portfolio.name === '나의 포트폴리오' && (
                               <View style={styles.defaultBadge}>
@@ -240,30 +241,32 @@ export default function PortfoliosScreen() {
                         </View>
                       </View>
                       <View style={styles.cardRight}>
-                        <TouchableOpacity
-                          style={styles.actionButton}
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            handleEditPortfolio(portfolio);
-                          }}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.actionButtonText}>편집</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.actionButton, styles.deleteActionButton]}
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            handleDeletePortfolio(portfolio);
-                          }}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={[styles.actionButtonText, styles.deleteActionButtonText]}>삭제</Text>
-                        </TouchableOpacity>
                         <Text style={styles.arrow}>→</Text>
                       </View>
                     </View>
                   </LinearGradient>
+                  <View style={styles.portfolioActionButtons}>
+                    <TouchableOpacity
+                      style={styles.editPortfolioButtonBottom}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleEditPortfolio(portfolio);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.editPortfolioButtonTextBottom}>편집</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.deletePortfolioButtonBottom}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleDeletePortfolio(portfolio);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.deletePortfolioButtonTextBottom}>삭제</Text>
+                    </TouchableOpacity>
+                  </View>
                 </TouchableOpacity>
               ))}
             </View>
@@ -491,9 +494,13 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   cardGradient: {
-    borderRadius: 12,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
     borderWidth: 1,
     borderColor: 'rgba(66, 165, 245, 0.08)',
+    borderBottomWidth: 0,
   },
   cardContent: {
     flexDirection: 'row',
@@ -513,13 +520,17 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     gap: 8,
   },
+  portfolioIcon: {
+    fontSize: 16,
+    marginRight: 4,
+  },
   portfolioName: {
-    fontSize: 19,
+    fontSize: 22,
     fontWeight: '600',
     color: '#FFFFFF',
   },
   defaultBadge: {
-    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    backgroundColor: 'rgba(76, 175, 80, 0.15)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -527,7 +538,7 @@ const styles = StyleSheet.create({
   defaultBadgeText: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#42A5F5',
+    color: '#4CAF50',
   },
   metaContainer: {
     flexDirection: 'row',
@@ -547,7 +558,7 @@ const styles = StyleSheet.create({
     color: '#FF9800',
   },
   stockCountBadge: {
-    backgroundColor: 'rgba(156, 39, 176, 0.15)',
+    backgroundColor: 'rgba(255, 152, 0, 0.15)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -555,36 +566,47 @@ const styles = StyleSheet.create({
   stockCountBadgeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#9C27B0',
+    color: '#FF9800',
   },
   cardRight: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
     marginLeft: 12,
-  },
-  actionButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: 'rgba(66, 165, 245, 0.1)',
-  },
-  actionButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#42A5F5',
-  },
-  deleteActionButton: {
-    backgroundColor: 'rgba(244, 67, 54, 0.1)',
-  },
-  deleteActionButtonText: {
-    color: '#F44336',
   },
   arrow: {
     fontSize: 18,
     fontWeight: '600',
     color: '#42A5F5',
-    marginLeft: 4,
+  },
+  portfolioActionButtons: {
+    flexDirection: 'row',
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    overflow: 'hidden',
+  },
+  editPortfolioButtonBottom: {
+    flex: 1,
+    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(66, 165, 245, 0.2)',
+  },
+  editPortfolioButtonTextBottom: {
+    color: '#42A5F5',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  deletePortfolioButtonBottom: {
+    flex: 1,
+    backgroundColor: 'rgba(244, 67, 54, 0.15)',
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  deletePortfolioButtonTextBottom: {
+    color: '#F44336',
+    fontSize: 14,
+    fontWeight: '600',
   },
   addButton: {
     borderRadius: 16,

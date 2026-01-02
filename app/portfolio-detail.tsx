@@ -16,6 +16,9 @@ import { getAccountById, getStocksByAccountId, deleteStock, createStock, updateS
 import { Account } from '../src/models/Account';
 import { Stock } from '../src/models/Stock';
 import { Currency } from '../src/models/Currency';
+import { ExchangeRateService } from '../src/services/ExchangeRateService';
+import { getStockQuote } from '../src/services/YahooFinanceService';
+import { addCommas } from '../src/utils/formatUtils';
 import StockSearchModal from '../src/components/StockSearchModal';
 
 export default function PortfolioDetailScreen() {
@@ -35,6 +38,14 @@ export default function PortfolioDetailScreen() {
   const [selectedOfficialNameForAdd, setSelectedOfficialNameForAdd] = useState<string | null>(null);
   const [showStockNameInputForAdd, setShowStockNameInputForAdd] = useState(false);
   const [stockNameInputForAdd, setStockNameInputForAdd] = useState('');
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+
+  // USD 가격에 대한 원화 변환값 표시 (작은 글씨)
+  const getKrwEquivalentForDisplay = (usdValue: number | undefined | null): string | null => {
+    if (usdValue === undefined || usdValue === null || !exchangeRate) return null;
+    const krwValue = usdValue * exchangeRate;
+    return `원화 ${addCommas(krwValue.toFixed(0))}원`;
+  };
 
   useFocusEffect(
     React.useCallback(() => {
@@ -52,6 +63,21 @@ export default function PortfolioDetailScreen() {
       
       // 데이터베이스 초기화 먼저 수행
       await initDatabase();
+      
+      // 환율 로드 (USD 종목이 있는 경우)
+      try {
+        const usdkrwQuote = await getStockQuote('USDKRW=X');
+        if (usdkrwQuote) {
+          setExchangeRate(usdkrwQuote.price);
+        } else {
+          const rate = await ExchangeRateService.getUsdToKrwRate();
+          setExchangeRate(rate);
+        }
+      } catch (rateError) {
+        console.warn('환율 로드 실패:', rateError);
+        const rate = await ExchangeRateService.getUsdToKrwRate();
+        setExchangeRate(rate);
+      }
       
       const account = await getAccountById(id);
       if (!account) {
@@ -261,11 +287,25 @@ export default function PortfolioDetailScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>{portfolio.name}</Text>
+            <View style={styles.headerTitleRow}>
+              <Text style={styles.headerTitle}>{portfolio.name}</Text>
+              {portfolio.name === '나의 포트폴리오' && (
+                <View style={styles.defaultBadge}>
+                  <Text style={styles.defaultBadgeText}>기본</Text>
+                </View>
+              )}
+            </View>
             <View style={styles.metaContainer}>
-              <Text style={styles.currencyBadge}>
-                {portfolio.currency === Currency.KRW ? '₩ 원화' : '$ 달러'}
-              </Text>
+              <View style={styles.currencyBadge}>
+                <Text style={styles.currencyBadgeText}>
+                  {portfolio.currency === Currency.KRW ? '₩ 원화' : '$ 달러'}
+                </Text>
+              </View>
+              <View style={styles.stockCountBadge}>
+                <Text style={styles.stockCountBadgeText}>
+                  종목 {stocks.length}개
+                </Text>
+              </View>
             </View>
           </View>
 
@@ -306,24 +346,43 @@ export default function PortfolioDetailScreen() {
                               </Text>
                             )}
                           </View>
-                          {stock.recordCount > 0 && (
+                          <View style={styles.chartIconsContainer}>
                             <TouchableOpacity
                               style={styles.chartIconButton}
                               onPress={(e) => {
                                 e.stopPropagation();
-                                router.push(`/visualization?stockId=${stock.id}`);
+                                router.push(`/stock-chart?id=${stock.id}`);
                               }}
                               activeOpacity={0.7}
                             >
-                              <Text style={styles.chartIcon}>📉</Text>
+                              <Text style={styles.chartIcon}>📈</Text>
+                              <Text style={styles.chartIconLabel}>종목차트</Text>
                             </TouchableOpacity>
-                          )}
+                            {stock.recordCount > 0 && (
+                              <TouchableOpacity
+                                style={styles.chartIconButton}
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  router.push(`/visualization?stockId=${stock.id}`);
+                                }}
+                                activeOpacity={0.7}
+                              >
+                                <Text style={styles.chartIcon}>📉</Text>
+                                <Text style={styles.chartIconLabel}>매매기록</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
                         </View>
                         <View style={styles.stockDetails}>
                           {/* 평단가 - 강조 */}
                           <View style={styles.stockDetailRow}>
                             <Text style={styles.stockDetailLabel}>평단가</Text>
-                            <Text style={styles.stockDetailValue}>{formatPrice(stock.averagePrice, stock.currency)}</Text>
+                            <View style={styles.priceWithKrwContainer}>
+                              <Text style={[styles.stockDetailValue, styles.averagePriceText]}>{formatPrice(stock.averagePrice, stock.currency)}</Text>
+                              {stock.currency === Currency.USD && getKrwEquivalentForDisplay(stock.averagePrice) && (
+                                <Text style={styles.krwEquivalentText}>{getKrwEquivalentForDisplay(stock.averagePrice)}</Text>
+                              )}
+                            </View>
                           </View>
                           
                           {/* 보유 수량 - 강조 */}
@@ -335,9 +394,14 @@ export default function PortfolioDetailScreen() {
                           {/* 총 매수 금액 */}
                           <View style={styles.stockDetailRow}>
                             <Text style={styles.stockDetailLabel}>총 매수 금액</Text>
-                            <Text style={styles.stockDetailValueSecondary}>
-                              {formatPrice((stock.averagePrice || 0) * (stock.quantity || 0), stock.currency)}
-                            </Text>
+                            <View style={styles.priceWithKrwContainer}>
+                              <Text style={styles.stockDetailValueSecondary}>
+                                {formatPrice((stock.averagePrice || 0) * (stock.quantity || 0), stock.currency)}
+                              </Text>
+                              {stock.currency === Currency.USD && getKrwEquivalentForDisplay((stock.averagePrice || 0) * (stock.quantity || 0)) && (
+                                <Text style={styles.krwEquivalentText}>{getKrwEquivalentForDisplay((stock.averagePrice || 0) * (stock.quantity || 0))}</Text>
+                              )}
+                            </View>
                           </View>
                           
                           {/* 현재가 및 평단가 비교 */}
@@ -345,9 +409,14 @@ export default function PortfolioDetailScreen() {
                             <>
                               <View style={styles.stockDetailRow}>
                                 <Text style={styles.stockDetailLabel}>현재가</Text>
-                                <Text style={[styles.stockDetailValueSecondary, styles.currentPriceText]}>
-                                  {formatPrice(stock.currentPrice, stock.currency)}
-                                </Text>
+                                <View style={styles.priceWithKrwContainer}>
+                                  <Text style={[styles.stockDetailValueSecondary, styles.currentPriceText]}>
+                                    {formatPrice(stock.currentPrice, stock.currency)}
+                                  </Text>
+                                  {stock.currency === Currency.USD && getKrwEquivalentForDisplay(stock.currentPrice) && (
+                                    <Text style={styles.krwEquivalentText}>{getKrwEquivalentForDisplay(stock.currentPrice)}</Text>
+                                  )}
+                                </View>
                               </View>
                               {stock.averagePrice > 0 && (
                                 <View style={styles.stockDetailRow}>
@@ -365,12 +434,17 @@ export default function PortfolioDetailScreen() {
                                           ]}>
                                             {isProfit ? '+' : ''}{profitRate.toFixed(2)}%
                                           </Text>
-                                          <Text style={[
-                                            styles.profitAmountText,
-                                            isProfit ? styles.profitText : styles.lossText
-                                          ]}>
-                                            ({isProfit ? '+' : ''}{formatPrice(profitAmount, stock.currency)})
-                                          </Text>
+                                          <View style={styles.priceWithKrwContainer}>
+                                            <Text style={[
+                                              styles.profitAmountText,
+                                              isProfit ? styles.profitText : styles.lossText
+                                            ]}>
+                                              ({isProfit ? '+' : ''}{formatPrice(profitAmount, stock.currency)})
+                                            </Text>
+                                            {stock.currency === Currency.USD && getKrwEquivalentForDisplay(profitAmount) && (
+                                              <Text style={[styles.krwEquivalentText, isProfit ? styles.profitText : styles.lossText]}>{getKrwEquivalentForDisplay(profitAmount)}</Text>
+                                            )}
+                                          </View>
                                         </>
                                       );
                                     })()}
@@ -596,24 +670,54 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 24,
   },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
   headerTitle: {
     fontSize: 32,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 12,
+  },
+  defaultBadge: {
+    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  defaultBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#4CAF50',
   },
   metaContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
   currencyBadge: {
-    fontSize: 16,
+    backgroundColor: 'rgba(255, 152, 0, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  currencyBadgeText: {
+    fontSize: 12,
     fontWeight: '600',
     color: '#FF9800',
+  },
+  stockCountBadge: {
     backgroundColor: 'rgba(255, 152, 0, 0.15)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  stockCountBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF9800',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -665,13 +769,25 @@ const styles = StyleSheet.create({
     gap: 8,
     flexShrink: 0,
   },
+  chartIconsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
   chartIconButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(156, 39, 176, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   chartIcon: {
-    fontSize: 20,
+    fontSize: 18,
+  },
+  chartIconLabel: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    marginTop: 2,
+    fontWeight: '500',
   },
   arrow: {
     fontSize: 24,
@@ -757,7 +873,10 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   currentPriceText: {
-    color: '#4CAF50',
+    color: '#FFC107', // 밝은 노란색/골드
+  },
+  averagePriceText: {
+    color: '#4DD0E1', // 밝은 시안
   },
   priceComparisonContainer: {
     flexDirection: 'row',
@@ -766,14 +885,25 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   profitText: {
-    color: '#F44336', // 빨간색 (수익)
+    color: '#4CAF50', // 녹색 (수익) - 미국 스타일
   },
   lossText: {
-    color: '#42A5F5', // 파란색 (손실)
+    color: '#F44336', // 빨간색 (손실) - 미국 스타일
   },
   profitAmountText: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  priceWithKrwContainer: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    flexShrink: 0,
+  },
+  krwEquivalentText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontWeight: 'normal',
+    marginTop: 2,
   },
   addButton: {
     borderRadius: 16,

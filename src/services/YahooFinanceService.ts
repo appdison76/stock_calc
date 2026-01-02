@@ -58,15 +58,18 @@ export async function getStockQuote(ticker: string): Promise<StockQuote | null> 
       return null;
     }
     
+    const previousClose = meta.previousClose || meta.regularMarketPreviousClose || meta.chartPreviousClose;
+    const currentPrice = meta.regularMarketPrice;
+    const change = previousClose ? currentPrice - previousClose : undefined;
+    const changePercent = previousClose ? ((currentPrice - previousClose) / previousClose) * 100 : undefined;
+
     return {
       symbol: meta.symbol || ticker,
-      price: meta.regularMarketPrice,
+      price: currentPrice,
       currency: meta.currency || 'KRW',
       name: meta.shortName || meta.longName,
-      change: meta.regularMarketPrice - (meta.previousClose || meta.regularMarketPrice),
-      changePercent: meta.previousClose 
-        ? ((meta.regularMarketPrice - meta.previousClose) / meta.previousClose) * 100
-        : undefined,
+      change: change,
+      changePercent: changePercent,
     };
   } catch (error) {
     // 백그라운드 작업이므로 조용히 처리 (사용자에게 오류 표시하지 않음)

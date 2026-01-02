@@ -28,14 +28,27 @@ export default function MarketIndicatorsScreen() {
       setLoading(true);
       const indicatorsList: MarketIndicator[] = [];
 
-      // 환율
-      const rate = await ExchangeRateService.getUsdToKrwRate();
-      indicatorsList.push({
-        name: '환율',
-        symbol: 'USDKRW',
-        price: rate,
-        currency: 'KRW',
-      });
+      // 환율 (USDKRW=X)
+      const usdkrwQuote = await getStockQuote('USDKRW=X');
+      if (usdkrwQuote) {
+        indicatorsList.push({
+          name: '환율',
+          symbol: 'USD/KRW',
+          price: usdkrwQuote.price,
+          change: usdkrwQuote.change,
+          changePercent: usdkrwQuote.changePercent,
+          currency: 'KRW',
+        });
+      } else {
+        // Fallback: ExchangeRateService 사용
+        const rate = await ExchangeRateService.getUsdToKrwRate();
+        indicatorsList.push({
+          name: '환율',
+          symbol: 'USD/KRW',
+          price: rate,
+          currency: 'KRW',
+        });
+      }
 
       // 비트코인 (BTC-USD)
       const btcQuote = await getStockQuote('BTC-USD');
@@ -119,12 +132,32 @@ export default function MarketIndicatorsScreen() {
               <Text style={styles.emptyText}>지표 데이터가 없습니다.</Text>
             </View>
           ) : (
-            indicators.map((indicator, index) => (
-              <View key={index} style={styles.indicatorCard}>
-                <View style={styles.indicatorHeader}>
-                  <Text style={styles.indicatorName}>{indicator.name}</Text>
-                  <Text style={styles.indicatorSymbol}>{indicator.symbol}</Text>
-                </View>
+            indicators.map((indicator, index) => {
+              // 티커 매핑: 주요지표 이름 -> Yahoo Finance 티커
+              const tickerMap: Record<string, string> = {
+                '환율': 'USDKRW=X',
+                '비트코인': 'BTC-USD',
+                '금': 'GC=F',
+                '유가': 'CL=F',
+              };
+              const ticker = tickerMap[indicator.name] || '';
+              
+              return (
+                <View key={index} style={styles.indicatorCard}>
+                  <View style={styles.indicatorHeader}>
+                    <View style={styles.indicatorHeaderLeft}>
+                      <Text style={styles.indicatorName}>{indicator.name}</Text>
+                      <Text style={styles.indicatorSymbol}>{indicator.symbol}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.chartIconButton}
+                      onPress={() => router.push(`/stock-chart?ticker=${ticker}&name=${encodeURIComponent(indicator.name)}`)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.chartIcon}>📈</Text>
+                      <Text style={styles.chartIconLabel}>종목차트</Text>
+                    </TouchableOpacity>
+                  </View>
                 <Text style={styles.indicatorPrice}>
                   {formatPrice(indicator.price, indicator.currency)}
                 </Text>
@@ -152,8 +185,9 @@ export default function MarketIndicatorsScreen() {
                     )}
                   </View>
                 )}
-              </View>
-            ))
+                </View>
+              );
+            })
           )}
         </ScrollView>
       </LinearGradient>
@@ -173,6 +207,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
+    paddingBottom: 80,
   },
   indicatorCard: {
     backgroundColor: 'rgba(66, 165, 245, 0.1)',
@@ -187,6 +222,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  indicatorHeaderLeft: {
+    flex: 1,
+  },
+  chartIconButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginLeft: 12,
+  },
+  chartIcon: {
+    fontSize: 18,
+  },
+  chartIconLabel: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    marginTop: 2,
+    fontWeight: '500',
   },
   indicatorName: {
     color: '#FFFFFF',

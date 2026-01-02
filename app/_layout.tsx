@@ -14,14 +14,16 @@ export default function RootLayout() {
   } | null>(null);
 
   useEffect(() => {
-    // 버전 체크
-    const version = checkAppVersion();
-    if (version.needsUpdate) {
-      setVersionInfo({
-        currentVersion: version.currentVersion,
-        requiredVersion: version.minRequiredVersion,
-      });
-      setForceUpdateVisible(true);
+    // 버전 체크 (개발 환경에서는 건너뛰기)
+    if (!__DEV__) {
+      const version = checkAppVersion();
+      if (version.needsUpdate) {
+        setVersionInfo({
+          currentVersion: version.currentVersion,
+          requiredVersion: version.minRequiredVersion,
+        });
+        setForceUpdateVisible(true);
+      }
     }
 
     // Google Mobile Ads 초기화

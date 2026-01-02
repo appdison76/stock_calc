@@ -190,18 +190,13 @@ export default function NewsScreen() {
 
   // URL 파라미터 변경 시 종목 설정 및 뉴스 로드
   useEffect(() => {
-    // 종목 목록이 아직 로드되지 않았으면 대기
-    if (portfolioStocks.length === 0) {
-      return;
-    }
-
     const initializeFromParams = async () => {
       // URL 파라미터에서 언어 정보 가져오기
       const targetLang = (lang === 'en' ? 'en' : 'ko') as 'ko' | 'en';
       setNewsLanguage(targetLang);
 
-      // URL 파라미터에서 종목 ID 가져오기
-      if (stockIdParam) {
+      // 포트폴리오 종목이 있고 URL 파라미터에서 종목 ID를 가져온 경우
+      if (portfolioStocks.length > 0 && stockIdParam) {
         const stockId = parseInt(stockIdParam, 10);
         if (!isNaN(stockId)) {
           // 종목이 실제로 존재하는지 확인 (stock.id는 string이므로 변환해서 비교)
@@ -234,23 +229,20 @@ export default function NewsScreen() {
         }
       }
       
-      // 종목 ID가 없거나 유효하지 않으면 전체 뉴스 로드
-      if (!stockIdParam) {
-        // stockIdParam이 없을 때만 전체로 설정 (이미 설정된 경우 유지)
-        setSelectedStockId(null);
-        setLoading(true);
-        try {
-          const fetchedNews = await fetchGeneralNews(false, undefined, 7, targetLang);
-          const initialLimit = 20;
-          setNews(fetchedNews.slice(0, initialLimit));
-          setHasMore(fetchedNews.length > initialLimit);
-        } catch (error) {
-          console.error('뉴스 로드 오류:', error);
-          setNews([]);
-          setHasMore(false);
-        } finally {
-          setLoading(false);
-        }
+      // 종목 ID가 없거나 유효하지 않거나 포트폴리오 종목이 없으면 전체 뉴스 로드
+      setSelectedStockId(null);
+      setLoading(true);
+      try {
+        const fetchedNews = await fetchGeneralNews(false, undefined, 7, targetLang);
+        const initialLimit = 20;
+        setNews(fetchedNews.slice(0, initialLimit));
+        setHasMore(fetchedNews.length > initialLimit);
+      } catch (error) {
+        console.error('뉴스 로드 오류:', error);
+        setNews([]);
+        setHasMore(false);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -350,9 +342,9 @@ export default function NewsScreen() {
       </View>
       
       {/* 종목 및 언어 선택 탭 */}
-      {portfolioStocks.length > 0 && (
-        <View>
-          {/* 종목 선택 탭 */}
+      <View>
+        {/* 종목 선택 탭 */}
+        {portfolioStocks.length > 0 ? (
           <ScrollView 
             ref={stockTabsScrollRef}
             horizontal 
@@ -416,9 +408,28 @@ export default function NewsScreen() {
               );
             })}
           </ScrollView>
-          
-          {/* 언어 선택 탭 */}
-          <View style={styles.languageTabs}>
+        ) : (
+          // 포트폴리오 종목이 없을 때도 "전체" 탭 표시 (선택된 상태로)
+          <View style={styles.stockTabsContainer}>
+            <View style={styles.stockTabsContentSingle}>
+              <TouchableOpacity
+                style={[styles.stockTab, styles.stockTabActive]}
+                activeOpacity={1}
+                disabled={true}
+              >
+                <Text
+                  style={[styles.stockTabText, styles.stockTabTextActive]}
+                  numberOfLines={1}
+                >
+                  전체
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+        
+        {/* 언어 선택 탭 */}
+        <View style={styles.languageTabs}>
           <TouchableOpacity
             style={[
               styles.languageTab,
@@ -462,54 +473,7 @@ export default function NewsScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-        </View>
-      )}
-      
-      {/* 언어 선택 탭 (포트폴리오가 없을 때만) */}
-      {portfolioStocks.length === 0 && (
-        <View style={styles.languageTabs}>
-          <TouchableOpacity
-            style={[
-              styles.languageTab,
-              newsLanguage === 'ko' && styles.languageTabActive,
-            ]}
-            onPress={() => {
-              setNewsLanguage('ko');
-              loadNews(true, searchQuery || undefined, daysBack, false, 'ko');
-            }}
-            activeOpacity={0.7}
-          >
-            <Text
-              style={[
-                styles.languageTabText,
-                newsLanguage === 'ko' && styles.languageTabTextActive,
-              ]}
-            >
-              한글 기사
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.languageTab,
-              newsLanguage === 'en' && styles.languageTabActive,
-            ]}
-            onPress={() => {
-              setNewsLanguage('en');
-              loadNews(true, searchQuery || undefined, daysBack, false, 'en');
-            }}
-            activeOpacity={0.7}
-          >
-            <Text
-              style={[
-                styles.languageTabText,
-                newsLanguage === 'en' && styles.languageTabTextActive,
-              ]}
-            >
-              영문 기사
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      </View>
 
       {(loading || isSearching) ? (
         <View style={styles.loadingContainer}>
@@ -600,6 +564,10 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 16,
     paddingRight: 24,
+  },
+  stockTabsContentSingle: {
+    paddingHorizontal: 16,
+    alignSelf: 'flex-start',
   },
   stockTab: {
     paddingVertical: 8,

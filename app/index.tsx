@@ -185,7 +185,8 @@ export default function MainScreen() {
         ]);
         setLatestNewsKo(newsKo.slice(0, 3));
         setLatestNewsEn(newsEn.slice(0, 3));
-        // latestNews는 useEffect에서 latestNewsLanguage와 동기화됨
+        // 초기 로딩 시 latestNewsLanguage에 따라 latestNews 설정
+        setLatestNews(latestNewsLanguage === 'ko' ? newsKo.slice(0, 3) : newsEn.slice(0, 3));
       } catch (error) {
         console.warn('뉴스 로드 실패:', error);
       }
@@ -282,18 +283,34 @@ export default function MainScreen() {
     try {
       const indicators: MarketIndicator[] = [];
 
-      // 환율
-      const rate = await ExchangeRateService.getUsdToKrwRate();
-      setExchangeRate(rate);
-      indicators.push({
-        name: '환율',
-        symbol: 'USDKRW',
-        price: rate,
-        currency: 'KRW',
-      });
+      // 환율 (USDKRW=X)
+      const usdkrwQuote = await getStockQuote('USDKRW=X');
+      console.log('USDKRW=X Quote:', JSON.stringify(usdkrwQuote, null, 2));
+      if (usdkrwQuote) {
+        setExchangeRate(usdkrwQuote.price);
+        indicators.push({
+          name: '환율',
+          symbol: 'USD/KRW',
+          price: usdkrwQuote.price,
+          change: usdkrwQuote.change,
+          changePercent: usdkrwQuote.changePercent,
+          currency: 'KRW',
+        });
+      } else {
+        // Fallback: ExchangeRateService 사용
+        const rate = await ExchangeRateService.getUsdToKrwRate();
+        setExchangeRate(rate);
+        indicators.push({
+          name: '환율',
+          symbol: 'USD/KRW',
+          price: rate,
+          currency: 'KRW',
+        });
+      }
 
       // 비트코인 (BTC-USD)
       const btcQuote = await getStockQuote('BTC-USD');
+      console.log('BTC-USD Quote:', JSON.stringify(btcQuote, null, 2));
       if (btcQuote) {
         indicators.push({
           name: '비트코인',
@@ -307,6 +324,7 @@ export default function MainScreen() {
 
       // 금 (GC=F)
       const goldQuote = await getStockQuote('GC=F');
+      console.log('GC=F Quote:', JSON.stringify(goldQuote, null, 2));
       if (goldQuote) {
         indicators.push({
           name: '금',
@@ -320,6 +338,7 @@ export default function MainScreen() {
 
       // 유가 (CL=F)
       const oilQuote = await getStockQuote('CL=F');
+      console.log('CL=F Quote:', JSON.stringify(oilQuote, null, 2));
       if (oilQuote) {
         indicators.push({
           name: '유가',
@@ -385,7 +404,7 @@ export default function MainScreen() {
                           : `${Math.round(indicator.price).toLocaleString()}원`
                         }
                       </Text>
-                      {indicator.changePercent !== undefined && (
+                      {indicator.changePercent != null ? (
                         <Text
                           style={[
                             styles.topIndicatorChange,
@@ -395,13 +414,13 @@ export default function MainScreen() {
                           {indicator.changePercent >= 0 ? '+' : ''}
                           {indicator.changePercent.toFixed(2)}%
                         </Text>
-                      )}
+                      ) : null}
                     </TouchableOpacity>
                   ))}
                 </View>
               )}
 
-              {/* 메뉴 배너 (포트폴리오, 매매기록, 주식뉴스, 환경설정) */}
+              {/* 메뉴 배너 (포트폴리오, 매매기록, 종목차트, 환경설정) */}
               <View style={styles.menuBannersContainer}>
                 <TouchableOpacity
                   style={styles.menuBannerCard}
@@ -431,15 +450,15 @@ export default function MainScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.menuBannerCard}
-                  onPress={() => router.push('/news')}
+                  onPress={() => router.push('/stock-chart')}
                   activeOpacity={0.8}
                 >
                   <LinearGradient
                     colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
                     style={styles.menuBannerGradient}
                   >
-                    <Text style={styles.menuBannerIcon}>📰</Text>
-                    <Text style={styles.menuBannerText}>주식{'\n'}뉴스</Text>
+                    <Text style={styles.menuBannerIcon}>📈</Text>
+                    <Text style={styles.menuBannerText}>종목{'\n'}차트</Text>
                   </LinearGradient>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -457,7 +476,7 @@ export default function MainScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* 계산기 배너 (수익률 계산기, 물타기 계산기, 종목차트) */}
+              {/* 계산기 배너 (수익률 계산기, 물타기 계산기, 주식뉴스) */}
               <View style={styles.menuBannersContainer}>
                 <TouchableOpacity
                   style={styles.menuBannerCard}
@@ -487,15 +506,15 @@ export default function MainScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.menuBannerCard}
-                  onPress={() => router.push('/stock-chart')}
+                  onPress={() => router.push('/news')}
                   activeOpacity={0.8}
                 >
                   <LinearGradient
                     colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
                     style={styles.menuBannerGradient}
                   >
-                    <Text style={styles.menuBannerIcon}>📈</Text>
-                    <Text style={styles.menuBannerText}>종목{'\n'}차트</Text>
+                    <Text style={styles.menuBannerIcon}>📰</Text>
+                    <Text style={styles.menuBannerText}>주식{'\n'}뉴스</Text>
                   </LinearGradient>
                 </TouchableOpacity>
                 <View style={styles.menuBannerCardEmpty} />
@@ -554,13 +573,20 @@ export default function MainScreen() {
                           </Text>
                           <Text style={styles.stockCardAccount}>{stock.accountName}</Text>
                         </View>
-                        {stock.currentPrice && stock.currentPrice > 0 ? (
-                          <Text style={styles.stockCardPrice}>
-                            {formatCurrency(stock.currentPrice, stock.currency)}
-                          </Text>
-                        ) : (
-                          <Text style={styles.stockCardPriceUnavailable}>-</Text>
-                        )}
+                        <View style={styles.stockCardPrices}>
+                          {stock.currentPrice && stock.currentPrice > 0 ? (
+                            <Text style={styles.stockCardPrice}>
+                              {formatCurrency(stock.currentPrice, stock.currency)}
+                            </Text>
+                          ) : (
+                            <Text style={styles.stockCardPriceUnavailable}>-</Text>
+                          )}
+                          {stock.averagePrice && stock.averagePrice > 0 && (
+                            <Text style={styles.stockCardAveragePrice}>
+                              평단: {formatCurrency(stock.averagePrice, stock.currency)}
+                            </Text>
+                          )}
+                        </View>
                       </View>
                       {changePercent !== null && changeAmount !== null && (
                         <View style={styles.stockCardChange}>
@@ -1238,77 +1264,80 @@ const styles = StyleSheet.create({
   topIndicatorsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginBottom: 24,
-    gap: 8,
+    paddingHorizontal: 8,
+    marginBottom: 28,
+    gap: 6,
   },
   topIndicatorCard: {
     flex: 1,
-    backgroundColor: 'rgba(66, 165, 245, 0.1)',
-    borderRadius: 8,
-    padding: 10,
+    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 6,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
-    minHeight: 70,
+    borderWidth: 1.5,
+    borderColor: 'rgba(66, 165, 245, 0.3)',
+    minHeight: 95,
     justifyContent: 'center',
   },
   topIndicatorName: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '500',
-    marginBottom: 4,
+    color: '#B0BEC5',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 6,
   },
   topIndicatorPrice: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: 'bold',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   topIndicatorChange: {
-    fontSize: 10,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 2,
   },
   menuBannersContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     marginBottom: 20,
-    gap: 10,
+    gap: 6,
   },
   menuBannerCard: {
     flex: 1,
-    borderRadius: 16,
+    borderRadius: 18,
     overflow: 'hidden',
-    elevation: 4,
+    elevation: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    minHeight: 80,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    minHeight: 95,
   },
   menuBannerGradient: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.15)',
-    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderRadius: 18,
   },
   menuBannerCardEmpty: {
     flex: 1,
   },
   menuBannerIcon: {
-    fontSize: 24,
-    marginBottom: 8,
+    fontSize: 28,
+    marginBottom: 10,
   },
   menuBannerText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     textAlign: 'center',
-    lineHeight: 16,
+    lineHeight: 18,
   },
   dashboardSection: {
     width: '100%',
@@ -1364,10 +1393,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#94A3B8',
   },
+  stockCardPrices: {
+    alignItems: 'flex-end',
+  },
   stockCardPrice: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#FFC107', // 밝은 노란색/골드 (현재가)
+    marginBottom: 4,
+  },
+  stockCardAveragePrice: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4DD0E1', // 밝은 시안 (평단가)
   },
   stockCardPriceUnavailable: {
     fontSize: 16,

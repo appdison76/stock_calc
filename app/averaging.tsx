@@ -61,6 +61,8 @@ export default function AveragingCalculatorView() {
   const coupangBannerRef = useRef<CoupangBannerSectionRef>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const resultOpacity = useRef(new Animated.Value(0)).current;
+  const lastResultContainerRef = useRef<View>(null);
+  const resultContainerY = useRef<number>(0);
   
   // 현재 선택된 통화의 입력값 getter
   const currentAveragePrice = selectedCurrency === Currency.KRW ? krwCurrentAveragePrice : usdCurrentAveragePrice;
@@ -274,10 +276,16 @@ export default function AveragingCalculatorView() {
       useNativeDriver: true,
     }).start();
 
-    // 5. 화면 자동 스크롤
+    // 5. 화면 자동 스크롤 (마지막 물타기 타이틀로)
+    // resultContainerY를 초기화하여 onLayout에서 새로 측정되도록 함
+    resultContainerY.current = -1; // -1로 초기화하여 설정 여부 확인
+    // onLayout이 실행될 시간을 충분히 주기 위해 지연 사용
     setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+      if (resultContainerY.current >= 0) {
+        scrollViewRef.current?.scrollTo({ y: resultContainerY.current - 50, animated: true });
+      }
+      // resultContainerY가 설정되지 않았으면 스크롤하지 않음
+    }, 600);
   };
 
   const continueAveraging = () => {
@@ -694,6 +702,14 @@ export default function AveragingCalculatorView() {
                 <ResultWrapper 
                   key={baseKey} 
                   style={[styles.resultContainer, resultStyle]}
+                  ref={isLast ? lastResultContainerRef : undefined}
+                  onLayout={(event) => {
+                    if (isLast) {
+                      const { y } = event.nativeEvent.layout;
+                      // onLayout의 y는 ScrollView content 내에서의 절대 위치
+                      resultContainerY.current = y;
+                    }
+                  }}
                 >
                   <SharedResultSection
                     watermarkText="만든 사람: 네오비저닝"
@@ -741,9 +757,7 @@ export default function AveragingCalculatorView() {
                                 : '')
                             }
                           />
-                        </View>
-                        <View key={`${baseKey}-spacer-1`} style={{ width: 12 }} />
-                        <View style={styles.gridItem}>
+                          <View style={{ height: 12 }} />
                           <CalculationResultCard
                             key={`${baseKey}-additional-price`}
                             title="추가 매수 단가"
@@ -755,8 +769,47 @@ export default function AveragingCalculatorView() {
                             }
                           />
                         </View>
+                        <View key={`${baseKey}-spacer-1`} style={{ width: 12 }} />
+                        <View style={styles.gridItem}>
+                          <CalculationResultCard
+                            key={`${baseKey}-current-qty`}
+                            title="기본 보유 수량"
+                            value={`${addCommas(calc.currentQuantity.toString())}주`}
+                          />
+                          <View style={{ height: 12 }} />
+                          <CalculationResultCard
+                            key={`${baseKey}-additional-qty`}
+                            title="추가 매수 수량"
+                            value={`${addCommas(calc.additionalQuantity.toString())}주`}
+                          />
+                        </View>
                       </View>
                       <View key={`${baseKey}-grid-row-2`} style={styles.gridRow}>
+                        <View style={styles.gridItem}>
+                          <CalculationResultCard
+                            key={`${baseKey}-change-rate`}
+                            title="평단 변화율"
+                            value={`${calc.averagePriceChangeRate !== 0 ? (calc.averagePriceChangeRate > 0 ? '+ ' : '- ') : ''}${Math.abs(calc.averagePriceChangeRate).toFixed(2)}%`}
+                            valueColor={calc.averagePriceChangeRate >= 0 ? '#EF5350' : '#42A5F5'}
+                          />
+                        </View>
+                        <View key={`${baseKey}-spacer-2`} style={{ width: 12 }} />
+                        <View style={styles.gridItem}>
+                          <CalculationResultCard
+                            key={`${baseKey}-price-change`}
+                            title="평단 변화량"
+                            value={
+                              (calc.averagePriceChange !== 0 ? (calc.averagePriceChange > 0 ? '+ ' : '- ') : '') +
+                              formatNumber(Math.abs(calc.averagePriceChange), calc.currency) +
+                              (calc.exchangeRate
+                                ? getKrwEquivalent(Math.abs(calc.averagePriceChange), calc.exchangeRate) || ''
+                                : '')
+                            }
+                            valueColor={calc.averagePriceChange >= 0 ? '#EF5350' : '#42A5F5'}
+                          />
+                        </View>
+                      </View>
+                      <View key={`${baseKey}-grid-row-3`} style={styles.gridRow}>
                         <View style={styles.gridItem}>
                           <CalculationResultCard
                             key={`${baseKey}-new-avg`}
@@ -774,49 +827,7 @@ export default function AveragingCalculatorView() {
                             }
                           />
                         </View>
-                        <View key={`${baseKey}-spacer-2`} style={{ width: 12 }} />
-                        <View style={styles.gridItem}>
-                          <CalculationResultCard
-                            key={`${baseKey}-price-change`}
-                            title="평단 변화량"
-                            value={
-                              (calc.averagePriceChange !== 0 ? (calc.averagePriceChange > 0 ? '↑ ' : '↓ ') : '') +
-                              formatNumber(Math.abs(calc.averagePriceChange), calc.currency) +
-                              (calc.exchangeRate
-                                ? getKrwEquivalent(Math.abs(calc.averagePriceChange), calc.exchangeRate) || ''
-                                : '')
-                            }
-                            valueColor={calc.averagePriceChange >= 0 ? '#EF5350' : '#42A5F5'}
-                          />
-                        </View>
-                      </View>
-                      <View key={`${baseKey}-grid-row-3`} style={styles.gridRow}>
-                        <View style={styles.gridItem}>
-                          <CalculationResultCard
-                            key={`${baseKey}-change-rate`}
-                            title="평단 변화율"
-                            value={`${calc.averagePriceChangeRate !== 0 ? (calc.averagePriceChangeRate > 0 ? '↑ ' : '↓ ') : ''}${Math.abs(calc.averagePriceChangeRate).toFixed(2)}%`}
-                            valueColor={calc.averagePriceChangeRate >= 0 ? '#EF5350' : '#42A5F5'}
-                          />
-                        </View>
                         <View key={`${baseKey}-spacer-3`} style={{ width: 12 }} />
-                        <View style={styles.gridItem}>
-                          <CalculationResultCard
-                            key={`${baseKey}-current-qty`}
-                            title="기존 매수 수량"
-                            value={`${addCommas(calc.currentQuantity.toString())}주`}
-                          />
-                        </View>
-                      </View>
-                      <View key={`${baseKey}-grid-row-4`} style={styles.gridRow}>
-                        <View style={styles.gridItem}>
-                          <CalculationResultCard
-                            key={`${baseKey}-additional-qty`}
-                            title="추가 매수 수량"
-                            value={`${addCommas(calc.additionalQuantity.toString())}주`}
-                          />
-                        </View>
-                        <View key={`${baseKey}-spacer-4`} style={{ width: 12 }} />
                         <View style={styles.gridItem}>
                           <CalculationResultCard
                             key={`${baseKey}-total-qty`}

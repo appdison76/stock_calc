@@ -142,3 +142,4 @@ export function isNaverApiConfigured(): boolean {
   return !!(NAVER_CLIENT_ID && NAVER_CLIENT_SECRET);
 }
 
+

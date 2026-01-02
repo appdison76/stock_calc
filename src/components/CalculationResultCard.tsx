@@ -32,39 +32,75 @@ export const CalculationResultCard: React.FC<CalculationResultCardProps> = ({
         </View>
         <View style={styles.spacerSmall} />
         {(() => {
-          // 괄호 안에 화살표가 있는 경우 처리 (총 매도 금액 등)
-          const parenMatch = value.match(/^(.+?) \((\u2191|\u2193) (.+?)\)/);
+          // 원화 표시 처리 (줄바꿈 후 "원화"로 시작하는 경우) - 먼저 체크
+          if (value.includes('\n원화 ')) {
+            const parts = value.split('\n원화 ');
+            const mainPart = parts[0];
+            const krwPart = parts[1];
+            
+            // 원화 부분에 부호가 있는 경우 (총 매도 금액 등) - 괄호 안에 +/-
+            const krwArrowMatch = krwPart.match(/^(.+?) \(([+\-]) (.+?)\)$/);
+            if (krwArrowMatch) {
+              const krwBeforeArrow = krwArrowMatch[1];
+              const krwArrow = krwArrowMatch[2];
+              const krwAmount = krwArrowMatch[3];
+              const arrowColor = krwArrow === '+' ? '#4CAF50' : '#F44336'; // 미국 스타일: 상승=녹색, 하락=빨간색
+              
+              // mainPart에 괄호 안에 부호가 있는 경우 처리
+              const parenMatch = mainPart.match(/^(.+?) \(([+\-]) (.+?)\)$/);
+              if (parenMatch) {
+                const beforeParen = parenMatch[1];
+                const arrow = parenMatch[2];
+                const arrowContent = parenMatch[3];
+                const mainArrowColor = arrow === '+' ? '#4CAF50' : '#F44336';
+                
+                return (
+                  <Text style={[styles.value]} numberOfLines={2}>
+                    <Text style={{ color: valueColor }}>{beforeParen}</Text>
+                    <Text style={{ color: mainArrowColor }}> (</Text>
+                    <Text style={{ color: mainArrowColor }}>{arrow} </Text>
+                    <Text style={{ color: mainArrowColor }}>{arrowContent}</Text>
+                    <Text style={{ color: mainArrowColor }}>)</Text>
+                    {'\n'}
+                    <Text style={[styles.krwLabel, { color: valueColor }]}>원화 {krwBeforeArrow} </Text>
+                    <Text style={[styles.krwLabel, { color: arrowColor }]}>(</Text>
+                    <Text style={[styles.krwLabel, { color: arrowColor }]}>{krwArrow} </Text>
+                    <Text style={[styles.krwLabel, { color: arrowColor }]}>{krwAmount}</Text>
+                    <Text style={[styles.krwLabel, { color: arrowColor }]}>)</Text>
+                  </Text>
+                );
+              }
+              
+              return (
+                <Text style={[styles.value]} numberOfLines={2}>
+                  <Text style={{ color: valueColor }}>{mainPart}</Text>
+                  {'\n'}
+                  <Text style={[styles.krwLabel, { color: valueColor }]}>원화 {krwBeforeArrow} </Text>
+                  <Text style={[styles.krwLabel, { color: arrowColor }]}>(</Text>
+                  <Text style={[styles.krwLabel, { color: arrowColor }]}>{krwArrow} </Text>
+                  <Text style={[styles.krwLabel, { color: arrowColor }]}>{krwAmount}</Text>
+                  <Text style={[styles.krwLabel, { color: arrowColor }]}>)</Text>
+                </Text>
+              );
+            }
+            
+            return (
+              <Text style={[styles.value]} numberOfLines={2}>
+                <Text style={{ color: valueColor }}>{mainPart}</Text>
+                {'\n'}
+                <Text style={[styles.krwLabel, { color: valueColor }]}>원화 {krwPart}</Text>
+              </Text>
+            );
+          }
+          
+          // 괄호 안에 부호가 있는 경우 처리 (총 매도 금액 등)
+          const parenMatch = value.match(/^(.+?) \(([+\-]) (.+?)\)/);
           if (parenMatch) {
             const beforeParen = parenMatch[1];
             const arrow = parenMatch[2];
             const arrowContent = parenMatch[3];
             let rest = value.substring(parenMatch[0].length);
-            const arrowColor = arrow === '↑' ? '#EF5350' : '#42A5F5';
-            
-            // 원화 부분 처리 (줄바꿈 후 괄호 안의 화살표와 금액)
-            let krwPart = null;
-            if (rest.includes('\n(')) {
-              const krwMatch = rest.match(/\n\((.+?) (\u2191|\u2193) (.+?)\)/);
-              if (krwMatch) {
-                const krwBeforeArrow = krwMatch[1];
-                const krwArrow = krwMatch[2];
-                const krwAmount = krwMatch[3];
-                const krwAfter = rest.substring(krwMatch[0].length);
-                
-                krwPart = (
-                  <>
-                    {'\n'}
-                    <Text style={{ color: valueColor }}>(</Text>
-                    <Text style={{ color: valueColor }}>{krwBeforeArrow} </Text>
-                    <Text style={{ color: arrowColor }}>{krwArrow} </Text>
-                    <Text style={{ color: arrowColor }}>{krwAmount}</Text>
-                    <Text style={{ color: valueColor }}>)</Text>
-                    {krwAfter && <Text style={{ color: valueColor }}>{krwAfter}</Text>}
-                  </>
-                );
-                rest = '';
-              }
-            }
+            const arrowColor = arrow === '+' ? '#4CAF50' : '#F44336'; // 미국 스타일: 상승=녹색, 하락=빨간색
             
             return (
               <Text style={[styles.value]} numberOfLines={2}>
@@ -73,16 +109,16 @@ export const CalculationResultCard: React.FC<CalculationResultCardProps> = ({
                 <Text style={{ color: arrowColor }}>{arrow} </Text>
                 <Text style={{ color: arrowColor }}>{arrowContent}</Text>
                 <Text style={{ color: arrowColor }}>)</Text>
-                {krwPart || (rest && <Text style={{ color: valueColor }}>{rest}</Text>)}
+                {rest && <Text style={{ color: valueColor }}>{rest}</Text>}
               </Text>
             );
           }
           
-          // 화살표로 시작하는 경우 (물타기 평균 단가 등)
-          if (value.startsWith('↑ ') || value.startsWith('↓ ')) {
+          // +/-로 시작하는 경우 (물타기 평균 단가 등)
+          if (value.startsWith('+ ') || value.startsWith('- ')) {
             return (
               <Text style={[styles.value]} numberOfLines={2}>
-                <Text style={{ color: value.startsWith('↑ ') ? '#EF5350' : '#42A5F5' }}>
+                <Text style={{ color: value.startsWith('+ ') ? '#EF5350' : '#42A5F5' }}>
                   {value.substring(0, 2)}
                 </Text>
                 <Text style={{ color: valueColor }}>
@@ -143,6 +179,10 @@ const styles = StyleSheet.create({
     fontSize: 19,
     fontWeight: 'bold',
     lineHeight: 22.8,
+  },
+  krwLabel: {
+    fontSize: 14,
+    fontWeight: 'normal',
   },
 });
 
