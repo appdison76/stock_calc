@@ -481,6 +481,24 @@ export default function MainScreen() {
     loadDashboardData(true);
   };
 
+  const handleAddStock = async () => {
+    try {
+      await initDatabase();
+      const accounts = await getAllAccounts();
+      // 이름이 "나의 포트폴리오"인 포트폴리오 찾기
+      let defaultAccount = accounts.find(account => account.name === '나의 포트폴리오');
+      // 없으면 첫 번째 포트폴리오 사용 (시스템이 항상 최소 1개는 생성하므로 안전)
+      if (!defaultAccount && accounts.length > 0) {
+        defaultAccount = accounts[0];
+      }
+      if (defaultAccount) {
+        router.push(`/portfolio-detail?id=${defaultAccount.id}`);
+      }
+    } catch (error) {
+      console.error('기본 포트폴리오 찾기 오류:', error);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -641,7 +659,19 @@ export default function MainScreen() {
                     <Text style={styles.menuBannerText}>주식{'\n'}뉴스</Text>
                   </LinearGradient>
                 </TouchableOpacity>
-                <View style={styles.menuBannerCardEmpty} />
+                <TouchableOpacity
+                  style={styles.menuBannerCard}
+                  onPress={handleAddStock}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
+                    style={styles.menuBannerGradient}
+                  >
+                    <Text style={styles.menuBannerIcon}>➕</Text>
+                    <Text style={styles.menuBannerText}>종목{'\n'}추가</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
               </View>
               )}
 

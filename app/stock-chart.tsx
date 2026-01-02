@@ -612,6 +612,15 @@ export default function StockChartScreen() {
               <Text style={styles.backButtonText}>←</Text>
             </TouchableOpacity>
             <Text style={styles.headerTitle}>종목차트</Text>
+            <View style={styles.headerRightContainer}>
+              <TouchableOpacity
+                onPress={() => router.push('/')}
+                style={styles.homeButton}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.homeButtonText}>⌂</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>종목 정보를 찾을 수 없습니다.</Text>
@@ -632,16 +641,25 @@ export default function StockChartScreen() {
             <Text style={styles.backButtonText}>←</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>종목차트</Text>
-          {hasTradingRecords && stock && 'id' in stock && (
+          <View style={styles.headerRightContainer}>
+            {hasTradingRecords && stock && 'id' in stock && (
+              <TouchableOpacity
+                onPress={() => router.push(`/visualization?stockId=${stock.id}`)}
+                style={styles.headerIconButton}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.headerIcon}>📉</Text>
+                <Text style={styles.headerIconLabel}>매매기록</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
-              onPress={() => router.push(`/visualization?stockId=${stock.id}`)}
-              style={styles.headerIconButton}
+              onPress={() => router.push('/')}
+              style={styles.homeButton}
               activeOpacity={0.7}
             >
-              <Text style={styles.headerIcon}>📉</Text>
-              <Text style={styles.headerIconLabel}>매매기록</Text>
+              <Text style={styles.homeButtonText}>⌂</Text>
             </TouchableOpacity>
-          )}
+          </View>
         </View>
 
         <ScrollView
@@ -849,8 +867,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     flex: 1,
   },
-  headerIconButton: {
+  headerRightContainer: {
     marginLeft: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerIconButton: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 8,
@@ -864,6 +887,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginTop: 2,
     fontWeight: '500',
+  },
+  homeButton: {
+    padding: 4,
+  },
+  homeButtonText: {
+    fontSize: 24,
+    color: '#FFFFFF',
   },
   scrollView: {
     flex: 1,

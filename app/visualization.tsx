@@ -278,6 +278,15 @@ export default function VisualizationScreen() {
               <Text style={styles.backButtonText}>←</Text>
             </TouchableOpacity>
             <Text style={styles.headerTitle}>매매기록 차트</Text>
+            <View style={styles.headerRightContainer}>
+              <TouchableOpacity
+                onPress={() => router.push('/')}
+                style={styles.homeButton}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.homeButtonText}>⌂</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>매매 기록이 없습니다.</Text>
@@ -304,16 +313,25 @@ export default function VisualizationScreen() {
             <Text style={styles.backButtonText}>←</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>매매기록 차트</Text>
-          {selectedChart && (
+          <View style={styles.headerRightContainer}>
+            {selectedChart && (
+              <TouchableOpacity
+                onPress={() => router.push(`/stock-chart?id=${selectedChart.stock.id}`)}
+                style={styles.headerIconButton}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.headerIcon}>📈</Text>
+                <Text style={styles.headerIconLabel}>종목차트</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
-              onPress={() => router.push(`/stock-chart?id=${selectedChart.stock.id}`)}
-              style={styles.headerIconButton}
+              onPress={() => router.push('/')}
+              style={styles.homeButton}
               activeOpacity={0.7}
             >
-              <Text style={styles.headerIcon}>📈</Text>
-              <Text style={styles.headerIconLabel}>종목차트</Text>
+              <Text style={styles.homeButtonText}>⌂</Text>
             </TouchableOpacity>
-          )}
+          </View>
         </View>
 
         <ScrollView
@@ -701,8 +719,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     flex: 1,
   },
-  headerIconButton: {
+  headerRightContainer: {
     marginLeft: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerIconButton: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 8,
@@ -716,6 +739,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginTop: 2,
     fontWeight: '500',
+  },
+  homeButton: {
+    padding: 4,
+  },
+  homeButtonText: {
+    fontSize: 24,
+    color: '#FFFFFF',
   },
   scrollView: {
     flex: 1,

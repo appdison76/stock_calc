@@ -1,10 +1,37 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, useRef } from 'react';
+import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import mobileAds from 'react-native-google-mobile-ads';
 import { checkAppVersion } from '../src/services/versionCheck';
 import ForceUpdateModal from '../src/components/ForceUpdateModal';
 import { getNotificationToken, setupNotificationListeners } from '../src/services/NotificationService';
+
+const headerButtonStyles = StyleSheet.create({
+  homeButton: {
+    marginRight: 16,
+    padding: 4,
+  },
+  homeButtonText: {
+    fontSize: 24,
+    color: '#FFFFFF',
+  },
+});
+
+// 홈 버튼 컴포넌트
+function HomeButton() {
+  const router = useRouter();
+  return (
+    <TouchableOpacity
+      onPress={() => router.push('/')}
+      style={headerButtonStyles.homeButton}
+      activeOpacity={0.7}
+    >
+      <Text style={headerButtonStyles.homeButtonText}>⌂</Text>
+    </TouchableOpacity>
+  );
+}
 
 export default function RootLayout() {
   const [forceUpdateVisible, setForceUpdateVisible] = useState(false);
@@ -101,6 +128,7 @@ export default function RootLayout() {
           contentStyle: {
             backgroundColor: '#0D1B2A',
           },
+          headerRight: () => <HomeButton />,
         }}
       >
         <Stack.Screen

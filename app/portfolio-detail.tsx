@@ -19,6 +19,7 @@ import { Currency } from '../src/models/Currency';
 import { ExchangeRateService } from '../src/services/ExchangeRateService';
 import { getStockQuote } from '../src/services/YahooFinanceService';
 import { addCommas } from '../src/utils/formatUtils';
+import { getCurrencyFromTicker } from '../src/utils/stockUtils';
 import StockSearchModal from '../src/components/StockSearchModal';
 
 export default function PortfolioDetailScreen() {
@@ -155,7 +156,7 @@ export default function PortfolioDetailScreen() {
       const newStock = await createStock(
         portfolio.id,
         selectedTickerForAdd,
-        portfolio.currency,
+        getCurrencyFromTicker(selectedTickerForAdd), // 티커 기반 통화 사용
         0,
         0,
         officialNameForSave, // 실제 종목명 (직접 입력이면 undefined)
@@ -296,11 +297,6 @@ export default function PortfolioDetailScreen() {
               )}
             </View>
             <View style={styles.metaContainer}>
-              <View style={styles.currencyBadge}>
-                <Text style={styles.currencyBadgeText}>
-                  {portfolio.currency === Currency.KRW ? '₩ 원화' : '$ 달러'}
-                </Text>
-              </View>
               <View style={styles.stockCountBadge}>
                 <Text style={styles.stockCountBadgeText}>
                   종목 {stocks.length}개
@@ -336,9 +332,16 @@ export default function PortfolioDetailScreen() {
                       <View style={styles.stockCardLeft}>
                         <View style={styles.stockNameRow}>
                           <View style={styles.stockNameContainer}>
-                            <Text style={styles.stockTicker}>
-                              {stock.name || stock.officialName || stock.ticker}
-                            </Text>
+                            <View style={styles.stockNameRowWithBadge}>
+                              <Text style={styles.stockTicker}>
+                                {stock.name || stock.officialName || stock.ticker}
+                              </Text>
+                              {stock.currency === Currency.USD && (
+                                <View style={styles.currencyBadge}>
+                                  <Text style={styles.currencyBadgeText}>USD</Text>
+                                </View>
+                              )}
+                            </View>
                             {/* 매칭된 종목(officialName과 ticker가 모두 있는 경우)은 항상 표시 */}
                             {stock.officialName && stock.ticker && (
                               <Text style={styles.stockOfficialName}>
@@ -697,17 +700,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  currencyBadge: {
-    backgroundColor: 'rgba(255, 152, 0, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  currencyBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FF9800',
-  },
   stockCountBadge: {
     backgroundColor: 'rgba(255, 152, 0, 0.15)',
     paddingHorizontal: 8,
@@ -836,10 +828,26 @@ const styles = StyleSheet.create({
   stockNameContainer: {
     flex: 1,
   },
+  stockNameRowWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   stockTicker: {
     fontSize: 22,
     fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  currencyBadge: {
+    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  currencyBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#42A5F5',
   },
   stockOfficialName: {
     fontSize: 13,

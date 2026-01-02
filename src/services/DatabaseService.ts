@@ -4,6 +4,7 @@ import { Stock } from '../models/Stock';
 import { AveragingRecord } from '../models/AveragingRecord';
 import { TradingRecord } from '../models/TradingRecord';
 import { Currency } from '../models/Currency';
+import { getCurrencyFromTicker } from '../utils/stockUtils';
 import { getStockQuote } from './YahooFinanceService';
 
 const DB_NAME = 'stock_calculator.db';
@@ -284,8 +285,8 @@ export async function createStock(
     id: generateId(),
     accountId,
     ticker: ticker.toUpperCase(),
-    officialName: officialName || null,
-    name: finalName || null,
+    officialName: officialName || undefined,
+    name: finalName || undefined,
     quantity,
     averagePrice,
     currentPrice,
@@ -828,10 +829,12 @@ export async function saveCalculationAsScenario(
 
   // 새 종목 생성 (name 중복 허용, 사용자가 원하는 이름 그대로 저장)
   const lastCalc = calculationHistory[calculationHistory.length - 1];
+  // 티커 기반으로 통화 자동 판단 (currency 파라미터는 무시하고 티커 기반 사용)
+  const tickerBasedCurrency = getCurrencyFromTicker(ticker);
   const stock = await createStock(
     accountId,
     ticker.toUpperCase(), // 티커는 검색 결과에서 가져온 티커 사용
-    currency,
+    tickerBasedCurrency, // 티커 기반 통화 사용
     lastCalc.newTotalQuantity,
     lastCalc.newAveragePriceWithoutFee,
     officialName, // 실제 종목명

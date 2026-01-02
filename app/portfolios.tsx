@@ -29,7 +29,6 @@ export default function PortfoliosScreen() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingPortfolio, setEditingPortfolio] = useState<Account | null>(null);
   const [portfolioName, setPortfolioName] = useState('');
-  const [selectedCurrency, setSelectedCurrency] = useState<Currency | null>(null);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -72,19 +71,13 @@ export default function PortfoliosScreen() {
   const handleCreatePortfolio = () => {
     setEditingPortfolio(null);
     setPortfolioName('');
-    setSelectedCurrency(null);
     setShowPortfolioModal(true);
   };
 
   const handleEditPortfolio = (portfolio: Account) => {
     setEditingPortfolio(portfolio);
     setPortfolioName(portfolio.name);
-    setSelectedCurrency(portfolio.currency);
     setShowEditModal(true);
-  };
-
-  const handleCurrencySelect = (currency: Currency) => {
-    setSelectedCurrency(currency);
   };
 
   const handlePortfolioConfirm = async () => {
@@ -93,16 +86,11 @@ export default function PortfoliosScreen() {
       return;
     }
 
-    if (!selectedCurrency) {
-      Alert.alert('오류', '통화를 선택해주세요.');
-      return;
-    }
-
     try {
-      await createAccount(portfolioName.trim(), selectedCurrency);
+      // 통화는 기본값(KRW) 사용 (실제로는 무시되지만 호환성을 위해)
+      await createAccount(portfolioName.trim(), Currency.KRW);
       setShowPortfolioModal(false);
       setPortfolioName('');
-      setSelectedCurrency(null);
       await loadPortfolios();
     } catch (error) {
       console.error('포트폴리오 생성 오류:', error);
@@ -123,7 +111,6 @@ export default function PortfoliosScreen() {
       setShowEditModal(false);
       setEditingPortfolio(null);
       setPortfolioName('');
-      setSelectedCurrency(null);
       await loadPortfolios();
     } catch (error) {
       console.error('포트폴리오 수정 오류:', error);
@@ -227,11 +214,6 @@ export default function PortfoliosScreen() {
                             )}
                           </View>
                           <View style={styles.metaContainer}>
-                            <View style={styles.currencyBadge}>
-                              <Text style={styles.currencyBadgeText}>
-                                {portfolio.currency === Currency.KRW ? '₩ 원화' : '$ 달러'}
-                              </Text>
-                            </View>
                             <View style={styles.stockCountBadge}>
                               <Text style={styles.stockCountBadgeText}>
                                 종목 {portfolio.stockCount}개
@@ -298,7 +280,6 @@ export default function PortfoliosScreen() {
         onRequestClose={() => {
           setShowPortfolioModal(false);
           setPortfolioName('');
-          setSelectedCurrency(null);
         }}
       >
         <View style={styles.modalOverlay}>
@@ -315,49 +296,12 @@ export default function PortfoliosScreen() {
               autoFocus
             />
 
-            <Text style={[styles.modalLabel, { marginTop: 20 }]}>통화 선택</Text>
-            <View style={styles.currencyButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.currencyButton,
-                  selectedCurrency === Currency.KRW && styles.currencyButtonSelected,
-                ]}
-                onPress={() => handleCurrencySelect(Currency.KRW)}
-              >
-                <Text
-                  style={[
-                    styles.currencyButtonText,
-                    selectedCurrency === Currency.KRW && styles.currencyButtonTextSelected,
-                  ]}
-                >
-                  ₩ 원화 (KRW)
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.currencyButton,
-                  selectedCurrency === Currency.USD && styles.currencyButtonSelected,
-                ]}
-                onPress={() => handleCurrencySelect(Currency.USD)}
-              >
-                <Text
-                  style={[
-                    styles.currencyButtonText,
-                    selectedCurrency === Currency.USD && styles.currencyButtonTextSelected,
-                  ]}
-                >
-                  $ 달러 (USD)
-                </Text>
-              </TouchableOpacity>
-            </View>
-
             <View style={styles.modalButtonRow}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonCancel]}
                 onPress={() => {
                   setShowPortfolioModal(false);
                   setPortfolioName('');
-                  setSelectedCurrency(null);
                 }}
               >
                 <Text style={styles.modalButtonText}>취소</Text>
@@ -382,7 +326,6 @@ export default function PortfoliosScreen() {
           setShowEditModal(false);
           setEditingPortfolio(null);
           setPortfolioName('');
-          setSelectedCurrency(null);
         }}
       >
         <View style={styles.modalOverlay}>
@@ -406,7 +349,6 @@ export default function PortfoliosScreen() {
                   setShowEditModal(false);
                   setEditingPortfolio(null);
                   setPortfolioName('');
-                  setSelectedCurrency(null);
                 }}
               >
                 <Text style={styles.modalButtonText}>취소</Text>
@@ -545,17 +487,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 6,
     gap: 8,
-  },
-  currencyBadge: {
-    backgroundColor: 'rgba(255, 152, 0, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  currencyBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FF9800',
   },
   stockCountBadge: {
     backgroundColor: 'rgba(255, 152, 0, 0.15)',

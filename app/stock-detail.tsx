@@ -655,7 +655,14 @@ export default function StockDetailScreen() {
           <View style={styles.stockInfoCard}>
             <View style={styles.stockNameContainer}>
               <View style={styles.stockNameTextContainer}>
-                <Text style={styles.stockName}>{stock.name || stock.officialName || stock.ticker}</Text>
+                <View style={styles.stockNameRowWithBadge}>
+                  <Text style={styles.stockName}>{stock.name || stock.officialName || stock.ticker}</Text>
+                  {stock.currency === Currency.USD && (
+                    <View style={styles.currencyBadge}>
+                      <Text style={styles.currencyBadgeText}>USD</Text>
+                    </View>
+                  )}
+                </View>
                 {/* 매칭된 종목(officialName과 ticker가 모두 있는 경우)은 항상 표시 */}
                 {stock.officialName && stock.ticker && (
                   <Text style={styles.stockOfficialName}>
@@ -1229,10 +1236,26 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'column',
   },
+  stockNameRowWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   stockName: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  currencyBadge: {
+    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  currencyBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#42A5F5',
   },
   stockOfficialName: {
     fontSize: 15,
