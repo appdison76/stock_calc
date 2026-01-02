@@ -46,8 +46,6 @@ export default function StockSearchModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<StockSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [showManualInput, setShowManualInput] = useState(false);
-  const [manualInput, setManualInput] = useState('');
 
   const debouncedSearchQuery = useDebounce(searchQuery, 500); // 500ms 디바운싱
 
@@ -56,7 +54,6 @@ export default function StockSearchModal({
     const performSearch = async () => {
       if (!debouncedSearchQuery.trim()) {
         setSearchResults([]);
-        setShowManualInput(false);
         return;
       }
 
@@ -64,12 +61,9 @@ export default function StockSearchModal({
       try {
         const results = await searchStocks(debouncedSearchQuery);
         setSearchResults(results);
-        // 검색 결과가 없거나, 사용자가 직접 입력하고 싶을 때를 위한 옵션
-        setShowManualInput(true);
       } catch (error) {
         console.error('종목 검색 오류:', error);
         setSearchResults([]);
-        setShowManualInput(true);
       } finally {
         setIsSearching(false);
       }
@@ -83,22 +77,12 @@ export default function StockSearchModal({
     if (!visible) {
       setSearchQuery('');
       setSearchResults([]);
-      setShowManualInput(false);
-      setManualInput('');
     }
   }, [visible]);
 
   const handleSelectResult = (result: StockSearchResult) => {
     onSelect(result.symbol, result.name);
     onClose();
-  };
-
-  const handleManualInput = () => {
-    if (manualInput.trim()) {
-      // 수동 입력 시 티커는 입력값 그대로 사용, officialName은 빈 문자열(매칭 안됨)
-      onSelect(manualInput.trim(), '');
-      onClose();
-    }
   };
 
   const renderSearchResult = ({ item }: { item: StockSearchResult }) => {
@@ -139,7 +123,11 @@ export default function StockSearchModal({
           <Text style={styles.modalTitle}>{title}</Text>
           
           <Text style={styles.modalLabel}>종목 검색</Text>
-          <Text style={styles.modalHelperText}>💡 한국 종목은 티커(예: 005930)로 검색하면 더 정확합니다</Text>
+          <Text style={styles.modalHelperText}>
+            💡 한국 종목: 종목명과 종목티커로 검색 가능 (예: 삼성전자, 005930){'\n'}
+            💡 미국 종목: 종목명과 종목티커로 검색 가능 (예: Apple Inc, AAPL){'\n'}
+            (주요 S&P 500 종목 200~500개는 한글명으로도 검색 가능)
+          </Text>
           <TextInput
             style={styles.modalInput}
             placeholder={placeholder}
@@ -171,35 +159,8 @@ export default function StockSearchModal({
             </View>
           )}
 
-          {!isSearching && debouncedSearchQuery.trim() && searchResults.length === 0 && showManualInput && (
-            <View style={styles.manualInputContainer}>
-              <Text style={styles.manualInputTitle}>직접 입력</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="종목명을 직접 입력하세요"
-                placeholderTextColor="#757575"
-                value={manualInput}
-                onChangeText={setManualInput}
-                onSubmitEditing={handleManualInput}
-              />
-              <TouchableOpacity
-                style={[
-                  {
-                    width: '100%',
-                    borderRadius: 12,
-                    paddingVertical: 14,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: '#42A5F5',
-                  },
-                  !manualInput.trim() && { opacity: 0.5 }
-                ]}
-                onPress={handleManualInput}
-                disabled={!manualInput.trim()}
-              >
-                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#FFFFFF' }}>확인</Text>
-              </TouchableOpacity>
-            </View>
+          {!isSearching && debouncedSearchQuery.trim() && searchResults.length === 0 && (
+            <Text style={styles.helperText}>검색 결과가 없습니다. 다른 검색어를 시도해보세요.</Text>
           )}
 
           {!isSearching && !debouncedSearchQuery.trim() && (
@@ -323,15 +284,6 @@ const styles = StyleSheet.create({
   searchResultExchange: {
     fontSize: 14,
     color: '#757575',
-  },
-  manualInputContainer: {
-    marginBottom: 16,
-  },
-  manualInputTitle: {
-    fontSize: 14,
-    color: '#B0BEC5',
-    marginBottom: 8,
-    fontWeight: '600',
   },
   helperText: {
     fontSize: 12,

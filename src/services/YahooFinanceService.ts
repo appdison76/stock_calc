@@ -9,6 +9,10 @@ import {
   KOREAN_STOCK_MAP,
   KOREAN_TICKER_TO_NAME_MAP,
 } from '../data/korean_stocks_maps';
+import {
+  US_STOCK_MAP,
+  US_TICKER_TO_NAME_MAP,
+} from '../data/us_stocks_maps';
 
 export interface StockQuote {
   symbol: string;
@@ -152,6 +156,9 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
     // 한국 주식 한글명으로 검색한 경우, 티커로 변환하여 추가 검색
     const koreanStockTicker = KOREAN_STOCK_MAP[trimmedQuery];
     
+    // 미국 주식 한글명으로 검색한 경우, 티커로 변환하여 추가 검색
+    const usStockTicker = US_STOCK_MAP[trimmedQuery];
+    
     // 검색어가 짧을 때(2-4글자) KOREAN_STOCK_MAP에서 매칭되는 종목들의 티커로도 검색
     let additionalQueries: string[] = [];
     const upperQuery = trimmedQuery.toUpperCase();
@@ -187,10 +194,11 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
       });
     }
     
-    // 여러 검색어로 시도 (원래 검색어 + 티커 + 추가 검색어)
+    // 여러 검색어로 시도 (원래 검색어 + 한국 티커 + 미국 티커 + 추가 검색어)
     const searchQueries = [
       trimmedQuery,
       ...(koreanStockTicker ? [koreanStockTicker.replace('.KS', '')] : []), // 티커에서 .KS 제거하여 검색
+      ...(usStockTicker ? [usStockTicker] : []), // 미국 티커 추가
       ...additionalQueries,
     ];
     
@@ -256,6 +264,15 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
               const koreanName = KOREAN_TICKER_TO_NAME_MAP[quote.symbol];
               if (koreanName) {
                 displayName = koreanName;
+                // 한글명이 있는 경우 원래 영문명 저장
+                savedOriginalName = originalName;
+              }
+            }
+            // 미국 주식인 경우 (티커에 점이 없거나 주요 거래소인 경우)
+            else if (quote.symbol && !quote.symbol.includes('.') && quote.exchange && ['NASDAQ', 'NYSE', 'NMS', 'NYQ'].includes(quote.exchange)) {
+              const usKoreanName = US_TICKER_TO_NAME_MAP[quote.symbol];
+              if (usKoreanName) {
+                displayName = usKoreanName;
                 // 한글명이 있는 경우 원래 영문명 저장
                 savedOriginalName = originalName;
               }

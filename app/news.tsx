@@ -7,6 +7,7 @@ import { fetchGeneralNews, fetchStockNews, fetchGoogleNewsRSS } from '../src/ser
 import { initDatabase, getAllAccounts, getStocksByAccountId } from '../src/services/DatabaseService';
 import { Stock } from '../src/models/Stock';
 import { Currency } from '../src/models/Currency';
+import { US_ETF_TO_UNDERLYING_MAP } from '../src/data/us_etf_underlying_map';
 
 export default function NewsScreen() {
   const router = useRouter();
@@ -116,13 +117,50 @@ export default function NewsScreen() {
         if (stock) {
           // 언어에 따라 Google News RSS를 직접 사용
           const language = targetLanguage || newsLanguage;
+          const stockName = stock.officialName || stock.name || stock.ticker;
+          
+          // ETF인 경우 기초 자산 티커 확인
+          const underlyingTicker = US_ETF_TO_UNDERLYING_MAP[stock.ticker];
+          const isETF = !!underlyingTicker && underlyingTicker !== stock.ticker;
+          
           fetchedNews = await fetchGoogleNewsRSS(
-            stock.officialName || stock.name || stock.ticker,
+            stockName,
             stock.officialName || stock.name,
             stock.ticker,
             language,
             days
           );
+          
+          // ETF인 경우 기초 자산 뉴스도 가져오기
+          if (isETF) {
+            try {
+              const underlyingNews = await fetchGoogleNewsRSS(
+                underlyingTicker,
+                underlyingTicker,
+                underlyingTicker,
+                language,
+                days
+              );
+              
+              // ETF 뉴스와 기초 자산 뉴스 합치기 (중복 제거)
+              const baseTitles = new Set(fetchedNews.map(n => n.title));
+              const uniqueUnderlyingNews = underlyingNews.filter(item => !baseTitles.has(item.title));
+              
+              fetchedNews = [...fetchedNews, ...uniqueUnderlyingNews];
+              
+              console.log(`ETF ${stock.ticker} -> 기초자산 ${underlyingTicker}: 총 ${fetchedNews.length}개 뉴스`);
+            } catch (error) {
+              console.warn(`기초 자산 ${underlyingTicker} 뉴스 로드 실패:`, error);
+              // 기초 자산 뉴스 로드 실패해도 ETF 뉴스는 유지
+            }
+          }
+          
+          // 시간순 정렬 (최신 뉴스가 맨 위)
+          fetchedNews.sort((a, b) => {
+            const dateA = a.publishedAt.getTime();
+            const dateB = b.publishedAt.getTime();
+            return dateB - dateA; // 내림차순 (최신이 먼저)
+          });
         }
       }
       
@@ -207,13 +245,51 @@ export default function NewsScreen() {
             setLoading(true);
             // 종목 정보를 직접 사용하여 뉴스 로드
             try {
-              const fetchedNews = await fetchGoogleNewsRSS(
-                targetStock.officialName || targetStock.name || targetStock.ticker,
+              const stockName = targetStock.officialName || targetStock.name || targetStock.ticker;
+              
+              // ETF인 경우 기초 자산 티커 확인
+              const underlyingTicker = US_ETF_TO_UNDERLYING_MAP[targetStock.ticker];
+              const isETF = !!underlyingTicker && underlyingTicker !== targetStock.ticker;
+              
+              let fetchedNews = await fetchGoogleNewsRSS(
+                stockName,
                 targetStock.officialName || targetStock.name,
                 targetStock.ticker,
                 targetLang,
                 7
               );
+              
+              // ETF인 경우 기초 자산 뉴스도 가져오기
+              if (isETF) {
+                try {
+                  const underlyingNews = await fetchGoogleNewsRSS(
+                    underlyingTicker,
+                    underlyingTicker,
+                    underlyingTicker,
+                    targetLang,
+                    7
+                  );
+                  
+                  // ETF 뉴스와 기초 자산 뉴스 합치기 (중복 제거)
+                  const baseTitles = new Set(fetchedNews.map(n => n.title));
+                  const uniqueUnderlyingNews = underlyingNews.filter(item => !baseTitles.has(item.title));
+                  
+                  fetchedNews = [...fetchedNews, ...uniqueUnderlyingNews];
+                  
+                  console.log(`ETF ${targetStock.ticker} -> 기초자산 ${underlyingTicker}: 총 ${fetchedNews.length}개 뉴스`);
+                } catch (error) {
+                  console.warn(`기초 자산 ${underlyingTicker} 뉴스 로드 실패:`, error);
+                  // 기초 자산 뉴스 로드 실패해도 ETF 뉴스는 유지
+                }
+              }
+              
+              // 시간순 정렬 (최신 뉴스가 맨 위)
+              fetchedNews.sort((a, b) => {
+                const dateA = a.publishedAt.getTime();
+                const dateB = b.publishedAt.getTime();
+                return dateB - dateA; // 내림차순 (최신이 먼저)
+              });
+              
               const initialLimit = 20;
               setNews(fetchedNews.slice(0, initialLimit));
               setHasMore(fetchedNews.length > initialLimit);

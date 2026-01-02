@@ -31,6 +31,11 @@ export function addCommas(numberString: string): string {
 }
 
 export function formatCurrency(value: number, currency: Currency): string {
+  // null, undefined, NaN 체크
+  if (value == null || isNaN(value) || !isFinite(value)) {
+    return '-';
+  }
+  
   if (currency === Currency.USD) {
     return `$${addCommas(value.toFixed(2))}`;
   } else {

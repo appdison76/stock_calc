@@ -29,6 +29,8 @@ import { ExchangeRateService } from '../src/services/ExchangeRateService';
 import { getStockQuote } from '../src/services/YahooFinanceService';
 import { fetchGeneralNews, fetchStockNews, fetchGoogleNewsRSS } from '../src/services/NewsService';
 import { NewsItem } from '../src/models/NewsItem';
+import { SettingsService } from '../src/services/SettingsService';
+import { US_ETF_TO_UNDERLYING_MAP } from '../src/data/us_etf_underlying_map';
 
 interface CalculatorCardProps {
   title: string;
@@ -114,12 +116,49 @@ export default function MainScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [exchangeRate, setExchangeRate] = useState<number>(1350);
+  
+  // 메인화면 표시 설정
+  const [showMarketIndicators, setShowMarketIndicators] = useState(true);
+  const [showMiniBanners, setShowMiniBanners] = useState(true);
+  const [showPortfolio, setShowPortfolio] = useState(true);
+  const [showRelatedNews, setShowRelatedNews] = useState(true);
+  const [showLatestNews, setShowLatestNews] = useState(true);
+  
+  // 포트폴리오 표시 개수 (기본 5개)
+  const [displayedPortfolioCount, setDisplayedPortfolioCount] = useState(5);
 
   useFocusEffect(
     useCallback(() => {
+      loadDisplaySettings();
       loadDashboardData();
     }, [])
   );
+
+  const loadDisplaySettings = async () => {
+    try {
+      const [
+        marketIndicators,
+        miniBanners,
+        portfolio,
+        relatedNews,
+        latestNews,
+      ] = await Promise.all([
+        SettingsService.getShowMarketIndicators(),
+        SettingsService.getShowMiniBanners(),
+        SettingsService.getShowPortfolio(),
+        SettingsService.getShowRelatedNews(),
+        SettingsService.getShowLatestNews(),
+      ]);
+
+      setShowMarketIndicators(marketIndicators);
+      setShowMiniBanners(miniBanners);
+      setShowPortfolio(portfolio);
+      setShowRelatedNews(relatedNews);
+      setShowLatestNews(latestNews);
+    } catch (error) {
+      console.error('표시 설정 로드 오류:', error);
+    }
+  };
 
   const loadDashboardData = async (forceRefresh: boolean = false) => {
     try {
@@ -215,7 +254,12 @@ export default function MainScreen() {
           
           const newsPromises = uniqueStocks.map(async (stock) => {
             try {
-              const [newsKo, newsEn] = await Promise.all([
+              // ETF인 경우 기초 자산 티커 확인
+              const underlyingTicker = US_ETF_TO_UNDERLYING_MAP[stock.ticker];
+              const isETF = !!underlyingTicker;
+              
+              // 기본 종목 뉴스 가져오기
+              const [baseNewsKo, baseNewsEn] = await Promise.all([
                 fetchGoogleNewsRSS(
                   stock.officialName || stock.name || stock.ticker,
                   stock.officialName || stock.name,
@@ -238,9 +282,86 @@ export default function MainScreen() {
                 }),
               ]);
               
+              let finalNewsKo = baseNewsKo;
+              let finalNewsEn = baseNewsEn;
+              
+              // ETF가 아닌 경우에도 시간순 정렬 적용
+              if (!isETF || underlyingTicker === stock.ticker) {
+                finalNewsKo.sort((a, b) => {
+                  const dateA = a.publishedAt.getTime();
+                  const dateB = b.publishedAt.getTime();
+                  return dateB - dateA; // 내림차순 (최신이 먼저)
+                });
+                finalNewsEn.sort((a, b) => {
+                  const dateA = a.publishedAt.getTime();
+                  const dateB = b.publishedAt.getTime();
+                  return dateB - dateA; // 내림차순 (최신이 먼저)
+                });
+              }
+              
+              // ETF인 경우 기초 자산 뉴스도 가져오기
+              if (isETF && underlyingTicker !== stock.ticker) {
+                try {
+                  const [underlyingNewsKo, underlyingNewsEn] = await Promise.all([
+                    fetchGoogleNewsRSS(
+                      underlyingTicker,
+                      underlyingTicker,
+                      underlyingTicker,
+                      'ko',
+                      7
+                    ).catch(err => {
+                      console.warn(`기초 자산 ${underlyingTicker} 한글 뉴스 로드 실패:`, err);
+                      return [];
+                    }),
+                    fetchGoogleNewsRSS(
+                      underlyingTicker,
+                      underlyingTicker,
+                      underlyingTicker,
+                      'en',
+                      7
+                    ).catch(err => {
+                      console.warn(`기초 자산 ${underlyingTicker} 영문 뉴스 로드 실패:`, err);
+                      return [];
+                    }),
+                  ]);
+                  
+                  // ETF 뉴스와 기초 자산 뉴스 합치기 (중복 제거는 제목 기준으로 간단히)
+                  const combineNews = (base: NewsItem[], underlying: NewsItem[]) => {
+                    const combined = [...base];
+                    const baseTitles = new Set(base.map(n => n.title));
+                    
+                    underlying.forEach(news => {
+                      if (!baseTitles.has(news.title)) {
+                        combined.push(news);
+                      }
+                    });
+                    
+                    // 시간순 정렬 (최신 뉴스가 맨 위)
+                    combined.sort((a, b) => {
+                      const dateA = a.publishedAt.getTime();
+                      const dateB = b.publishedAt.getTime();
+                      return dateB - dateA; // 내림차순 (최신이 먼저)
+                    });
+                    
+                    return combined;
+                  };
+                  
+                  finalNewsKo = combineNews(baseNewsKo, underlyingNewsKo);
+                  finalNewsEn = combineNews(baseNewsEn, underlyingNewsEn);
+                } catch (error) {
+                  console.warn(`기초 자산 ${underlyingTicker} 뉴스 로드 실패:`, error);
+                  // 기초 자산 뉴스 로드 실패해도 ETF 뉴스는 유지
+                }
+              }
+              
+              // 디버깅 로그
+              if (isETF) {
+                console.log(`ETF ${stock.ticker} -> 기초자산 ${underlyingTicker}: 한글 ${finalNewsKo.length}개, 영문 ${finalNewsEn.length}개 뉴스`);
+              }
+              
               newsMap.set(stock.id, {
-                ko: newsKo.slice(0, 3), // 종목당 최대 3개
-                en: newsEn.slice(0, 3),
+                ko: finalNewsKo.slice(0, isETF ? 10 : 10), // ETF와 일반 종목 모두 최대 10개 저장 (표시는 3개만)
+                en: finalNewsEn.slice(0, isETF ? 10 : 10),
               });
             } catch (error) {
               console.warn(`종목 ${stock.ticker} 뉴스 로드 실패:`, error);
@@ -388,7 +509,7 @@ export default function MainScreen() {
           ) : (
             <>
               {/* 주요 지표 (최상단, 작게 일렬로) */}
-              {marketIndicators.length > 0 && (
+              {showMarketIndicators && marketIndicators.length > 0 && (
                 <View style={styles.topIndicatorsContainer}>
                   {marketIndicators.map((indicator, index) => (
                     <TouchableOpacity
@@ -421,6 +542,7 @@ export default function MainScreen() {
               )}
 
               {/* 메뉴 배너 (포트폴리오, 매매기록, 종목차트, 환경설정) */}
+              {showMiniBanners && (
               <View style={styles.menuBannersContainer}>
                 <TouchableOpacity
                   style={styles.menuBannerCard}
@@ -475,8 +597,10 @@ export default function MainScreen() {
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
+              )}
 
               {/* 계산기 배너 (수익률 계산기, 물타기 계산기, 주식뉴스) */}
+              {showMiniBanners && (
               <View style={styles.menuBannersContainer}>
                 <TouchableOpacity
                   style={styles.menuBannerCard}
@@ -519,6 +643,7 @@ export default function MainScreen() {
                 </TouchableOpacity>
                 <View style={styles.menuBannerCardEmpty} />
               </View>
+              )}
 
               <View style={styles.header}>
             <View style={styles.headerIconContainer}>
@@ -539,7 +664,7 @@ export default function MainScreen() {
           </View>
 
           {/* 포트폴리오 종목 섹션 */}
-          {portfolioStocks.length > 0 && (
+          {showPortfolio && portfolioStocks.length > 0 && (
             <View style={styles.dashboardSection}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>내 포트폴리오</Text>
@@ -551,13 +676,25 @@ export default function MainScreen() {
                 </TouchableOpacity>
               </View>
               <View style={styles.stocksContainer}>
-                {portfolioStocks.slice(0, 5).map((stock) => {
-                  const changePercent = stock.currentPrice && stock.averagePrice > 0
-                    ? ((stock.currentPrice - stock.averagePrice) / stock.averagePrice) * 100
+                {portfolioStocks.slice(0, displayedPortfolioCount).map((stock) => {
+                  // 안전한 값 추출
+                  const currentPrice = stock.currentPrice != null && !isNaN(stock.currentPrice) && isFinite(stock.currentPrice) && stock.currentPrice > 0
+                    ? stock.currentPrice
                     : null;
-                  const changeAmount = stock.currentPrice && stock.averagePrice
-                    ? stock.currentPrice - stock.averagePrice
+                  const averagePrice = stock.averagePrice != null && !isNaN(stock.averagePrice) && isFinite(stock.averagePrice) && stock.averagePrice > 0
+                    ? stock.averagePrice
                     : null;
+                  
+                  const changePercent = currentPrice != null && averagePrice != null
+                    ? ((currentPrice - averagePrice) / averagePrice) * 100
+                    : null;
+                  const changeAmount = currentPrice != null && averagePrice != null
+                    ? currentPrice - averagePrice
+                    : null;
+                  
+                  // changePercent와 changeAmount 유효성 검사
+                  const isValidChangePercent = changePercent != null && !isNaN(changePercent) && isFinite(changePercent);
+                  const isValidChangeAmount = changeAmount != null && !isNaN(changeAmount) && isFinite(changeAmount);
                   
                   return (
                     <TouchableOpacity
@@ -574,21 +711,21 @@ export default function MainScreen() {
                           <Text style={styles.stockCardAccount}>{stock.accountName}</Text>
                         </View>
                         <View style={styles.stockCardPrices}>
-                          {stock.currentPrice && stock.currentPrice > 0 ? (
+                          {currentPrice != null ? (
                             <Text style={styles.stockCardPrice}>
-                              {formatCurrency(stock.currentPrice, stock.currency)}
+                              {formatCurrency(currentPrice, stock.currency)}
                             </Text>
                           ) : (
                             <Text style={styles.stockCardPriceUnavailable}>-</Text>
                           )}
-                          {stock.averagePrice && stock.averagePrice > 0 && (
+                          {averagePrice != null && (
                             <Text style={styles.stockCardAveragePrice}>
-                              평단: {formatCurrency(stock.averagePrice, stock.currency)}
+                              평단: {formatCurrency(averagePrice, stock.currency)}
                             </Text>
                           )}
                         </View>
                       </View>
-                      {changePercent !== null && changeAmount !== null && (
+                      {isValidChangePercent && isValidChangeAmount && changePercent != null && changeAmount != null ? (
                         <View style={styles.stockCardChange}>
                           <Text
                             style={[
@@ -596,7 +733,7 @@ export default function MainScreen() {
                               changePercent >= 0 ? styles.positive : styles.negative,
                             ]}
                           >
-                            {changePercent >= 0 ? '+' : ''}{changePercent.toFixed(2)}%
+                            {`${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`}
                           </Text>
                           <Text
                             style={[
@@ -604,21 +741,25 @@ export default function MainScreen() {
                               changeAmount >= 0 ? styles.positive : styles.negative,
                             ]}
                           >
-                            ({changeAmount >= 0 ? '+' : ''}{formatCurrency(Math.abs(changeAmount), stock.currency)})
+                            {`(${changeAmount >= 0 ? '+' : ''}${formatCurrency(Math.abs(changeAmount), stock.currency)})`}
                           </Text>
                         </View>
-                      )}
+                      ) : null}
                     </TouchableOpacity>
                   );
                 })}
               </View>
-              {portfolioStocks.length > 5 && (
+              {portfolioStocks.length > displayedPortfolioCount && (
                 <TouchableOpacity
                   style={styles.showMoreButton}
-                  onPress={() => router.push('/portfolios')}
+                  onPress={() => {
+                    // 5개씩 추가하되, 전체 개수를 넘지 않도록
+                    const nextCount = Math.min(displayedPortfolioCount + 5, portfolioStocks.length);
+                    setDisplayedPortfolioCount(nextCount);
+                  }}
                 >
                   <Text style={styles.showMoreButtonText}>
-                    + {portfolioStocks.length - 5}개 더 보기
+                    + {portfolioStocks.length - displayedPortfolioCount}개 더 보기
                   </Text>
                 </TouchableOpacity>
               )}
@@ -656,7 +797,7 @@ export default function MainScreen() {
           <View style={styles.adSpacer} />
 
           {/* 관련 뉴스 섹션 (포트폴리오가 있을 때만) */}
-          {relatedNewsStocks.length > 0 && (
+          {showRelatedNews && relatedNewsStocks.length > 0 && (
             <View style={styles.dashboardSection}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>관련 뉴스</Text>
@@ -791,7 +932,7 @@ export default function MainScreen() {
           )}
 
           {/* 최신 뉴스 섹션 */}
-          {(latestNewsKo.length > 0 || latestNewsEn.length > 0) && (
+          {showLatestNews && (latestNewsKo.length > 0 || latestNewsEn.length > 0) && (
             <View style={styles.dashboardSection}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>최신 뉴스</Text>
@@ -913,6 +1054,18 @@ export default function MainScreen() {
               icon="📈"
               color="#E91E63"
               onPress={() => router.push('/stock-chart')}
+            />
+          </View>
+
+          <View style={styles.adSpacer} />
+
+          <View style={styles.cardsContainer}>
+            <CalculatorCard
+              title="주요 지표"
+              description={['환율, 비트코인, 금, 유가 등', '주요 시장 지표를 확인합니다']}
+              icon="💰"
+              color="#00BCD4"
+              onPress={() => router.push('/market-indicators')}
             />
           </View>
 

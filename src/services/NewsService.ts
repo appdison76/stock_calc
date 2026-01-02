@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NewsItem } from '../models/NewsItem';
 import { Currency } from '../models/Currency';
 import { searchStockNews as searchNaverStockNews, isNaverApiConfigured } from './NaverSearchService';
+import { US_ETF_TO_UNDERLYING_MAP } from '../data/us_etf_underlying_map';
 
 const CACHE_KEY_GENERAL_NEWS = '@news_general';
 const CACHE_KEY_STOCK_NEWS = '@news_stock_';
@@ -830,6 +831,10 @@ export async function fetchStockNews(
       return [];
     }
 
+    // ETF인 경우 기초 자산 티커 확인
+    const underlyingTicker = US_ETF_TO_UNDERLYING_MAP[ticker];
+    const isETF = !!underlyingTicker && underlyingTicker !== ticker;
+
     try {
       // 1순위: 구글 뉴스 RSS (영어 검색)
       news = await fetchGoogleNewsRSS(searchTerm, stockName, ticker, 'en', daysBack);
@@ -848,6 +853,24 @@ export async function fetchStockNews(
         relatedStockName: stockName,
         relatedTicker: ticker,
       }));
+
+      // ETF인 경우 기초 자산 뉴스도 가져오기
+      if (isETF) {
+        try {
+          const underlyingNews = await fetchGoogleNewsRSS(underlyingTicker, underlyingTicker, underlyingTicker, 'en', daysBack);
+          
+          // ETF 뉴스와 기초 자산 뉴스 합치기 (중복 제거)
+          const baseTitles = new Set(news.map(n => n.title));
+          const uniqueUnderlyingNews = underlyingNews.filter(item => !baseTitles.has(item.title));
+          
+          news = [...news, ...uniqueUnderlyingNews];
+          
+          console.log(`ETF ${ticker} -> 기초자산 ${underlyingTicker}: 총 ${news.length}개 뉴스 (ETF ${news.length - uniqueUnderlyingNews.length}개 + 기초자산 ${uniqueUnderlyingNews.length}개)`);
+        } catch (error) {
+          console.warn(`기초 자산 ${underlyingTicker} 뉴스 로드 실패:`, error);
+          // 기초 자산 뉴스 로드 실패해도 ETF 뉴스는 유지
+        }
+      }
     } catch (error) {
       console.warn('미국 종목 뉴스 검색 실패, Yahoo Finance로 시도:', error);
       // 실패 시 Yahoo Finance 시도
@@ -863,6 +886,13 @@ export async function fetchStockNews(
         news = [];
       }
     }
+
+    // 시간순 정렬 (최신 뉴스가 맨 위)
+    news.sort((a, b) => {
+      const dateA = a.publishedAt.getTime();
+      const dateB = b.publishedAt.getTime();
+      return dateB - dateA; // 내림차순 (최신이 먼저)
+    });
   } else if (isKoreanStock) {
     // 한국 종목: 구글 뉴스 RSS (한국어 검색)
     const searchTerm = stockName || ticker;
@@ -902,6 +932,13 @@ export async function fetchStockNews(
         relatedStockName: stockName,
         relatedTicker: ticker,
       }));
+
+      // 시간순 정렬 (최신 뉴스가 맨 위)
+      news.sort((a, b) => {
+        const dateA = a.publishedAt.getTime();
+        const dateB = b.publishedAt.getTime();
+        return dateB - dateA; // 내림차순 (최신이 먼저)
+      });
     } catch (error) {
       console.warn('종목별 뉴스 검색 실패:', error);
       news = [];
