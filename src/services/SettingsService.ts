@@ -13,6 +13,10 @@ const KEY_SHOW_PORTFOLIO = 'show_portfolio';
 const KEY_SHOW_RELATED_NEWS = 'show_related_news';
 const KEY_SHOW_LATEST_NEWS = 'show_latest_news';
 
+// 종목 목록 정렬/필터 설정 키
+const KEY_PORTFOLIO_SORT_OPTION = 'portfolio_sort_option';
+const KEY_PORTFOLIO_FILTER_OPTION = 'portfolio_filter_option';
+
 // 기본값
 const DEFAULT_KRW_TAX_RATE = 0.15;
 const DEFAULT_KRW_FEE_RATE = 0.015;
@@ -25,6 +29,10 @@ const DEFAULT_SHOW_MINI_BANNERS = true;
 const DEFAULT_SHOW_PORTFOLIO = true;
 const DEFAULT_SHOW_RELATED_NEWS = true;
 const DEFAULT_SHOW_LATEST_NEWS = true;
+
+// 종목 목록 정렬/필터 기본값
+const DEFAULT_PORTFOLIO_SORT_OPTION = 'name'; // 이름순
+const DEFAULT_PORTFOLIO_FILTER_OPTION = 'all'; // 전체
 
 export class SettingsService {
   /// 원화 거래세율 가져오기
@@ -176,6 +184,44 @@ export class SettingsService {
   /// 최신뉴스 영역 표시 여부 저장하기
   static async setShowLatestNews(value: boolean): Promise<void> {
     await AsyncStorage.setItem(KEY_SHOW_LATEST_NEWS, value.toString());
+  }
+
+  // ===== 종목 목록 정렬/필터 설정 =====
+
+  /// 종목 목록 정렬 옵션 가져오기 ('ticker' | 'name' | 'created')
+  static async getPortfolioSortOption(): Promise<'ticker' | 'name' | 'created'> {
+    try {
+      const value = await AsyncStorage.getItem(KEY_PORTFOLIO_SORT_OPTION);
+      if (value === 'ticker' || value === 'name' || value === 'created') {
+        return value;
+      }
+      return DEFAULT_PORTFOLIO_SORT_OPTION;
+    } catch (e) {
+      return DEFAULT_PORTFOLIO_SORT_OPTION;
+    }
+  }
+
+  /// 종목 목록 정렬 옵션 저장하기
+  static async setPortfolioSortOption(value: 'ticker' | 'name' | 'created'): Promise<void> {
+    await AsyncStorage.setItem(KEY_PORTFOLIO_SORT_OPTION, value);
+  }
+
+  /// 종목 목록 필터 옵션 가져오기 ('all' | 'krw' | 'usd')
+  static async getPortfolioFilterOption(): Promise<'all' | 'krw' | 'usd'> {
+    try {
+      const value = await AsyncStorage.getItem(KEY_PORTFOLIO_FILTER_OPTION);
+      if (value === 'all' || value === 'krw' || value === 'usd') {
+        return value;
+      }
+      return DEFAULT_PORTFOLIO_FILTER_OPTION;
+    } catch (e) {
+      return DEFAULT_PORTFOLIO_FILTER_OPTION;
+    }
+  }
+
+  /// 종목 목록 필터 옵션 저장하기
+  static async setPortfolioFilterOption(value: 'all' | 'krw' | 'usd'): Promise<void> {
+    await AsyncStorage.setItem(KEY_PORTFOLIO_FILTER_OPTION, value);
   }
 }
 

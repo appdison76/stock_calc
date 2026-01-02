@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, useRef } from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 import mobileAds from 'react-native-google-mobile-ads';
 import { checkAppVersion } from '../src/services/versionCheck';
 import ForceUpdateModal from '../src/components/ForceUpdateModal';
@@ -41,8 +42,13 @@ export default function RootLayout() {
   } | null>(null);
 
   useEffect(() => {
-    // 버전 체크 (개발 환경에서는 건너뛰기)
-    if (!__DEV__) {
+    // 버전 체크 (실제 릴리즈 빌드에서만 실행)
+    // executionEnvironment가 'storeClient' 또는 'standalone'일 때만 체크
+    // 개발 모드(Metro 서버 연결)에서는 건너뛰기
+    const executionEnvironment = Constants.executionEnvironment;
+    const isReleaseBuild = executionEnvironment === 'storeClient' || executionEnvironment === 'standalone';
+    
+    if (isReleaseBuild) {
       const version = checkAppVersion();
       if (version.needsUpdate) {
         setVersionInfo({

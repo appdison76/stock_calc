@@ -492,7 +492,7 @@ export default function MainScreen() {
         defaultAccount = accounts[0];
       }
       if (defaultAccount) {
-        router.push(`/portfolio-detail?id=${defaultAccount.id}`);
+        router.push(`/portfolio-detail?id=${defaultAccount.id}&scrollToAdd=true`);
       }
     } catch (error) {
       console.error('기본 포트폴리오 찾기 오류:', error);
@@ -559,6 +559,64 @@ export default function MainScreen() {
                 </View>
               )}
 
+              {/* 계산기 배너 (수익률 계산기, 물타기 계산기, 주식뉴스) */}
+              {showMiniBanners && (
+              <View style={styles.menuBannersContainer}>
+                <TouchableOpacity
+                  style={styles.menuBannerCard}
+                  onPress={() => router.push('/profit')}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
+                    style={styles.menuBannerGradient}
+                  >
+                    <Text style={[styles.menuBannerIcon, { color: '#42A5F5' }]}>%</Text>
+                    <Text style={styles.menuBannerText}>수익률{'\n'}계산기</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuBannerCard}
+                  onPress={() => router.push('/averaging')}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
+                    style={styles.menuBannerGradient}
+                  >
+                    <Text style={styles.menuBannerIcon}>💧</Text>
+                    <Text style={styles.menuBannerText}>물타기{'\n'}계산기</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuBannerCard}
+                  onPress={handleAddStock}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
+                    style={styles.menuBannerGradient}
+                  >
+                    <Text style={styles.menuBannerIcon}>➕</Text>
+                    <Text style={styles.menuBannerText}>종목{'\n'}추가</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuBannerCard}
+                  onPress={() => router.push('/news')}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
+                    style={styles.menuBannerGradient}
+                  >
+                    <Text style={styles.menuBannerIcon}>📰</Text>
+                    <Text style={styles.menuBannerText}>주식{'\n'}뉴스</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+              )}
+
               {/* 메뉴 배너 (포트폴리오, 매매기록, 종목차트, 환경설정) */}
               {showMiniBanners && (
               <View style={styles.menuBannersContainer}>
@@ -612,64 +670,6 @@ export default function MainScreen() {
                   >
                     <Text style={[styles.menuBannerIcon, { color: '#64B5F6' }]}>⚙</Text>
                     <Text style={styles.menuBannerText}>환경{'\n'}설정</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-              )}
-
-              {/* 계산기 배너 (수익률 계산기, 물타기 계산기, 주식뉴스) */}
-              {showMiniBanners && (
-              <View style={styles.menuBannersContainer}>
-                <TouchableOpacity
-                  style={styles.menuBannerCard}
-                  onPress={() => router.push('/profit')}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
-                    style={styles.menuBannerGradient}
-                  >
-                    <Text style={[styles.menuBannerIcon, { color: '#42A5F5' }]}>%</Text>
-                    <Text style={styles.menuBannerText}>수익률{'\n'}계산기</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.menuBannerCard}
-                  onPress={() => router.push('/averaging')}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
-                    style={styles.menuBannerGradient}
-                  >
-                    <Text style={styles.menuBannerIcon}>💧</Text>
-                    <Text style={styles.menuBannerText}>물타기{'\n'}계산기</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.menuBannerCard}
-                  onPress={() => router.push('/news')}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
-                    style={styles.menuBannerGradient}
-                  >
-                    <Text style={styles.menuBannerIcon}>📰</Text>
-                    <Text style={styles.menuBannerText}>주식{'\n'}뉴스</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.menuBannerCard}
-                  onPress={handleAddStock}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
-                    style={styles.menuBannerGradient}
-                  >
-                    <Text style={styles.menuBannerIcon}>➕</Text>
-                    <Text style={styles.menuBannerText}>종목{'\n'}추가</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               </View>

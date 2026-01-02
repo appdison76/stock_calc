@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
   TextInput,
   Modal,
+  InteractionManager,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -21,10 +22,12 @@ import { getStockQuote } from '../src/services/YahooFinanceService';
 import { addCommas } from '../src/utils/formatUtils';
 import { getCurrencyFromTicker } from '../src/utils/stockUtils';
 import StockSearchModal from '../src/components/StockSearchModal';
+import { SettingsService } from '../src/services/SettingsService';
 
 export default function PortfolioDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, scrollToAdd } = useLocalSearchParams<{ id: string; scrollToAdd?: string }>();
+  const scrollViewRef = useRef<ScrollView>(null);
   const [portfolio, setPortfolio] = useState<Account | null>(null);
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [stocksWithRecordCount, setStocksWithRecordCount] = useState<Array<Stock & { recordCount: number }>>([]);
@@ -40,6 +43,13 @@ export default function PortfolioDetailScreen() {
   const [showStockNameInputForAdd, setShowStockNameInputForAdd] = useState(false);
   const [stockNameInputForAdd, setStockNameInputForAdd] = useState('');
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+  
+  // 정렬 및 필터 상태
+  type SortOption = 'ticker' | 'name' | 'created';
+  type FilterOption = 'all' | 'krw' | 'usd';
+  const [sortOption, setSortOption] = useState<SortOption>('name'); // 기본값: 이름순
+  const [filterOption, setFilterOption] = useState<FilterOption>('all'); // 기본값: 전체
+  const [showSortFilterModal, setShowSortFilterModal] = useState(false);
 
   // USD 가격에 대한 원화 변환값 표시 (작은 글씨)
   const getKrwEquivalentForDisplay = (usdValue: number | undefined | null): string | null => {
@@ -52,9 +62,49 @@ export default function PortfolioDetailScreen() {
     React.useCallback(() => {
       if (id) {
         loadPortfolioDetail();
+        // 저장된 정렬/필터 옵션 로드
+        loadSortFilterOptions();
       }
     }, [id])
   );
+
+  // 저장된 정렬/필터 옵션 로드
+  const loadSortFilterOptions = async () => {
+    try {
+      const savedSortOption = await SettingsService.getPortfolioSortOption();
+      const savedFilterOption = await SettingsService.getPortfolioFilterOption();
+      setSortOption(savedSortOption);
+      setFilterOption(savedFilterOption);
+    } catch (error) {
+      console.error('정렬/필터 옵션 로드 실패:', error);
+    }
+  };
+
+  // 정렬 옵션 변경 및 저장
+  const handleSortOptionChange = async (option: SortOption) => {
+    setSortOption(option);
+    await SettingsService.setPortfolioSortOption(option);
+  };
+
+  // 필터 옵션 변경 및 저장
+  const handleFilterOptionChange = async (option: FilterOption) => {
+    setFilterOption(option);
+    await SettingsService.setPortfolioFilterOption(option);
+  };
+
+  // scrollToAdd 파라미터가 있고 로딩이 완료되면 맨 아래로 스크롤
+  useEffect(() => {
+    if (scrollToAdd === 'true' && !isLoading && stocksWithRecordCount.length >= 0) {
+      // 모든 인터랙션과 애니메이션이 완료된 후 스크롤
+      InteractionManager.runAfterInteractions(() => {
+        setTimeout(() => {
+          if (scrollViewRef.current) {
+            scrollViewRef.current.scrollToEnd({ animated: true });
+          }
+        }, 500);
+      });
+    }
+  }, [scrollToAdd, isLoading, stocksWithRecordCount.length]);
 
   const loadPortfolioDetail = async () => {
     if (!id) return;
@@ -120,6 +170,37 @@ export default function PortfolioDetailScreen() {
       setIsLoading(false);
     }
   };
+
+  // 필터링 및 정렬된 종목 목록
+  const filteredAndSortedStocks = useMemo(() => {
+    let filtered = stocksWithRecordCount;
+
+    // 필터링 (통화별)
+    if (filterOption === 'krw') {
+      filtered = filtered.filter(stock => stock.currency === Currency.KRW);
+    } else if (filterOption === 'usd') {
+      filtered = filtered.filter(stock => stock.currency === Currency.USD);
+    }
+
+    // 정렬
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortOption) {
+        case 'ticker':
+          return (a.ticker || '').localeCompare(b.ticker || '');
+        case 'name':
+          const nameA = a.name || a.officialName || a.ticker || '';
+          const nameB = b.name || b.officialName || b.ticker || '';
+          return nameA.localeCompare(nameB);
+        case 'created':
+          // createdAt은 이미 number 타임스탬프이므로 직접 비교
+          return (b.createdAt || 0) - (a.createdAt || 0); // 최신순
+        default:
+          return 0;
+      }
+    });
+
+    return sorted;
+  }, [stocksWithRecordCount, filterOption, sortOption]);
 
   const handleAddStock = () => {
     setShowStockModal(true);
@@ -284,6 +365,7 @@ export default function PortfolioDetailScreen() {
         style={styles.gradient}
       >
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
@@ -299,9 +381,21 @@ export default function PortfolioDetailScreen() {
             <View style={styles.metaContainer}>
               <View style={styles.stockCountBadge}>
                 <Text style={styles.stockCountBadgeText}>
-                  종목 {stocks.length}개
+                  종목 {filteredAndSortedStocks.length}개 {filterOption !== 'all' && `(${stocks.length}개 중)`}
                 </Text>
               </View>
+              <TouchableOpacity
+                style={styles.sortFilterButton}
+                onPress={() => setShowSortFilterModal(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.sortFilterButtonText}>정렬/필터</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.sortFilterStatus}>
+              <Text style={styles.sortFilterStatusText}>
+                {sortOption === 'ticker' ? '티커순' : sortOption === 'name' ? '이름순' : '추가순'} · {filterOption === 'all' ? '전체' : filterOption === 'krw' ? '한국 주식만' : '미국 주식만'}
+              </Text>
             </View>
           </View>
 
@@ -315,7 +409,7 @@ export default function PortfolioDetailScreen() {
             </View>
           ) : (
             <View style={styles.stocksContainer}>
-              {stocksWithRecordCount.map((stock) => (
+              {filteredAndSortedStocks.map((stock) => (
                 <TouchableOpacity
                   key={stock.id}
                   activeOpacity={0.8}
@@ -501,6 +595,93 @@ export default function PortfolioDetailScreen() {
           </TouchableOpacity>
         </ScrollView>
       </LinearGradient>
+
+      {/* 정렬/필터 모달 */}
+      <Modal
+        visible={showSortFilterModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSortFilterModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>정렬 및 필터</Text>
+            
+            {/* 정렬 옵션 */}
+            <View style={styles.modalSection}>
+              <Text style={styles.modalSectionTitle}>정렬 순서</Text>
+              <TouchableOpacity
+                style={[styles.modalOption, sortOption === 'ticker' && styles.modalOptionSelected]}
+                onPress={() => handleSortOptionChange('ticker')}
+              >
+                <Text style={[styles.modalOptionText, sortOption === 'ticker' && styles.modalOptionTextSelected]}>
+                  티커순
+                </Text>
+                {sortOption === 'ticker' && <Text style={styles.checkMark}>✓</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalOption, sortOption === 'name' && styles.modalOptionSelected]}
+                onPress={() => handleSortOptionChange('name')}
+              >
+                <Text style={[styles.modalOptionText, sortOption === 'name' && styles.modalOptionTextSelected]}>
+                  이름순
+                </Text>
+                {sortOption === 'name' && <Text style={styles.checkMark}>✓</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalOption, sortOption === 'created' && styles.modalOptionSelected]}
+                onPress={() => handleSortOptionChange('created')}
+              >
+                <Text style={[styles.modalOptionText, sortOption === 'created' && styles.modalOptionTextSelected]}>
+                  추가순 (최신)
+                </Text>
+                {sortOption === 'created' && <Text style={styles.checkMark}>✓</Text>}
+              </TouchableOpacity>
+            </View>
+
+            {/* 필터 옵션 */}
+            <View style={styles.modalSection}>
+              <Text style={styles.modalSectionTitle}>종목 필터</Text>
+              <TouchableOpacity
+                style={[styles.modalOption, filterOption === 'all' && styles.modalOptionSelected]}
+                onPress={() => handleFilterOptionChange('all')}
+              >
+                <Text style={[styles.modalOptionText, filterOption === 'all' && styles.modalOptionTextSelected]}>
+                  전체
+                </Text>
+                {filterOption === 'all' && <Text style={styles.checkMark}>✓</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalOption, filterOption === 'krw' && styles.modalOptionSelected]}
+                onPress={() => handleFilterOptionChange('krw')}
+              >
+                <Text style={[styles.modalOptionText, filterOption === 'krw' && styles.modalOptionTextSelected]}>
+                  한국 주식만
+                </Text>
+                {filterOption === 'krw' && <Text style={styles.checkMark}>✓</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalOption, filterOption === 'usd' && styles.modalOptionSelected]}
+                onPress={() => handleFilterOptionChange('usd')}
+              >
+                <Text style={[styles.modalOptionText, filterOption === 'usd' && styles.modalOptionTextSelected]}>
+                  미국 주식만
+                </Text>
+                {filterOption === 'usd' && <Text style={styles.checkMark}>✓</Text>}
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalButtonRow}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={() => setShowSortFilterModal(false)}
+              >
+                <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>확인</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* 종목 검색 모달 */}
       <StockSearchModal
@@ -698,7 +879,30 @@ const styles = StyleSheet.create({
   metaContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 8,
+  },
+  sortFilterButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(66, 165, 245, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.4)',
+  },
+  sortFilterButtonText: {
+    color: '#42A5F5',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  sortFilterStatus: {
+    marginTop: 8,
+    alignItems: 'flex-end',
+  },
+  sortFilterStatusText: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '500',
   },
   stockCountBadge: {
     backgroundColor: 'rgba(255, 152, 0, 0.15)',
@@ -1008,6 +1212,45 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#B0BEC5',
+  },
+  modalSection: {
+    marginBottom: 24,
+  },
+  modalSectionTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  modalOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalOptionSelected: {
+    backgroundColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(66, 165, 245, 0.4)',
+  },
+  modalOptionText: {
+    color: '#CCCCCC',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  modalOptionTextSelected: {
+    color: '#42A5F5',
+    fontWeight: '600',
+  },
+  checkMark: {
+    color: '#42A5F5',
+    fontSize: 18,
+    fontWeight: '700',
   },
 });
 
