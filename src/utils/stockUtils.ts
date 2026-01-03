@@ -20,3 +20,4 @@ export function getCurrencyFromTicker(ticker: string): Currency {
   return Currency.USD;
 }
 
+
