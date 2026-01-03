@@ -2,9 +2,8 @@ import * as Application from 'expo-application';
 import { Linking, Platform } from 'react-native';
 import Constants from 'expo-constants';
 
-// GitHub Pages URL (저장소 이름으로 변경 필요)
-// 형식: https://{username}.github.io/{repo-name}/min-version.json
-const GITHUB_PAGES_URL = 'https://YOUR_USERNAME.github.io/YOUR_REPO_NAME/min-version.json';
+// GitHub Pages URL
+const GITHUB_PAGES_URL = 'https://appdison76.github.io/stock_calc/min-version.json';
 
 // Fallback 최소 필수 버전 (서버 접근 실패 시 사용)
 const FALLBACK_MIN_REQUIRED_VERSION = '1.1.2';
