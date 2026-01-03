@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
+import * as Application from 'expo-application';
 import mobileAds from 'react-native-google-mobile-ads';
 import { checkAppVersion } from '../src/services/versionCheck';
 import ForceUpdateModal from '../src/components/ForceUpdateModal';
@@ -43,21 +44,42 @@ export default function RootLayout() {
 
   useEffect(() => {
     // 버전 체크 (실제 릴리즈 빌드에서만 실행)
-    // executionEnvironment가 'storeClient' 또는 'standalone'일 때만 체크
-    // 개발 모드(Metro 서버 연결)에서는 건너뛰기
-    const executionEnvironment = Constants.executionEnvironment;
-    const isReleaseBuild = executionEnvironment === 'storeClient' || executionEnvironment === 'standalone';
-    
-    if (isReleaseBuild) {
-      const version = checkAppVersion();
-      if (version.needsUpdate) {
-        setVersionInfo({
-          currentVersion: version.currentVersion,
-          requiredVersion: version.minRequiredVersion,
-        });
-        setForceUpdateVisible(true);
+    // Application.nativeApplicationVersion이 존재하는 경우에만 체크
+    // 개발 모드(Metro 서버 연결)에서는 보통 null이지만, 릴리즈 빌드(테스트 트랙 포함)에서는 항상 값이 있음
+    const checkVersion = async () => {
+      const nativeVersion = Application.nativeApplicationVersion;
+      const executionEnvironment = Constants.executionEnvironment;
+      
+      console.log('[Version Check] executionEnvironment:', executionEnvironment);
+      console.log('[Version Check] nativeApplicationVersion:', nativeVersion);
+      
+      // nativeApplicationVersion이 존재하는 경우 릴리즈 빌드로 간주
+      const isReleaseBuild = nativeVersion !== null && nativeVersion !== undefined;
+      console.log('[Version Check] isReleaseBuild:', isReleaseBuild);
+      
+      if (isReleaseBuild) {
+        try {
+          const version = await checkAppVersion();
+          console.log('[Version Check] version info:', JSON.stringify(version, null, 2));
+          if (version.needsUpdate) {
+            console.log('[Version Check] Update required! Showing force update modal.');
+            setVersionInfo({
+              currentVersion: version.currentVersion,
+              requiredVersion: version.minRequiredVersion,
+            });
+            setForceUpdateVisible(true);
+          } else {
+            console.log('[Version Check] No update required. Current:', version.currentVersion, 'Required:', version.minRequiredVersion);
+          }
+        } catch (error) {
+          console.error('[Version Check] Error checking version:', error);
+        }
+      } else {
+        console.log('[Version Check] Skipping version check (not a release build - nativeVersion is null/undefined)');
       }
-    }
+    };
+    
+    checkVersion();
 
     // Google Mobile Ads 초기화
     mobileAds()

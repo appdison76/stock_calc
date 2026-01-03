@@ -2,10 +2,12 @@ import * as Application from 'expo-application';
 import { Linking, Platform } from 'react-native';
 import Constants from 'expo-constants';
 
-// 최소 필수 버전 (이 버전보다 낮으면 강제 업데이트)
-// TODO: 나중에 API 서버에서 가져오도록 변경 가능
-// 1.1.1 버전 배포 시 1.1.0 이하 사용자들이 강제 업데이트 받도록 설정
-const MIN_REQUIRED_VERSION = '1.1.1';
+// GitHub Pages URL (저장소 이름으로 변경 필요)
+// 형식: https://{username}.github.io/{repo-name}/min-version.json
+const GITHUB_PAGES_URL = 'https://YOUR_USERNAME.github.io/YOUR_REPO_NAME/min-version.json';
+
+// Fallback 최소 필수 버전 (서버 접근 실패 시 사용)
+const FALLBACK_MIN_REQUIRED_VERSION = '1.1.2';
 
 // Google Play Store URL (패키지명으로 변경 필요)
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.neovisioning.stockcalc';
@@ -19,14 +21,27 @@ export interface VersionInfo {
 /**
  * 현재 앱 버전과 최소 필수 버전을 비교
  */
-export function checkAppVersion(): VersionInfo {
-  const currentVersion = Application.nativeApplicationVersion || Constants.expoConfig?.version || '1.0.0';
+export async function checkAppVersion(): Promise<VersionInfo> {
+  const nativeVersion = Application.nativeApplicationVersion;
+  const configVersion = Constants.expoConfig?.version;
+  const currentVersion = nativeVersion || configVersion || '1.0.0';
   
-  const needsUpdate = compareVersions(currentVersion, MIN_REQUIRED_VERSION) < 0;
+  console.log('[Version Check] nativeApplicationVersion:', nativeVersion);
+  console.log('[Version Check] expoConfig.version:', configVersion);
+  console.log('[Version Check] currentVersion:', currentVersion);
+  
+  // 서버에서 최소 필수 버전 가져오기
+  const minRequiredVersion = await fetchMinRequiredVersion();
+  console.log('[Version Check] minRequiredVersion:', minRequiredVersion);
+  
+  const comparisonResult = compareVersions(currentVersion, minRequiredVersion);
+  console.log('[Version Check] comparisonResult:', comparisonResult);
+  const needsUpdate = comparisonResult < 0;
+  console.log('[Version Check] needsUpdate:', needsUpdate);
 
   return {
     currentVersion,
-    minRequiredVersion: MIN_REQUIRED_VERSION,
+    minRequiredVersion,
     needsUpdate,
   };
 }
@@ -71,20 +86,42 @@ export async function openPlayStore(): Promise<void> {
 }
 
 /**
- * API에서 최소 필수 버전 가져오기 (선택적)
- * 나중에 서버 연동 시 사용
+ * GitHub Pages에서 최소 필수 버전 가져오기
  */
 export async function fetchMinRequiredVersion(): Promise<string> {
   try {
-    // TODO: 실제 API 엔드포인트로 변경
-    // const response = await fetch('https://your-api.com/api/min-version');
-    // const data = await response.json();
-    // return data.minVersion;
+    console.log('[Version Check] Fetching min version from:', GITHUB_PAGES_URL);
     
-    return MIN_REQUIRED_VERSION;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5초 타임아웃
+
+    const response = await fetch(GITHUB_PAGES_URL, {
+      signal: controller.signal,
+      headers: {
+        'Cache-Control': 'no-cache',
+      },
+    });
+
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      const data = await response.json();
+      const minVersion = data.minRequiredVersion;
+      console.log('[Version Check] Fetched min version from server:', minVersion);
+      
+      if (minVersion && typeof minVersion === 'string') {
+        return minVersion;
+      } else {
+        console.warn('[Version Check] Invalid min version format, using fallback');
+        return FALLBACK_MIN_REQUIRED_VERSION;
+      }
+    } else {
+      console.warn('[Version Check] Failed to fetch min version, status:', response.status);
+      return FALLBACK_MIN_REQUIRED_VERSION;
+    }
   } catch (error) {
-    console.error('최소 버전 가져오기 실패:', error);
-    return MIN_REQUIRED_VERSION;
+    console.error('[Version Check] Error fetching min version:', error);
+    return FALLBACK_MIN_REQUIRED_VERSION;
   }
 }
 

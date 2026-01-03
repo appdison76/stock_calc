@@ -28,8 +28,15 @@ export default function MarketIndicatorsScreen() {
       setLoading(true);
       const indicatorsList: MarketIndicator[] = [];
 
+      // 모든 API 호출을 병렬로 실행
+      const [usdkrwQuote, btcQuote, goldQuote, oilQuote] = await Promise.all([
+        getStockQuote('USDKRW=X').catch(() => null),
+        getStockQuote('BTC-USD').catch(() => null),
+        getStockQuote('GC=F').catch(() => null),
+        getStockQuote('CL=F').catch(() => null),
+      ]);
+
       // 환율 (USDKRW=X)
-      const usdkrwQuote = await getStockQuote('USDKRW=X');
       if (usdkrwQuote) {
         indicatorsList.push({
           name: '환율',
@@ -41,17 +48,20 @@ export default function MarketIndicatorsScreen() {
         });
       } else {
         // Fallback: ExchangeRateService 사용
-        const rate = await ExchangeRateService.getUsdToKrwRate();
-        indicatorsList.push({
-          name: '환율',
-          symbol: 'USD/KRW',
-          price: rate,
-          currency: 'KRW',
-        });
+        try {
+          const rate = await ExchangeRateService.getUsdToKrwRate();
+          indicatorsList.push({
+            name: '환율',
+            symbol: 'USD/KRW',
+            price: rate,
+            currency: 'KRW',
+          });
+        } catch (error) {
+          console.error('환율 로드 실패:', error);
+        }
       }
 
       // 비트코인 (BTC-USD)
-      const btcQuote = await getStockQuote('BTC-USD');
       if (btcQuote) {
         indicatorsList.push({
           name: '비트코인',
@@ -64,7 +74,6 @@ export default function MarketIndicatorsScreen() {
       }
 
       // 금 (GC=F)
-      const goldQuote = await getStockQuote('GC=F');
       if (goldQuote) {
         indicatorsList.push({
           name: '금',
@@ -77,7 +86,6 @@ export default function MarketIndicatorsScreen() {
       }
 
       // 유가 (CL=F)
-      const oilQuote = await getStockQuote('CL=F');
       if (oilQuote) {
         indicatorsList.push({
           name: '유가',
