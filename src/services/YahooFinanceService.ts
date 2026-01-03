@@ -204,94 +204,105 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
     
     let allResults: StockSearchResult[] = [];
     
-    // 여러 검색어로 검색 실행
-    for (const searchQuery of searchQueries) {
-      try {
-        // Yahoo Finance 검색 API 엔드포인트
-        const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(searchQuery)}`;
-        
-        const response = await fetch(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          },
-        });
-
-        if (!response.ok) {
-          console.warn(`Yahoo Finance search API error for "${searchQuery}": ${response.status}`);
-          continue;
-        }
-
-        const data = await response.json();
-        
-        // API 응답 구조: { quotes: [{ symbol, shortname, longname, exchange, quoteType, ... }] }
-        if (!data.quotes || !Array.isArray(data.quotes)) {
-          continue;
-        }
-        
-        // 디버깅: 원본 검색 결과 수 확인
-        const totalQuotes = data.quotes.length;
-        const koreanQuotes = data.quotes.filter((q: any) => q.symbol?.endsWith('.KS')).length;
-        console.log(`Search query "${searchQuery}": ${totalQuotes} total quotes (${koreanQuotes} Korean)`);
-
-        // 검색 결과를 StockSearchResult 형식으로 변환
-        const results: StockSearchResult[] = data.quotes
-          .filter((quote: any) => {
-            // symbol이 있고 이름이 있는 항목만 필터링
-            if (!quote.symbol || (!quote.shortname && !quote.longname)) {
-              return false;
-            }
-            // 한국 주식(.KS)인 경우 모든 타입 허용 (더 많은 결과를 위해)
-            if (quote.symbol && quote.symbol.endsWith('.KS')) {
-              // 한국 주식은 타입 필터링 완화
-              if (quote.quoteType && quote.quoteType === 'CURRENCY') {
-                return false; // 통화만 제외
-              }
-              return true;
-            }
-            // 기타 종목은 EQUITY, ETF, INDEX 타입만 필터링 (옵션, 선물, CURRENCY 등 제외)
-            if (quote.quoteType && quote.quoteType !== 'EQUITY' && quote.quoteType !== 'ETF' && quote.quoteType !== 'INDEX') {
-              return false;
-            }
-            return true;
-          })
-          .map((quote: any) => {
-            // 한국 주식(.KS)인 경우 한글명으로 우선 표시
-            const originalName = quote.longname || quote.shortname || quote.symbol;
-            let displayName = originalName;
-            let savedOriginalName: string | undefined = undefined;
-            
-            if (quote.symbol && quote.symbol.endsWith('.KS')) {
-              const koreanName = KOREAN_TICKER_TO_NAME_MAP[quote.symbol];
-              if (koreanName) {
-                displayName = koreanName;
-                // 한글명이 있는 경우 원래 영문명 저장
-                savedOriginalName = originalName;
-              }
-            }
-            // 미국 주식인 경우 (티커에 점이 없거나 주요 거래소인 경우)
-            else if (quote.symbol && !quote.symbol.includes('.') && quote.exchange && ['NASDAQ', 'NYSE', 'NMS', 'NYQ'].includes(quote.exchange)) {
-              const usKoreanName = US_TICKER_TO_NAME_MAP[quote.symbol];
-              if (usKoreanName) {
-                displayName = usKoreanName;
-                // 한글명이 있는 경우 원래 영문명 저장
-                savedOriginalName = originalName;
-              }
-            }
-            
-            return {
-              symbol: quote.symbol,
-              name: displayName,
-              originalName: savedOriginalName,
-              exchange: quote.exchange,
-              type: quote.type,
-              quoteType: quote.quoteType,
-            };
+    // 여러 검색어로 검색 실행 (병렬 처리로 속도 개선)
+    // rate limit을 고려하여 최대 5개씩 병렬 처리
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < searchQueries.length; i += BATCH_SIZE) {
+      const batch = searchQueries.slice(i, i + BATCH_SIZE);
+      
+      const batchPromises = batch.map(async (searchQuery) => {
+        try {
+          // Yahoo Finance 검색 API 엔드포인트
+          const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(searchQuery)}`;
+          
+          const response = await fetch(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            },
           });
 
-        allResults = allResults.concat(results);
-      } catch (error) {
-        console.error(`Yahoo Finance search error for "${searchQuery}":`, error);
-      }
+          if (!response.ok) {
+            console.warn(`Yahoo Finance search API error for "${searchQuery}": ${response.status}`);
+            return [];
+          }
+
+          const data = await response.json();
+          
+          // API 응답 구조: { quotes: [{ symbol, shortname, longname, exchange, quoteType, ... }] }
+          if (!data.quotes || !Array.isArray(data.quotes)) {
+            return [];
+          }
+          
+          // 디버깅: 원본 검색 결과 수 확인
+          const totalQuotes = data.quotes.length;
+          const koreanQuotes = data.quotes.filter((q: any) => q.symbol?.endsWith('.KS')).length;
+          console.log(`Search query "${searchQuery}": ${totalQuotes} total quotes (${koreanQuotes} Korean)`);
+
+          // 검색 결과를 StockSearchResult 형식으로 변환
+          const results: StockSearchResult[] = data.quotes
+            .filter((quote: any) => {
+              // symbol이 있고 이름이 있는 항목만 필터링
+              if (!quote.symbol || (!quote.shortname && !quote.longname)) {
+                return false;
+              }
+              // 한국 주식(.KS)인 경우 모든 타입 허용 (더 많은 결과를 위해)
+              if (quote.symbol && quote.symbol.endsWith('.KS')) {
+                // 한국 주식은 타입 필터링 완화
+                if (quote.quoteType && quote.quoteType === 'CURRENCY') {
+                  return false; // 통화만 제외
+                }
+                return true;
+              }
+              // 기타 종목은 EQUITY, ETF, INDEX 타입만 필터링 (옵션, 선물, CURRENCY 등 제외)
+              if (quote.quoteType && quote.quoteType !== 'EQUITY' && quote.quoteType !== 'ETF' && quote.quoteType !== 'INDEX') {
+                return false;
+              }
+              return true;
+            })
+            .map((quote: any) => {
+              // 한국 주식(.KS)인 경우 한글명으로 우선 표시
+              const originalName = quote.longname || quote.shortname || quote.symbol;
+              let displayName = originalName;
+              let savedOriginalName: string | undefined = undefined;
+              
+              if (quote.symbol && quote.symbol.endsWith('.KS')) {
+                const koreanName = KOREAN_TICKER_TO_NAME_MAP[quote.symbol];
+                if (koreanName) {
+                  displayName = koreanName;
+                  // 한글명이 있는 경우 원래 영문명 저장
+                  savedOriginalName = originalName;
+                }
+              }
+              // 미국 주식인 경우 (티커에 점이 없거나 주요 거래소인 경우)
+              else if (quote.symbol && !quote.symbol.includes('.') && quote.exchange && ['NASDAQ', 'NYSE', 'NMS', 'NYQ'].includes(quote.exchange)) {
+                const usKoreanName = US_TICKER_TO_NAME_MAP[quote.symbol];
+                if (usKoreanName) {
+                  displayName = usKoreanName;
+                  // 한글명이 있는 경우 원래 영문명 저장
+                  savedOriginalName = originalName;
+                }
+              }
+              
+              return {
+                symbol: quote.symbol,
+                name: displayName,
+                originalName: savedOriginalName,
+                exchange: quote.exchange,
+                type: quote.type,
+                quoteType: quote.quoteType,
+              };
+            });
+
+          return results;
+        } catch (error) {
+          console.error(`Yahoo Finance search error for "${searchQuery}":`, error);
+          return [];
+        }
+      });
+      
+      // 배치 단위로 병렬 처리
+      const batchResults = await Promise.all(batchPromises);
+      allResults = allResults.concat(batchResults.flat());
     }
 
     // 중복 제거 (같은 symbol)

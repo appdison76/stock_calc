@@ -131,22 +131,29 @@ export default function NewsScreen() {
             days
           );
           
-          // ETF인 경우 기초 자산 뉴스도 가져오기
+          // ETF인 경우 기초 자산 뉴스도 가져오기 (병렬 처리로 속도 개선)
           if (isETF) {
             try {
-              const underlyingNews = await fetchGoogleNewsRSS(
-                underlyingTicker,
-                underlyingTicker,
-                underlyingTicker,
-                language,
-                days
-              );
+              // ETF 뉴스와 기초 자산 뉴스를 병렬로 가져오기
+              const [baseNewsResult, underlyingNewsResult] = await Promise.all([
+                Promise.resolve(fetchedNews),
+                fetchGoogleNewsRSS(
+                  underlyingTicker,
+                  underlyingTicker,
+                  underlyingTicker,
+                  language,
+                  days
+                ).catch(err => {
+                  console.warn(`기초 자산 ${underlyingTicker} 뉴스 로드 실패:`, err);
+                  return [];
+                }),
+              ]);
               
               // ETF 뉴스와 기초 자산 뉴스 합치기 (중복 제거)
-              const baseTitles = new Set(fetchedNews.map(n => n.title));
-              const uniqueUnderlyingNews = underlyingNews.filter(item => !baseTitles.has(item.title));
+              const baseTitles = new Set(baseNewsResult.map(n => n.title));
+              const uniqueUnderlyingNews = underlyingNewsResult.filter(item => !baseTitles.has(item.title));
               
-              fetchedNews = [...fetchedNews, ...uniqueUnderlyingNews];
+              fetchedNews = [...baseNewsResult, ...uniqueUnderlyingNews];
               
               console.log(`ETF ${stock.ticker} -> 기초자산 ${underlyingTicker}: 총 ${fetchedNews.length}개 뉴스`);
             } catch (error) {
@@ -191,18 +198,19 @@ export default function NewsScreen() {
     }
   };
 
-  // 포트폴리오 종목 가져오기 (최초 1회만)
+  // 포트폴리오 종목 가져오기 (최초 1회만) - 병렬 처리로 속도 개선
   useEffect(() => {
     const loadPortfolioStocks = async () => {
       try {
         await initDatabase();
         const accounts = await getAllAccounts();
-        const allStocks: Stock[] = [];
         
-        for (const account of accounts) {
-          const stocks = await getStocksByAccountId(account.id);
-          allStocks.push(...stocks);
-        }
+        // 모든 포트폴리오의 종목을 병렬로 가져오기
+        const stocksPromises = accounts.map(async (account) => {
+          return await getStocksByAccountId(account.id);
+        });
+        const stocksArrays = await Promise.all(stocksPromises);
+        const allStocks: Stock[] = stocksArrays.flat();
         
         // 중복 제거 (같은 ticker 중 가장 최근 것만)
         const uniqueStocksMap = new Map<string, Stock>();
@@ -213,10 +221,9 @@ export default function NewsScreen() {
           }
         });
         
-        // ID 순서대로 정렬하여 일관성 유지
+        // ID 순서대로 정렬하여 일관성 유지 (제한 없음 - 모든 종목 표시)
         const uniqueStocks = Array.from(uniqueStocksMap.values())
-          .sort((a, b) => (a.id || 0) - (b.id || 0))
-          .slice(0, 10); // 최대 10개
+          .sort((a, b) => (a.id || 0) - (b.id || 0));
         setPortfolioStocks(uniqueStocks);
       } catch (error) {
         console.error('포트폴리오 종목 로드 오류:', error);
@@ -259,22 +266,29 @@ export default function NewsScreen() {
                 7
               );
               
-              // ETF인 경우 기초 자산 뉴스도 가져오기
+              // ETF인 경우 기초 자산 뉴스도 가져오기 (병렬 처리로 속도 개선)
               if (isETF) {
                 try {
-                  const underlyingNews = await fetchGoogleNewsRSS(
-                    underlyingTicker,
-                    underlyingTicker,
-                    underlyingTicker,
-                    targetLang,
-                    7
-                  );
+                  // ETF 뉴스와 기초 자산 뉴스를 병렬로 가져오기
+                  const [baseNewsResult, underlyingNewsResult] = await Promise.all([
+                    Promise.resolve(fetchedNews),
+                    fetchGoogleNewsRSS(
+                      underlyingTicker,
+                      underlyingTicker,
+                      underlyingTicker,
+                      targetLang,
+                      7
+                    ).catch(err => {
+                      console.warn(`기초 자산 ${underlyingTicker} 뉴스 로드 실패:`, err);
+                      return [];
+                    }),
+                  ]);
                   
                   // ETF 뉴스와 기초 자산 뉴스 합치기 (중복 제거)
-                  const baseTitles = new Set(fetchedNews.map(n => n.title));
-                  const uniqueUnderlyingNews = underlyingNews.filter(item => !baseTitles.has(item.title));
+                  const baseTitles = new Set(baseNewsResult.map(n => n.title));
+                  const uniqueUnderlyingNews = underlyingNewsResult.filter(item => !baseTitles.has(item.title));
                   
-                  fetchedNews = [...fetchedNews, ...uniqueUnderlyingNews];
+                  fetchedNews = [...baseNewsResult, ...uniqueUnderlyingNews];
                   
                   console.log(`ETF ${targetStock.ticker} -> 기초자산 ${underlyingTicker}: 총 ${fetchedNews.length}개 뉴스`);
                 } catch (error) {

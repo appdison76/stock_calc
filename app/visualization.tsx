@@ -90,92 +90,143 @@ export default function VisualizationScreen() {
       // 모든 포트폴리오 가져오기
       const accounts = await getAllAccounts();
       
-      // 모든 종목 가져오기
-      const allStocks: Stock[] = [];
-      for (const account of accounts) {
-        const stocks = await getStocksByAccountId(account.id);
-        allStocks.push(...stocks);
-      }
+      // 모든 종목 가져오기 (병렬 처리로 속도 개선)
+      const stocksPromises = accounts.map(async (account) => {
+        return await getStocksByAccountId(account.id);
+      });
+      const stocksArrays = await Promise.all(stocksPromises);
+      const allStocks: Stock[] = stocksArrays.flat();
 
-      // 각 종목의 현재가 갱신 (백그라운드에서 실행, 실패해도 계속 진행)
-      try {
-        for (const stock of allStocks) {
-          if (stock.ticker) {
-            await updateStockCurrentPrice(stock.id);
-            // Rate Limit 방지를 위한 딜레이
-            await new Promise(resolve => setTimeout(resolve, 200));
-          }
-        }
-        // 갱신 후 다시 종목 목록 가져오기
-        allStocks.length = 0;
-        for (const account of accounts) {
-          const stocks = await getStocksByAccountId(account.id);
-          allStocks.push(...stocks);
-        }
-      } catch (priceError) {
-        console.warn('현재가 갱신 실패:', priceError);
-        // 현재가 갱신 실패해도 계속 진행
-      }
-      
-      // 각 종목에 대해 차트 데이터 생성
-      const charts: ChartData[] = [];
-      
-      for (const stock of allStocks) {
-        // 모든 거래 기록 가져오기 (매수/매도 모두)
-        const allRecords = await getTradingRecordsByStockId(stock.id);
-        
-        if (allRecords.length === 0) continue;
-
-        // 매수/매도 기록을 각각 점 데이터로 변환
-        const buyRecords: DotData[] = allRecords
-          .filter(r => r.type === 'BUY')
-          .map(r => ({
-            price: r.price,
-            quantity: r.quantity,
-            type: 'BUY' as const,
-          }));
-        
-        const sellRecords: DotData[] = allRecords
-          .filter(r => r.type === 'SELL')
-          .map(r => ({
-            price: r.price,
-            quantity: r.quantity,
-            type: 'SELL' as const,
-          }));
-        
-        // 디버깅: 데이터 확인
-        console.log(`[Visualization] Stock: ${stock.name || stock.officialName || stock.ticker}, Buy: ${buyRecords.length}, Sell: ${sellRecords.length}`);
-        if (sellRecords.length > 0) {
-          console.log(`[Visualization] Sell records:`, sellRecords);
-        }
-        
-        // 현재가 및 변화량 정보 조회
-        let priceChange: number | null = null;
-        let priceChangePercent: number | null = null;
-        if (stock.ticker) {
-          try {
-            const quote = await getStockQuote(stock.ticker);
-            if (quote) {
-              priceChange = quote.change || null;
-              priceChangePercent = quote.changePercent || null;
-            }
-          } catch (error) {
-            console.warn(`종목 ${stock.ticker} 변화량 정보 조회 실패:`, error);
-          }
-        }
-        
-        charts.push({
-          stock,
-          averagePrice: stock.averagePrice,
-          currentPrice: stock.currentPrice || stock.averagePrice,
-          priceChange,
-          priceChangePercent,
-          buyRecords,
-          sellRecords,
+      // 현재가 갱신은 백그라운드에서 비동기로 실행 (화면 표시를 막지 않음)
+      Promise.all(
+        allStocks
+          .filter(stock => stock.ticker)
+          .map(stock => updateStockCurrentPrice(stock.id).catch(err => {
+            console.warn(`현재가 갱신 실패 (${stock.ticker}):`, err);
+          }))
+      ).then(async () => {
+        // 현재가 업데이트 완료 후 종목 목록 다시 가져오기
+        const updatedStocksPromises = accounts.map(async (account) => {
+          return await getStocksByAccountId(account.id);
         });
-      }
+        const updatedStocksArrays = await Promise.all(updatedStocksPromises);
+        const updatedStocks = updatedStocksArrays.flat();
+        
+        // 차트 데이터 업데이트 (현재가 정보 포함)
+        const updatedCharts = await Promise.all(
+          updatedStocks.map(async (stock) => {
+            const allRecords = await getTradingRecordsByStockId(stock.id);
+            if (allRecords.length === 0) return null;
+            
+            const buyRecords: DotData[] = allRecords
+              .filter(r => r.type === 'BUY')
+              .map(r => ({ price: r.price, quantity: r.quantity, type: 'BUY' as const }));
+            const sellRecords: DotData[] = allRecords
+              .filter(r => r.type === 'SELL')
+              .map(r => ({ price: r.price, quantity: r.quantity, type: 'SELL' as const }));
+            
+            let priceChange: number | null = null;
+            let priceChangePercent: number | null = null;
+            if (stock.ticker) {
+              try {
+                const quote = await getStockQuote(stock.ticker);
+                if (quote) {
+                  priceChange = quote.change || null;
+                  priceChangePercent = quote.changePercent || null;
+                }
+              } catch (error) {
+                console.warn(`종목 ${stock.ticker} 변화량 정보 조회 실패:`, error);
+              }
+            }
+            
+            return {
+              stock,
+              averagePrice: stock.averagePrice,
+              currentPrice: stock.currentPrice || stock.averagePrice,
+              priceChange,
+              priceChangePercent,
+              buyRecords,
+              sellRecords,
+            };
+          })
+        );
+        
+        const validUpdatedCharts = updatedCharts.filter((chart): chart is ChartData => chart !== null);
+        
+        // 기존 차트 데이터와 비교하여 선택된 종목 인덱스 유지
+        const currentSelectedStockId = chartsData[selectedChartIndex || 0]?.stock?.id;
+        const newSelectedIndex = validUpdatedCharts.findIndex(chart => chart.stock.id === currentSelectedStockId);
+        if (newSelectedIndex >= 0) {
+          setSelectedChartIndex(newSelectedIndex);
+        }
+        
+        setChartsData(validUpdatedCharts);
+      }).catch(priceError => {
+        console.warn('현재가 갱신 실패:', priceError);
+      });
+      
+      // 각 종목에 대해 차트 데이터 생성 (거래 기록 및 현재가 정보 병렬 처리)
+      const charts: ChartData[] = await Promise.all(
+        allStocks.map(async (stock) => {
+          // 모든 거래 기록 가져오기 (매수/매도 모두)
+          const allRecords = await getTradingRecordsByStockId(stock.id);
+          
+          if (allRecords.length === 0) return null;
 
-      setChartsData(charts);
+          // 매수/매도 기록을 각각 점 데이터로 변환
+          const buyRecords: DotData[] = allRecords
+            .filter(r => r.type === 'BUY')
+            .map(r => ({
+              price: r.price,
+              quantity: r.quantity,
+              type: 'BUY' as const,
+            }));
+          
+          const sellRecords: DotData[] = allRecords
+            .filter(r => r.type === 'SELL')
+            .map(r => ({
+              price: r.price,
+              quantity: r.quantity,
+              type: 'SELL' as const,
+            }));
+          
+          // 디버깅: 데이터 확인
+          console.log(`[Visualization] Stock: ${stock.name || stock.officialName || stock.ticker}, Buy: ${buyRecords.length}, Sell: ${sellRecords.length}`);
+          if (sellRecords.length > 0) {
+            console.log(`[Visualization] Sell records:`, sellRecords);
+          }
+          
+          // 현재가 및 변화량 정보 조회
+          let priceChange: number | null = null;
+          let priceChangePercent: number | null = null;
+          if (stock.ticker) {
+            try {
+              const quote = await getStockQuote(stock.ticker);
+              if (quote) {
+                priceChange = quote.change || null;
+                priceChangePercent = quote.changePercent || null;
+              }
+            } catch (error) {
+              console.warn(`종목 ${stock.ticker} 변화량 정보 조회 실패:`, error);
+            }
+          }
+          
+          return {
+            stock,
+            averagePrice: stock.averagePrice,
+            currentPrice: stock.currentPrice || stock.averagePrice,
+            priceChange,
+            priceChangePercent,
+            buyRecords,
+            sellRecords,
+          };
+        })
+      );
+      
+      // null 값 필터링
+      const validCharts = charts.filter((chart): chart is ChartData => chart !== null);
+
+      setChartsData(validCharts);
       
       // 차트 데이터가 있으면 선택된 인덱스 설정
       if (charts.length > 0) {

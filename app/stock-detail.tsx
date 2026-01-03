@@ -141,7 +141,7 @@ export default function StockDetailScreen() {
 
   useEffect(() => {
     if (stock) {
-      // 초기 로딩 시에도 강제 새로고침하여 필터링된 뉴스만 가져오기
+      // 뉴스 로딩은 비동기로 처리하여 화면 표시를 막지 않음
       loadRelatedNews(true, 7, false, relatedNewsLanguage);
     }
   }, [stock, relatedNewsLanguage]);

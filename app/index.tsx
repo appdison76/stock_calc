@@ -170,65 +170,65 @@ export default function MainScreen() {
 
       await initDatabase();
 
-      // 포트폴리오 종목 가져오기
+      // 포트폴리오 종목 가져오기 (병렬 처리로 속도 개선)
       const accounts = await getAllAccounts();
-      const allStocks: PortfolioStock[] = [];
-      
-      for (const account of accounts) {
+      const stocksPromises = accounts.map(async (account) => {
         const stocks = await getStocksByAccountId(account.id);
-        // 현재가 업데이트 (백그라운드)
-        if (forceRefresh && stocks.length > 0) {
-          updatePortfolioCurrentPrices(account.id).catch(err => 
-            console.warn('현재가 업데이트 실패:', err)
-          );
-        }
-        stocks.forEach(stock => {
-          allStocks.push({
-            ...stock,
-            accountName: account.name,
-          });
-        });
-      }
-
-      // 업데이트 후 다시 가져오기
-      if (forceRefresh) {
-        await new Promise(resolve => setTimeout(resolve, 1000)); // 업데이트 대기
-        allStocks.length = 0;
-        for (const account of accounts) {
-          const stocks = await getStocksByAccountId(account.id);
-          stocks.forEach(stock => {
-            allStocks.push({
-              ...stock,
-              accountName: account.name,
-            });
-          });
-        }
-      }
+        return stocks.map(stock => ({
+          ...stock,
+          accountName: account.name,
+        }));
+      });
+      
+      const stocksArrays = await Promise.all(stocksPromises);
+      const allStocks: PortfolioStock[] = stocksArrays.flat();
 
       setPortfolioStocks(allStocks);
 
-      // 중요 지표 가져오기 (비트코인, 금, 유가, 환율)
-      await loadMarketIndicators();
+      // 현재가 업데이트는 백그라운드에서 비동기로 실행 (화면 표시를 막지 않음)
+      if (forceRefresh) {
+        Promise.all(
+          accounts.map(account => 
+            updatePortfolioCurrentPrices(account.id).catch(err => 
+              console.warn('현재가 업데이트 실패:', err)
+            )
+          )
+        ).then(async () => {
+          // 현재가 업데이트 완료 후 종목 목록 다시 가져오기
+          const updatedStocksPromises = accounts.map(async (account) => {
+            const stocks = await getStocksByAccountId(account.id);
+            return stocks.map(stock => ({
+              ...stock,
+              accountName: account.name,
+            }));
+          });
+          const updatedStocksArrays = await Promise.all(updatedStocksPromises);
+          const updatedStocks = updatedStocksArrays.flat();
+          setPortfolioStocks(updatedStocks);
+        });
+      }
 
-      // 최신 뉴스 가져오기 (한글/영문 둘 다)
-      try {
-        const [newsKo, newsEn] = await Promise.all([
-          fetchGeneralNews(forceRefresh, undefined, '7d', 'ko').catch(err => {
-            console.warn('한글 최신 뉴스 로드 실패:', err);
-            return [];
-          }),
-          fetchGeneralNews(forceRefresh, undefined, '7d', 'en').catch(err => {
-            console.warn('영문 최신 뉴스 로드 실패:', err);
-            return [];
-          }),
-        ]);
+      // 중요 지표 가져오기 (비트코인, 금, 유가, 환율) - 병렬 처리로 변경
+      loadMarketIndicators();
+
+      // 최신 뉴스 가져오기 (한글/영문 둘 다) - 비동기로 처리하여 화면 표시를 막지 않음
+      Promise.all([
+        fetchGeneralNews(forceRefresh, undefined, '7d', 'ko').catch(err => {
+          console.warn('한글 최신 뉴스 로드 실패:', err);
+          return [];
+        }),
+        fetchGeneralNews(forceRefresh, undefined, '7d', 'en').catch(err => {
+          console.warn('영문 최신 뉴스 로드 실패:', err);
+          return [];
+        }),
+      ]).then(([newsKo, newsEn]) => {
         setLatestNewsKo(newsKo.slice(0, 3));
         setLatestNewsEn(newsEn.slice(0, 3));
         // 초기 로딩 시 latestNewsLanguage에 따라 latestNews 설정
         setLatestNews(latestNewsLanguage === 'ko' ? newsKo.slice(0, 3) : newsEn.slice(0, 3));
-      } catch (error) {
+      }).catch(error => {
         console.warn('뉴스 로드 실패:', error);
-      }
+      });
 
       // 포트폴리오 종목 관련 뉴스 가져오기 (종목별로 분리)
       if (allStocks.length > 0) {
@@ -369,17 +369,21 @@ export default function MainScreen() {
             }
           });
 
-          await Promise.all(newsPromises);
-          setStockNewsMap(newsMap);
-          
-          // 선택된 종목의 뉴스 설정
-          if (uniqueStocks.length > 0) {
-            const selectedStock = uniqueStocks[selectedStockIndex] || uniqueStocks[0];
-            const selectedNews = newsMap.get(selectedStock.id) || { ko: [], en: [] };
-            setRelatedNews(relatedNewsLanguage === 'ko' ? selectedNews.ko : selectedNews.en);
-          } else {
-            setRelatedNews([]);
-          }
+          // 관련 뉴스는 비동기로 처리하여 화면 표시를 막지 않음
+          Promise.all(newsPromises).then(() => {
+            setStockNewsMap(newsMap);
+            
+            // 선택된 종목의 뉴스 설정
+            if (uniqueStocks.length > 0) {
+              const selectedStock = uniqueStocks[selectedStockIndex] || uniqueStocks[0];
+              const selectedNews = newsMap.get(selectedStock.id) || { ko: [], en: [] };
+              setRelatedNews(relatedNewsLanguage === 'ko' ? selectedNews.ko : selectedNews.en);
+            } else {
+              setRelatedNews([]);
+            }
+          }).catch(error => {
+            console.warn('관련 뉴스 로드 실패:', error);
+          });
         } catch (error) {
           console.warn('관련 뉴스 로드 실패:', error);
           setRelatedNews([]);
@@ -402,11 +406,17 @@ export default function MainScreen() {
 
   const loadMarketIndicators = async () => {
     try {
+      // 모든 지표를 병렬로 로딩하여 속도 개선
+      const [usdkrwQuote, btcQuote, goldQuote, oilQuote] = await Promise.all([
+        getStockQuote('USDKRW=X').catch(() => null),
+        getStockQuote('BTC-USD').catch(() => null),
+        getStockQuote('GC=F').catch(() => null),
+        getStockQuote('CL=F').catch(() => null),
+      ]);
+
       const indicators: MarketIndicator[] = [];
 
       // 환율 (USDKRW=X)
-      const usdkrwQuote = await getStockQuote('USDKRW=X');
-      console.log('USDKRW=X Quote:', JSON.stringify(usdkrwQuote, null, 2));
       if (usdkrwQuote) {
         setExchangeRate(usdkrwQuote.price);
         indicators.push({
@@ -430,8 +440,6 @@ export default function MainScreen() {
       }
 
       // 비트코인 (BTC-USD)
-      const btcQuote = await getStockQuote('BTC-USD');
-      console.log('BTC-USD Quote:', JSON.stringify(btcQuote, null, 2));
       if (btcQuote) {
         indicators.push({
           name: '비트코인',
@@ -444,8 +452,6 @@ export default function MainScreen() {
       }
 
       // 금 (GC=F)
-      const goldQuote = await getStockQuote('GC=F');
-      console.log('GC=F Quote:', JSON.stringify(goldQuote, null, 2));
       if (goldQuote) {
         indicators.push({
           name: '금',
@@ -458,8 +464,6 @@ export default function MainScreen() {
       }
 
       // 유가 (CL=F)
-      const oilQuote = await getStockQuote('CL=F');
-      console.log('CL=F Quote:', JSON.stringify(oilQuote, null, 2));
       if (oilQuote) {
         indicators.push({
           name: '유가',

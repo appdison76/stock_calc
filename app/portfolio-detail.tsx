@@ -141,20 +141,7 @@ export default function PortfolioDetailScreen() {
       const portfolioStocks = await getStocksByAccountId(id);
       setStocks(portfolioStocks);
       
-      // 현재가 갱신 (백그라운드에서 실행, 실패해도 계속 진행)
-      try {
-        await updatePortfolioCurrentPrices(id);
-        // 갱신 후 다시 종목 목록 가져오기
-        const updatedStocks = await getStocksByAccountId(id);
-        setStocks(updatedStocks);
-        portfolioStocks.length = 0; // portfolioStocks를 updatedStocks로 대체
-        portfolioStocks.push(...updatedStocks);
-      } catch (priceError) {
-        console.warn('현재가 갱신 실패:', priceError);
-        // 현재가 갱신 실패해도 계속 진행
-      }
-      
-      // 각 종목의 매매기록 개수 확인
+      // 각 종목의 매매기록 개수 확인 (현재가 업데이트 전에 먼저 처리하여 화면을 빠르게 표시)
       const stocksWithCount = await Promise.all(
         portfolioStocks.map(async (stock) => {
           const records = await getTradingRecordsByStockId(stock.id);
@@ -162,6 +149,28 @@ export default function PortfolioDetailScreen() {
         })
       );
       setStocksWithRecordCount(stocksWithCount);
+      
+      // 현재가 갱신은 비동기로 백그라운드에서 실행 (화면 표시를 막지 않음)
+      // setIsLoading(false) 후에 실행되어 사용자는 화면을 먼저 볼 수 있음
+      updatePortfolioCurrentPrices(id)
+        .then(async () => {
+          // 현재가 업데이트 완료 후 종목 목록 다시 가져오기
+          const updatedStocks = await getStocksByAccountId(id);
+          setStocks(updatedStocks);
+          
+          // 매매기록 개수와 함께 업데이트
+          const updatedStocksWithCount = await Promise.all(
+            updatedStocks.map(async (stock) => {
+              const records = await getTradingRecordsByStockId(stock.id);
+              return { ...stock, recordCount: records.length };
+            })
+          );
+          setStocksWithRecordCount(updatedStocksWithCount);
+        })
+        .catch((priceError) => {
+          console.warn('현재가 갱신 실패:', priceError);
+          // 현재가 갱신 실패해도 화면은 이미 표시됨
+        });
     } catch (error: any) {
       console.error('포트폴리오 상세 로드 오류:', error);
       const errorMessage = error?.message || '알 수 없는 오류가 발생했습니다.';

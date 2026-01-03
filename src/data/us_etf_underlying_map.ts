@@ -29,6 +29,8 @@ export const US_ETF_TO_UNDERLYING_MAP: Record<string, string> = {
   // 반도체 ETF
   'SOXL': 'SOXX',  // 반도체 레버리지 ETF -> SOXX
   'SOXS': 'SOXX',  // 반도체 역ETF -> SOXX
+  'SOXX': 'NVDA',  // 반도체 ETF -> NVDA (주요 구성종목)
+  'SMH': 'NVDA',   // 반도체 ETF (VanEck) -> NVDA (주요 구성종목)
   
   // 바이오테크 ETF
   'LABU': 'XBI',   // 바이오테크 레버리지 ETF -> XBI
@@ -116,6 +118,62 @@ export const US_ETF_TO_UNDERLYING_MAP: Record<string, string> = {
   'GOOGD': 'GOOGL', // 구글 역ETF -> 구글
   'NFLU': 'NFLX',  // 넷플릭스 레버리지 ETF -> 넷플릭스
   'NFLD': 'NFLX',  // 넷플릭스 역ETF -> 넷플릭스
+  'AMDL': 'AMD',   // AMD 레버리지 ETF -> AMD
+  'AMDS': 'AMD',   // AMD 역ETF -> AMD
+  'AVGG': 'AVGO',  // 브로드컴 레버리지 ETF -> 브로드컴
+  'AVGD': 'AVGO',  // 브로드컴 역ETF -> 브로드컴
+  'ORCLU': 'ORCL', // 오라클 레버리지 ETF -> 오라클
+  'ORCLD': 'ORCL', // 오라클 역ETF -> 오라클
+  'JPMU': 'JPM',   // JP모건 레버리지 ETF -> JP모건
+  'JPMD': 'JPM',   // JP모건 역ETF -> JP모건
+  'VU': 'V',       // 비자 레버리지 ETF -> 비자
+  'VD': 'V',       // 비자 역ETF -> 비자
+  'MAU': 'MA',     // 마스터카드 레버리지 ETF -> 마스터카드
+  'MAD': 'MA',     // 마스터카드 역ETF -> 마스터카드
+  'JNJU': 'JNJ',   // 존슨앤존슨 레버리지 ETF -> 존슨앤존슨
+  'NJJD': 'JNJ',   // 존슨앤존슨 역ETF -> 존슨앤존슨
+  'UNHU': 'UNH',   // 유나이티드헬스 레버리지 ETF -> 유나이티드헬스
+  'UNHD': 'UNH',   // 유나이티드헬스 역ETF -> 유나이티드헬스
+  'WMTU': 'WMT',   // 월마트 레버리지 ETF -> 월마트
+  'WMTD': 'WMT',   // 월마트 역ETF -> 월마트
+  'COSTU': 'COST', // 코스트코 레버리지 ETF -> 코스트코
+  'COSTD': 'COST', // 코스트코 역ETF -> 코스트코
+  'INTCU': 'INTC', // 인텔 레버리지 ETF -> 인텔
+  'INTCD': 'INTC', // 인텔 역ETF -> 인텔
+  'QCOMU': 'QCOM', // 퀄컴 레버리지 ETF -> 퀄컴
+  'QCOMD': 'QCOM', // 퀄컴 역ETF -> 퀄컴
+  'CRMU': 'CRM',   // 세일즈포스 레버리지 ETF -> 세일즈포스
+  'CRMD': 'CRM',   // 세일즈포스 역ETF -> 세일즈포스
+  'ADBEU': 'ADBE', // 어도비 레버리지 ETF -> 어도비
+  'ADBED': 'ADBE', // 어도비 역ETF -> 어도비
+  'CSCOU': 'CSCO', // 시스코 레버리지 ETF -> 시스코
+  'CSCOD': 'CSCO', // 시스코 역ETF -> 시스코
+  'IBMU': 'IBM',   // IBM 레버리지 ETF -> IBM
+  'IBMD': 'IBM',   // IBM 역ETF -> IBM
+  'TXNU': 'TXN',   // 텍사스인스트루먼츠 레버리지 ETF -> 텍사스인스트루먼츠
+  'TXND': 'TXN',   // 텍사스인스트루먼츠 역ETF -> 텍사스인스트루먼츠
+  'BACU': 'BAC',   // 뱅크오브아메리카 레버리지 ETF -> 뱅크오브아메리카
+  'BACD': 'BAC',   // 뱅크오브아메리카 역ETF -> 뱅크오브아메리카
+  'GSU': 'GS',     // 골드만삭스 레버리지 ETF -> 골드만삭스
+  'GSD': 'GS',     // 골드만삭스 역ETF -> 골드만삭스
+  'MSU': 'MS',     // 모건스탠리 레버리지 ETF -> 모건스탠리
+  'MSD': 'MS',     // 모건스탠리 역ETF -> 모건스탠리
+  'DISU': 'DIS',   // 디즈니 레버리지 ETF -> 디즈니
+  'DISD': 'DIS',   // 디즈니 역ETF -> 디즈니
+  'NKEU': 'NKE',   // 나이키 레버리지 ETF -> 나이키
+  'NKED': 'NKE',   // 나이키 역ETF -> 나이키
+  'SBUXU': 'SBUX', // 스타벅스 레버리지 ETF -> 스타벅스
+  'SBUXD': 'SBUX', // 스타벅스 역ETF -> 스타벅스
+  'HDU': 'HD',     // 홈디포 레버리지 ETF -> 홈디포
+  'HDD': 'HD',     // 홈디포 역ETF -> 홈디포
+  'MCDU': 'MCD',   // 맥도날드 레버리지 ETF -> 맥도날드
+  'MCDD': 'MCD',   // 맥도날드 역ETF -> 맥도날드
+  'PFEU': 'PFE',   // 화이자 레버리지 ETF -> 화이자
+  'PFED': 'PFE',   // 화이자 역ETF -> 화이자
+  'XOMU': 'XOM',   // 엑손모빌 레버리지 ETF -> 엑손모빌
+  'XOMD': 'XOM',   // 엑손모빌 역ETF -> 엑손모빌
+  'CVXU': 'CVX',   // 체브론 레버리지 ETF -> 체브론
+  'CVXD': 'CVX',   // 체브론 역ETF -> 체브론
   
   // VIX 관련
   'UVXY': 'VIX',   // VIX 레버리지 ETF -> VIX

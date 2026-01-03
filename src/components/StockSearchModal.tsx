@@ -47,7 +47,7 @@ export default function StockSearchModal({
   const [searchResults, setSearchResults] = useState<StockSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  const debouncedSearchQuery = useDebounce(searchQuery, 500); // 500ms 디바운싱
+  const debouncedSearchQuery = useDebounce(searchQuery, 300); // 300ms 디바운싱 (속도 개선)
 
   // 검색 실행
   useEffect(() => {
