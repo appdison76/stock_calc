@@ -27,10 +27,12 @@ import { Currency } from '../src/models/Currency';
 import { formatCurrency } from '../src/utils/formatUtils';
 import { ExchangeRateService } from '../src/services/ExchangeRateService';
 import { getStockQuote } from '../src/services/YahooFinanceService';
+import { InterestRateService } from '../src/services/InterestRateService';
 import { fetchGeneralNews, fetchStockNews, fetchGoogleNewsRSS } from '../src/services/NewsService';
 import { NewsItem } from '../src/models/NewsItem';
 import { SettingsService } from '../src/services/SettingsService';
 import { US_ETF_TO_UNDERLYING_MAP } from '../src/data/us_etf_underlying_map';
+import BottomNavigationBar from '../src/components/BottomNavigationBar';
 
 interface CalculatorCardProps {
   title: string;
@@ -116,6 +118,13 @@ export default function MainScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [exchangeRate, setExchangeRate] = useState<number>(1350);
+  const [nyTime, setNyTime] = useState<string>('--:--');
+  const [euTime, setEuTime] = useState<string>('--:--');
+  const [krDate, setKrDate] = useState<string>('');
+  const [isKrHoliday, setIsKrHoliday] = useState<boolean>(false);
+  const [usInterestRate, setUsInterestRate] = useState<string | null>(null);
+  const [krInterestRate, setKrInterestRate] = useState<number | null>(null);
+  const [jpInterestRate, setJpInterestRate] = useState<number | null>(null);
   
   // 메인화면 표시 설정
   const [showMarketIndicators, setShowMarketIndicators] = useState(true);
@@ -123,9 +132,92 @@ export default function MainScreen() {
   const [showPortfolio, setShowPortfolio] = useState(true);
   const [showRelatedNews, setShowRelatedNews] = useState(true);
   const [showLatestNews, setShowLatestNews] = useState(true);
+  const [showWorldTime, setShowWorldTime] = useState(true);
+  const [showInterestRates, setShowInterestRates] = useState(true);
   
   // 포트폴리오 표시 개수 (기본 5개)
   const [displayedPortfolioCount, setDisplayedPortfolioCount] = useState(5);
+
+  // 뉴욕 및 유럽 시간 업데이트
+  useEffect(() => {
+    const updateTimes = () => {
+      try {
+        const now = new Date();
+        
+        // 뉴욕 시간
+        const nyTimeString = now.toLocaleString('en-US', { 
+          timeZone: 'America/New_York',
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        const nyTimeMatch = nyTimeString.match(/(\d{1,2}):(\d{2})/);
+        if (nyTimeMatch) {
+          const hours = nyTimeMatch[1].padStart(2, '0');
+          const minutes = nyTimeMatch[2];
+          setNyTime(`${hours}:${minutes}`);
+        } else {
+          setNyTime('--:--');
+        }
+        
+        // 유럽 시간 (런던 시간대 사용)
+        const euTimeString = now.toLocaleString('en-US', { 
+          timeZone: 'Europe/London',
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        const euTimeMatch = euTimeString.match(/(\d{1,2}):(\d{2})/);
+        if (euTimeMatch) {
+          const hours = euTimeMatch[1].padStart(2, '0');
+          const minutes = euTimeMatch[2];
+          setEuTime(`${hours}:${minutes}`);
+        } else {
+          setEuTime('--:--');
+        }
+        
+        // 한국 날짜와 요일
+        const krDateString = now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' });
+        let krDateObj: Date;
+        if (!isNaN(new Date(krDateString).getTime())) {
+          krDateObj = new Date(krDateString);
+        } else {
+          // 대체 방법: UTC 시간에 9시간 추가 (KST = UTC+9)
+          const utcTime = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
+          krDateObj = new Date(utcTime + (9 * 60 * 60 * 1000));
+        }
+        
+        const month = krDateObj.getMonth() + 1;
+        const day = krDateObj.getDate();
+        const dayOfWeek = krDateObj.getDay();
+        const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+        const weekday = weekdays[dayOfWeek];
+        setKrDate(`${month}.${day} (${weekday})`);
+        
+        // 공휴일 확인 (일요일 또는 주요 공휴일)
+        const isHoliday = dayOfWeek === 0 || // 일요일
+          (month === 1 && day === 1) || // 신정
+          (month === 3 && day === 1) || // 삼일절
+          (month === 5 && day === 5) || // 어린이날
+          (month === 6 && day === 6) || // 현충일
+          (month === 8 && day === 15) || // 광복절
+          (month === 10 && day === 3) || // 개천절
+          (month === 10 && day === 9) || // 한글날
+          (month === 12 && day === 25); // 크리스마스
+        setIsKrHoliday(isHoliday);
+      } catch (error) {
+        console.error('시간 업데이트 오류:', error);
+        setNyTime('--:--');
+        setEuTime('--:--');
+        setKrDate('');
+      }
+    };
+    
+    updateTimes();
+    const interval = setInterval(updateTimes, 60000); // 1분마다 업데이트
+    
+    return () => clearInterval(interval);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -142,12 +234,16 @@ export default function MainScreen() {
         portfolio,
         relatedNews,
         latestNews,
+        worldTime,
+        interestRates,
       ] = await Promise.all([
         SettingsService.getShowMarketIndicators(),
         SettingsService.getShowMiniBanners(),
         SettingsService.getShowPortfolio(),
         SettingsService.getShowRelatedNews(),
         SettingsService.getShowLatestNews(),
+        SettingsService.getShowWorldTime(),
+        SettingsService.getShowInterestRates(),
       ]);
 
       setShowMarketIndicators(marketIndicators);
@@ -155,6 +251,8 @@ export default function MainScreen() {
       setShowPortfolio(portfolio);
       setShowRelatedNews(relatedNews);
       setShowLatestNews(latestNews);
+      setShowWorldTime(worldTime);
+      setShowInterestRates(interestRates);
     } catch (error) {
       console.error('표시 설정 로드 오류:', error);
     }
@@ -210,6 +308,18 @@ export default function MainScreen() {
 
       // 중요 지표 가져오기 (비트코인, 금, 유가, 환율) - 병렬 처리로 변경
       loadMarketIndicators();
+
+      // 기준금리 가져오기 (비동기로 처리하여 화면 표시를 막지 않음)
+      InterestRateService.getAllInterestRates()
+        .then((rates) => {
+          console.log('[MainScreen] 기준금리 로드 완료:', rates);
+          setUsInterestRate(rates.us);
+          setKrInterestRate(rates.kr);
+          setJpInterestRate(rates.jp);
+        })
+        .catch((error) => {
+          console.error('[MainScreen] 기준금리 로드 실패:', error);
+        });
 
       // 최신 뉴스 가져오기 (한글/영문 둘 다) - 비동기로 처리하여 화면 표시를 막지 않음
       Promise.all([
@@ -530,6 +640,50 @@ export default function MainScreen() {
             </View>
           ) : (
             <>
+              {/* 뉴욕 및 런던 시간 표시 */}
+              {showWorldTime && (
+                <View style={styles.timeContainer}>
+                  {krDate && (
+                    <View style={styles.timeItem}>
+                      <Text style={styles.timeLabel}>오늘</Text>
+                      <Text style={[styles.timeValue, isKrHoliday && styles.timeValueHoliday]}>{krDate}</Text>
+                    </View>
+                  )}
+                  <View style={styles.timeItem}>
+                    <Text style={styles.timeLabel}>뉴욕</Text>
+                    <Text style={styles.timeValue}>{nyTime}</Text>
+                  </View>
+                  <View style={styles.timeItem}>
+                    <Text style={styles.timeLabel}>런던</Text>
+                    <Text style={styles.timeValue}>{euTime}</Text>
+                  </View>
+                </View>
+              )}
+
+              {/* 기준금리 표시 (미국, 한국, 일본) */}
+              {showInterestRates && (
+                <View style={styles.interestRateContainer}>
+                  <View style={[styles.interestRateItem, { marginLeft: 8 }]}>
+                    <Text style={styles.interestRateLabel}>미국</Text>
+                    <Text style={styles.interestRateValue}>
+                      {usInterestRate !== null ? `${usInterestRate}%` : '--%'}
+                    </Text>
+                  </View>
+                  <View style={styles.interestRateItem}>
+                    <Text style={styles.interestRateLabel}>한국</Text>
+                    <Text style={styles.interestRateValue}>
+                      {krInterestRate !== null ? `${krInterestRate.toFixed(2)}%` : '--%'}
+                    </Text>
+                  </View>
+                  <View style={styles.interestRateItem}>
+                    <Text style={styles.interestRateLabel}>일본</Text>
+                    <Text style={styles.interestRateValue}>
+                      {jpInterestRate !== null ? `${jpInterestRate.toFixed(2)}%` : '--%'}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
               {/* 주요 지표 (최상단, 작게 일렬로 - 환율, 비트코인, 금, 유가) */}
               {showMarketIndicators && marketIndicators.length > 0 && (
                 <View style={styles.topIndicatorsContainer}>
@@ -678,7 +832,7 @@ export default function MainScreen() {
                       onPress={() => router.push('/settings')}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.circularIconText}>⚙</Text>
+                      <Text style={styles.circularIconText}>⚙️</Text>
                     </TouchableOpacity>
                     <Text style={styles.circularIconLabel}>환경 설정</Text>
                   </View>
@@ -1112,7 +1266,7 @@ export default function MainScreen() {
             <CalculatorCard
               title="주요 지표"
               description={['환율, 비트코인, 금, 유가 등', '주요 시장 지표를 확인합니다']}
-              icon="💰"
+              icon="📌"
               color="#00BCD4"
               onPress={() => router.push('/market-indicators')}
             />
@@ -1152,6 +1306,7 @@ export default function MainScreen() {
             </>
           )}
         </ScrollView>
+        <BottomNavigationBar />
       </LinearGradient>
 
       {/* 개인정보처리방침 Modal */}
@@ -1221,7 +1376,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 24,
     paddingTop: 60,
-    paddingBottom: 120,
+    paddingBottom: 100,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: '100%',
@@ -1462,6 +1617,70 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#B0BEC5',
+  },
+  timeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    marginBottom: 12,
+    paddingVertical: 3,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.3)',
+    alignSelf: 'stretch',
+    marginHorizontal: 12,
+  },
+  timeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  timeLabel: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  timeValue: {
+    fontSize: 14,
+    color: '#42A5F5',
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  timeValueHoliday: {
+    color: '#FF5252',
+  },
+  interestRateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    paddingVertical: 3,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.3)',
+    alignSelf: 'stretch',
+    marginHorizontal: 12,
+  },
+  interestRateItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginRight: 16,
+  },
+  interestRateLabel: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  interestRateValue: {
+    fontSize: 14,
+    color: '#42A5F5',
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   topIndicatorsContainer: {
     flexDirection: 'row',

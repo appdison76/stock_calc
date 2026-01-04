@@ -32,6 +32,8 @@ export default function SettingsView() {
   const [showPortfolio, setShowPortfolio] = useState(true);
   const [showRelatedNews, setShowRelatedNews] = useState(true);
   const [showLatestNews, setShowLatestNews] = useState(true);
+  const [showWorldTime, setShowWorldTime] = useState(true);
+  const [showInterestRates, setShowInterestRates] = useState(true);
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -63,12 +65,16 @@ export default function SettingsView() {
         portfolio,
         relatedNews,
         latestNews,
+        worldTime,
+        interestRates,
       ] = await Promise.all([
         SettingsService.getShowMarketIndicators(),
         SettingsService.getShowMiniBanners(),
         SettingsService.getShowPortfolio(),
         SettingsService.getShowRelatedNews(),
         SettingsService.getShowLatestNews(),
+        SettingsService.getShowWorldTime(),
+        SettingsService.getShowInterestRates(),
       ]);
 
       setShowMarketIndicators(marketIndicators);
@@ -76,6 +82,8 @@ export default function SettingsView() {
       setShowPortfolio(portfolio);
       setShowRelatedNews(relatedNews);
       setShowLatestNews(latestNews);
+      setShowWorldTime(worldTime);
+      setShowInterestRates(interestRates);
     } catch (e) {
       Alert.alert('오류', '설정을 불러오는 중 오류가 발생했습니다.');
     } finally {
@@ -141,6 +149,8 @@ export default function SettingsView() {
           SettingsService.setShowPortfolio(showPortfolio),
           SettingsService.setShowRelatedNews(showRelatedNews),
           SettingsService.setShowLatestNews(showLatestNews),
+          SettingsService.setShowWorldTime(showWorldTime),
+          SettingsService.setShowInterestRates(showInterestRates),
         ]);
 
         Alert.alert('성공', '설정이 저장되었습니다.');
@@ -209,6 +219,32 @@ export default function SettingsView() {
                     <Text style={styles.iconText}>🏠</Text>
                   </View>
                   <Text style={styles.cardTitle}>메인화면 표시 설정</Text>
+                </View>
+
+                <View style={styles.settingRow}>
+                  <View style={styles.settingLabelContainer}>
+                    <Text style={styles.settingLabel}>세계시간 표시</Text>
+                    <Text style={styles.settingDescription}>뉴욕/런던 시간 표시</Text>
+                  </View>
+                  <Switch
+                    value={showWorldTime}
+                    onValueChange={setShowWorldTime}
+                    trackColor={{ false: '#757575', true: '#42A5F5' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+
+                <View style={styles.settingRow}>
+                  <View style={styles.settingLabelContainer}>
+                    <Text style={styles.settingLabel}>기준금리 표시</Text>
+                    <Text style={styles.settingDescription}>미국/한국/일본 기준금리 표시</Text>
+                  </View>
+                  <Switch
+                    value={showInterestRates}
+                    onValueChange={setShowInterestRates}
+                    trackColor={{ false: '#757575', true: '#42A5F5' }}
+                    thumbColor="#FFFFFF"
+                  />
                 </View>
 
                 <View style={styles.settingRow}>

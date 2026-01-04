@@ -12,6 +12,8 @@ const KEY_SHOW_MINI_BANNERS = 'show_mini_banners';
 const KEY_SHOW_PORTFOLIO = 'show_portfolio';
 const KEY_SHOW_RELATED_NEWS = 'show_related_news';
 const KEY_SHOW_LATEST_NEWS = 'show_latest_news';
+const KEY_SHOW_WORLD_TIME = 'show_world_time';
+const KEY_SHOW_INTEREST_RATES = 'show_interest_rates';
 
 // 종목 목록 정렬/필터 설정 키
 const KEY_PORTFOLIO_SORT_OPTION = 'portfolio_sort_option';
@@ -29,6 +31,8 @@ const DEFAULT_SHOW_MINI_BANNERS = true;
 const DEFAULT_SHOW_PORTFOLIO = true;
 const DEFAULT_SHOW_RELATED_NEWS = true;
 const DEFAULT_SHOW_LATEST_NEWS = true;
+const DEFAULT_SHOW_WORLD_TIME = true;
+const DEFAULT_SHOW_INTEREST_RATES = true;
 
 // 종목 목록 정렬/필터 기본값
 const DEFAULT_PORTFOLIO_SORT_OPTION = 'name'; // 이름순
@@ -222,6 +226,38 @@ export class SettingsService {
   /// 종목 목록 필터 옵션 저장하기
   static async setPortfolioFilterOption(value: 'all' | 'krw' | 'usd'): Promise<void> {
     await AsyncStorage.setItem(KEY_PORTFOLIO_FILTER_OPTION, value);
+  }
+
+  // ===== 세계시간 및 기준금리 표시 설정 =====
+
+  /// 세계시간 표시 여부 가져오기
+  static async getShowWorldTime(): Promise<boolean> {
+    try {
+      const value = await AsyncStorage.getItem(KEY_SHOW_WORLD_TIME);
+      return value !== null ? value === 'true' : DEFAULT_SHOW_WORLD_TIME;
+    } catch (e) {
+      return DEFAULT_SHOW_WORLD_TIME;
+    }
+  }
+
+  /// 세계시간 표시 여부 저장하기
+  static async setShowWorldTime(value: boolean): Promise<void> {
+    await AsyncStorage.setItem(KEY_SHOW_WORLD_TIME, value ? 'true' : 'false');
+  }
+
+  /// 기준금리 표시 여부 가져오기
+  static async getShowInterestRates(): Promise<boolean> {
+    try {
+      const value = await AsyncStorage.getItem(KEY_SHOW_INTEREST_RATES);
+      return value !== null ? value === 'true' : DEFAULT_SHOW_INTEREST_RATES;
+    } catch (e) {
+      return DEFAULT_SHOW_INTEREST_RATES;
+    }
+  }
+
+  /// 기준금리 표시 여부 저장하기
+  static async setShowInterestRates(value: boolean): Promise<void> {
+    await AsyncStorage.setItem(KEY_SHOW_INTEREST_RATES, value ? 'true' : 'false');
   }
 }
 
