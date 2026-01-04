@@ -655,6 +655,25 @@ export default function MainScreen() {
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
+                      style={[styles.circularIconCard, { backgroundColor: '#424242' }]}
+                      onPress={() => {
+                        // 히트맵 화면이 있으면 router.push('/heatmap')
+                        // 없으면 임시로 알림 표시
+                        alert('히트맵 기능은 준비 중입니다.');
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.heatmapIconContainer}>
+                        {/* 하단 왼쪽 - 빨간색 (내림) */}
+                        <View style={[styles.heatmapBlock, styles.heatmapBlockBottom, { backgroundColor: '#EF5350' }]} />
+                        {/* 상단 오른쪽 - 녹색 (오름) */}
+                        <View style={[styles.heatmapBlock, styles.heatmapBlockTop, { backgroundColor: '#4CAF50' }]} />
+                      </View>
+                    </TouchableOpacity>
+                    <Text style={styles.circularIconLabel}>히트맵</Text>
+                  </View>
+                  <View style={styles.iconItemContainer}>
+                    <TouchableOpacity
                       style={[styles.circularIconCard, { backgroundColor: '#757575' }]}
                       onPress={() => router.push('/settings')}
                       activeOpacity={0.8}
@@ -662,9 +681,6 @@ export default function MainScreen() {
                       <Text style={styles.circularIconText}>⚙</Text>
                     </TouchableOpacity>
                     <Text style={styles.circularIconLabel}>환경 설정</Text>
-                  </View>
-                  <View style={styles.iconItemContainer}>
-                    <View style={styles.circularIconCardEmpty} />
                   </View>
                 </View>
               </View>
@@ -683,14 +699,11 @@ export default function MainScreen() {
                   style={styles.mainGradientCardContent}
                 >
                   <View style={styles.mainGradientIconContainer}>
-                    <View style={styles.mainGradientIconInner}>
-                      <View style={styles.chartBars}>
-                        <View style={[styles.chartBar, { height: 20, backgroundColor: '#4CAF50' }]} />
-                        <View style={[styles.chartBar, { height: 30, backgroundColor: '#EF5350' }]} />
-                        <View style={[styles.chartBar, { height: 25, backgroundColor: '#2196F3' }]} />
-                      </View>
-                      <View style={styles.triangleUp} />
-                    </View>
+                    <Image 
+                      source={require('../assets/icon.png')} 
+                      style={styles.mainGradientLogo}
+                      resizeMode="contain"
+                    />
                   </View>
                   <Text style={styles.mainGradientTitle}>스마트 물타기 계산기</Text>
                   <Text style={styles.mainGradientSubtitle}>평단가 & 수익률 계산</Text>
@@ -1582,6 +1595,29 @@ const styles = StyleSheet.create({
     marginTop: 6,
     width: 70,
   },
+  heatmapIconContainer: {
+    width: 36,
+    height: 36,
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heatmapBlock: {
+    width: 20,
+    height: 20,
+    borderRadius: 3,
+    position: 'absolute',
+  },
+  heatmapBlockBottom: {
+    bottom: 4,
+    left: 4,
+    zIndex: 1,
+  },
+  heatmapBlockTop: {
+    top: 4,
+    right: 4,
+    zIndex: 2,
+  },
   mainGradientCard: {
     width: '100%',
     borderRadius: 20,
@@ -1607,31 +1643,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
+    overflow: 'hidden',
   },
-  mainGradientIconInner: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chartBars: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 4,
-    marginBottom: 4,
-  },
-  chartBar: {
-    width: 8,
-    borderRadius: 2,
-  },
-  triangleUp: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderBottomWidth: 8,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: '#42A5F5',
-    marginTop: 2,
+  mainGradientLogo: {
+    width: 80,
+    height: 80,
   },
   mainGradientTitle: {
     fontSize: 24,
