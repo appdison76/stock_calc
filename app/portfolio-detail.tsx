@@ -222,8 +222,56 @@ export default function PortfolioDetailScreen() {
     setSelectedTickerForAdd(ticker);
     setSelectedOfficialNameForAdd(officialName);
     
-    // 별명 입력 모달 표시 (기본값은 officialName이 있으면 officialName, 없으면 ticker)
-    setStockNameInputForAdd(officialName || ticker);
+    // 같은 티커를 가진 종목이 이미 있는지 확인하여 번호 부여
+    let defaultName = officialName || ticker;
+    
+    if (portfolio) {
+      try {
+        const existingStocks = await getStocksByAccountId(portfolio.id);
+        const sameTickerStocks = existingStocks.filter(
+          stock => stock.ticker.toUpperCase() === ticker.toUpperCase()
+        );
+        
+        if (sameTickerStocks.length > 0) {
+          // 기존 종목들의 이름에서 번호 추출
+          const baseName = defaultName;
+          const numberPattern = /^(.+?)\s*\((\d+)\)$/;
+          const existingNumbers: number[] = [];
+          
+          sameTickerStocks.forEach(stock => {
+            const stockName = stock.name || stock.officialName || stock.ticker;
+            if (stockName === baseName) {
+              // 기본 이름과 정확히 일치하면 번호 없는 것으로 간주 (0)
+              existingNumbers.push(0);
+            } else {
+              const match = stockName.match(numberPattern);
+              if (match) {
+                const matchedBaseName = match[1].trim();
+                if (matchedBaseName === baseName) {
+                  // "이름 (숫자)" 형태면 숫자 추출
+                  existingNumbers.push(parseInt(match[2], 10));
+                }
+              }
+            }
+          });
+          
+          // 다음 번호 계산
+          if (existingNumbers.length > 0) {
+            const maxNumber = Math.max(...existingNumbers);
+            defaultName = `${baseName} (${maxNumber + 1})`;
+          } else {
+            // 번호가 없는 경우 첫 번째 추가이므로 (1) 부여
+            defaultName = `${baseName} (1)`;
+          }
+        }
+      } catch (error) {
+        console.warn('기존 종목 확인 실패:', error);
+        // 오류 발생 시 기본값 사용
+      }
+    }
+    
+    // 별명 입력 모달 표시
+    setStockNameInputForAdd(defaultName);
     setShowStockNameInputForAdd(true);
   };
   

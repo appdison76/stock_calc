@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expo QR 코드 생성기</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Malgun Gothic', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #667eea;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            font-family: inherit;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .qr-container {
+            margin-top: 30px;
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            display: none;
+        }
+        
+        .qr-container.show {
+            display: block;
+        }
+        
+        #qrcode {
+            display: inline-block;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        #qrcode canvas {
+            display: block;
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .qr-info {
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            font-size: 14px;
+            color: #666;
+            word-break: break-all;
+        }
+        
+        .qr-info strong {
+            color: #333;
+        }
+        
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #1565c0;
+        }
+        
+        .copy-btn {
+            margin-top: 10px;
+            padding: 10px;
+            background: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            width: 100%;
+        }
+        
+        .copy-btn:hover {
+            background: #45a049;
+        }
+        
+        .preset-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .preset-btn {
+            padding: 10px;
+            background: #f0f0f0;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .preset-btn:hover {
+            background: #e0e0e0;
+            border-color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Expo QR 코드 생성기</h1>
+        <p class="subtitle">Expo 개발 서버 URL을 입력하면 QR 코드가 생성됩니다</p>
+        
+        <div class="info-box">
+            💡 터미널에서 <code>npm start</code> 실행 후 표시된 URL을 입력하세요<br>
+            예: <code>exp://192.168.0.100:8081</code> 또는 <code>exp://localhost:8081</code>
+        </div>
+        
+        <div class="preset-buttons">
+            <button class="preset-btn" onclick="setPreset('exp://localhost:8081')">localhost</button>
+            <button class="preset-btn" onclick="setPreset('exp://192.168.0.100:8081')">WiFi (예시)</button>
+        </div>
+        
+        <form id="qrForm">
+            <div class="form-group">
+                <label for="url">Expo URL *</label>
+                <input 
+                    type="text" 
+                    id="url" 
+                    name="url" 
+                    placeholder="exp://192.168.0.100:8081" 
+                    required
+                    autocomplete="off"
+                >
+            </div>
+            
+            <button type="submit" class="btn">QR 코드 생성</button>
+        </form>
+        
+        <div id="qrContainer" class="qr-container">
+            <div id="qrcode"></div>
+            <div class="qr-info">
+                <strong>URL:</strong><br>
+                <span id="qrInfo"></span>
+            </div>
+            <button class="copy-btn" onclick="copyURL()">📋 URL 복사</button>
+        </div>
+    </div>
+
+    <script>
+        let currentURL = '';
+
+        // DOM이 로드된 후 실행
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('qrForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                generateQRCode();
+            });
+
+            // Enter 키로도 생성 가능
+            document.getElementById('url').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    generateQRCode();
+                }
+            });
+        });
+
+        function setPreset(url) {
+            document.getElementById('url').value = url;
+            generateQRCode();
+        }
+
+        function generateQRCode() {
+            const url = document.getElementById('url').value.trim();
+
+            if (!url) {
+                alert('URL을 입력해주세요.');
+                return;
+            }
+
+            // exp:// 프로토콜이 없으면 추가
+            let expoURL = url;
+            if (!expoURL.startsWith('exp://')) {
+                expoURL = 'exp://' + expoURL;
+            }
+
+            currentURL = expoURL;
+
+            // 기존 QR 코드 제거
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = '';
+
+            try {
+                // qrcodejs 라이브러리 사용
+                if (typeof QRCode !== 'undefined') {
+                    new QRCode(qrContainer, {
+                        text: expoURL,
+                        width: 300,
+                        height: 300,
+                        colorDark: '#000000',
+                        colorLight: '#ffffff',
+                        correctLevel: QRCode.CorrectLevel.H
+                    });
+                    
+                    // 정보 표시
+                    document.getElementById('qrInfo').textContent = expoURL;
+
+                    // QR 컨테이너 표시
+                    document.getElementById('qrContainer').classList.add('show');
+                } else {
+                    alert('QR 코드 라이브러리를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                qrContainer.innerHTML = '<p style="color: red; padding: 20px;">오류가 발생했습니다: ' + error.message + '</p>';
+                alert('QR 코드 생성 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        function copyURL() {
+            if (!currentURL) {
+                alert('먼저 QR 코드를 생성해주세요.');
+                return;
+            }
+
+            // 클립보드에 복사
+            navigator.clipboard.writeText(currentURL).then(function() {
+                alert('URL이 클립보드에 복사되었습니다!');
+            }, function(err) {
+                // 폴백: 텍스트 영역 사용
+                const textArea = document.createElement('textarea');
+                textArea.value = currentURL;
+                textArea.style.position = 'fixed';
+                textArea.style.opacity = '0';
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    alert('URL이 클립보드에 복사되었습니다!');
+                } catch (err) {
+                    alert('복사에 실패했습니다. 수동으로 복사해주세요:\n\n' + currentURL);
+                }
+                document.body.removeChild(textArea);
+            });
+        }
+
+    </script>
+</body>
+</html>
+

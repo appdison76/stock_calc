@@ -70,6 +70,7 @@ async function createTables(database: SQLite.SQLiteDatabase): Promise<void> {
   `);
 
   // stocks 테이블 생성 (스키마가 안정화되었으므로 IF NOT EXISTS만 사용)
+  // 같은 티커라도 별명이 다르면 여러 개 추가 가능하므로 UNIQUE 제약조건 없음
   await database.execAsync(`
     CREATE TABLE IF NOT EXISTS stocks (
       id TEXT PRIMARY KEY,
@@ -108,6 +109,95 @@ async function createTables(database: SQLite.SQLiteDatabase): Promise<void> {
     console.warn('기존 데이터 마이그레이션 실패:', error);
   }
 
+  // UNIQUE 제약조건 제거 마이그레이션 (같은 티커라도 별명이 다르면 여러 개 추가 가능하도록)
+  try {
+    // 기존 테이블에 UNIQUE 제약조건이 있는지 확인
+    const tableInfo = await database.getAllAsync<any>(`
+      SELECT sql FROM sqlite_master 
+      WHERE type='table' AND name='stocks'
+    `);
+    
+    if (tableInfo.length > 0) {
+      const createSql = (tableInfo[0].sql || '').toUpperCase();
+      // UNIQUE 제약조건이 있는지 확인 (account_id와 ticker 조합)
+      const hasUniqueConstraint = createSql.includes('UNIQUE') && 
+                                   (createSql.includes('ACCOUNT_ID') || createSql.includes('TICKER'));
+      
+      if (hasUniqueConstraint) {
+        console.log('🔄 UNIQUE 제약조건 제거를 위한 테이블 마이그레이션 시작...');
+        
+        // 1. 기존 데이터 백업
+        await database.execAsync(`
+          CREATE TABLE IF NOT EXISTS stocks_migration_backup AS SELECT * FROM stocks;
+        `);
+        
+        // 2. 외래키 제약조건 임시 비활성화
+        await database.execAsync(`PRAGMA foreign_keys = OFF;`);
+        
+        // 3. 기존 테이블 삭제
+        await database.execAsync(`DROP TABLE IF EXISTS stocks;`);
+        
+        // 4. UNIQUE 제약조건 없이 새 테이블 생성
+        await database.execAsync(`
+          CREATE TABLE stocks (
+            id TEXT PRIMARY KEY,
+            account_id TEXT NOT NULL,
+            ticker TEXT NOT NULL,
+            official_name TEXT,
+            name TEXT,
+            quantity INTEGER NOT NULL DEFAULT 0,
+            average_price REAL NOT NULL DEFAULT 0,
+            current_price REAL,
+            currency TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+          );
+        `);
+        
+        // 5. 데이터 복원
+        const backupData = await database.getAllAsync<any>(`SELECT * FROM stocks_migration_backup;`);
+        if (backupData.length > 0) {
+          for (const row of backupData) {
+            await database.runAsync(`
+              INSERT INTO stocks (id, account_id, ticker, official_name, name, quantity, average_price, current_price, currency, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
+              row.id,
+              row.account_id,
+              row.ticker,
+              row.official_name,
+              row.name,
+              row.quantity,
+              row.average_price,
+              row.current_price,
+              row.currency,
+              row.created_at,
+              row.updated_at
+            ]);
+          }
+        }
+        
+        // 6. 백업 테이블 삭제
+        await database.execAsync(`DROP TABLE IF EXISTS stocks_migration_backup;`);
+        
+        // 7. 외래키 제약조건 다시 활성화
+        await database.execAsync(`PRAGMA foreign_keys = ON;`);
+        
+        console.log('✅ UNIQUE 제약조건 제거 완료');
+      }
+    }
+  } catch (error: any) {
+    console.warn('UNIQUE 제약조건 제거 마이그레이션 실패:', error);
+    // 마이그레이션 실패해도 계속 진행
+    try {
+      await database.execAsync(`PRAGMA foreign_keys = ON;`);
+    } catch (e) {
+      // 무시
+    }
+  }
+
+
   // averaging_records 테이블 (매수/매도 통합 거래 기록)
   // 스키마가 안정화되었으므로 IF NOT EXISTS만 사용
   await database.execAsync(`
@@ -139,7 +229,29 @@ async function createTables(database: SQLite.SQLiteDatabase): Promise<void> {
     // 백업 테이블이 없으면 무시
   }
 
-  // 인덱스 생성 (성능 최적화)
+  // UNIQUE 인덱스 제거 (같은 티커라도 별명이 다르면 여러 개 추가 가능하도록)
+  try {
+    // 기존 UNIQUE 인덱스 확인 및 제거
+    const indexes = await database.getAllAsync<any>(`
+      SELECT name, sql FROM sqlite_master 
+      WHERE type='index' AND tbl_name='stocks' AND sql LIKE '%UNIQUE%'
+    `);
+    
+    for (const index of indexes) {
+      if (index.name && !index.name.startsWith('sqlite_autoindex')) {
+        try {
+          await database.execAsync(`DROP INDEX IF EXISTS ${index.name};`);
+          console.log(`✅ UNIQUE 인덱스 제거: ${index.name}`);
+        } catch (error) {
+          console.warn(`인덱스 제거 실패 (${index.name}):`, error);
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('UNIQUE 인덱스 확인 실패:', error);
+  }
+
+  // 인덱스 생성 (성능 최적화, UNIQUE 없이)
   await database.execAsync(`
     CREATE INDEX IF NOT EXISTS idx_stocks_account_id ON stocks(account_id);
     CREATE INDEX IF NOT EXISTS idx_stocks_ticker ON stocks(ticker);
@@ -177,7 +289,7 @@ export async function createAccount(
   await database.runAsync(
     `INSERT INTO accounts (id, name, currency, created_at, updated_at) 
      VALUES (?, ?, ?, ?, ?)`,
-    [account.id, account.name, account.currency, account.createdAt, account.updatedAt]
+    [account.id, account.name, account.currency.toUpperCase(), account.createdAt, account.updatedAt] // 대문자로 변환 (DB는 'KRW', 'USD' 요구)
   );
 
   return account;
@@ -192,7 +304,7 @@ export async function getAllAccounts(): Promise<Account[]> {
     `SELECT 
       id, 
       name, 
-      currency, 
+      LOWER(currency) as currency, 
       created_at as createdAt, 
       updated_at as updatedAt 
     FROM accounts 
@@ -211,7 +323,7 @@ export async function getAccountById(id: string): Promise<Account | null> {
     `SELECT 
       id, 
       name, 
-      currency, 
+      LOWER(currency) as currency, 
       created_at as createdAt, 
       updated_at as updatedAt 
     FROM accounts 
@@ -239,7 +351,7 @@ export async function updateAccount(
   }
   if (updates.currency !== undefined) {
     updatesList.push('currency = ?');
-    values.push(updates.currency);
+    values.push(updates.currency.toUpperCase()); // 대문자로 변환 (DB는 'KRW', 'USD' 요구)
   }
 
   updatesList.push('updated_at = ?');
@@ -281,6 +393,9 @@ export async function createStock(
   // name이 없으면 officialName을 사용
   const finalName = name || officialName;
   
+  // 중복 체크 제거: 같은 티커라도 별명이 다르면 추가 가능하도록 허용
+  // 사용자가 원하는 대로 같은 종목도 별명이 다르면 여러 개 추가 가능
+  
   const stock: Stock = {
     id: generateId(),
     accountId,
@@ -308,16 +423,14 @@ export async function createStock(
         stock.quantity,
         stock.averagePrice,
         stock.currentPrice || null,
-        stock.currency,
+        stock.currency.toUpperCase(), // 대문자로 변환 (DB는 'KRW', 'USD' 요구)
         stock.createdAt,
         stock.updatedAt,
       ]
     );
   } catch (error: any) {
-    // UNIQUE 제약조건 위반인 경우 더 명확한 오류 메시지 (ticker 중복 체크는 제거했으므로 발생하지 않을 수 있음)
-    if (error?.message?.includes('UNIQUE constraint') || error?.message?.includes('unique')) {
-      throw new Error(`이미 존재하는 종목입니다: ${ticker}`);
-    }
+    // 에러를 그대로 전달 (중복 체크는 이미 제거했으므로 UNIQUE 제약조건 오류는 발생하지 않아야 함)
+    // 만약 UNIQUE 제약조건 오류가 발생한다면 데이터베이스 스키마에 제약조건이 남아있는 것
     throw error;
   }
 
@@ -339,7 +452,7 @@ export async function getStocksByAccountId(accountId: string): Promise<Stock[]> 
       quantity, 
       average_price as averagePrice, 
       current_price as currentPrice, 
-      currency, 
+      LOWER(currency) as currency, 
       created_at as createdAt, 
       updated_at as updatedAt 
     FROM stocks 
@@ -365,7 +478,7 @@ export async function getStockById(id: string): Promise<Stock | null> {
       quantity, 
       average_price as averagePrice, 
       current_price as currentPrice, 
-      currency, 
+      LOWER(currency) as currency, 
       created_at as createdAt, 
       updated_at as updatedAt 
     FROM stocks 
@@ -393,7 +506,7 @@ export async function getStockByTicker(
       quantity, 
       average_price as averagePrice, 
       current_price as currentPrice, 
-      currency, 
+      LOWER(currency) as currency, 
       created_at as createdAt, 
       updated_at as updatedAt 
     FROM stocks 
@@ -563,7 +676,7 @@ export async function createAveragingRecord(
       'BUY', // type
       record.buyPrice, // price
       record.quantity,
-      record.currency,
+      record.currency.toUpperCase(), // 대문자로 변환 (DB는 'KRW', 'USD' 요구)
       record.exchangeRate || null,
       record.averagePriceBefore,
       record.averagePriceAfter,
@@ -590,7 +703,7 @@ export async function getTradingRecordsByStockId(
       type,
       price,
       quantity, 
-      currency, 
+      LOWER(currency) as currency, 
       exchange_rate as exchangeRate, 
       average_price_before as averagePriceBefore, 
       average_price_after as averagePriceAfter,
@@ -677,7 +790,7 @@ export async function createBuyRecord(
       record.type,
       record.price,
       record.quantity,
-      record.currency,
+      record.currency.toUpperCase(), // 대문자로 변환 (DB는 'KRW', 'USD' 요구)
       record.exchangeRate || null,
       record.averagePriceBefore || null,
       record.averagePriceAfter || null,
@@ -736,7 +849,7 @@ export async function createSellRecord(
       record.type,
       record.price,
       record.quantity,
-      record.currency,
+      record.currency.toUpperCase(), // 대문자로 변환 (DB는 'KRW', 'USD' 요구)
       record.exchangeRate || null,
       record.averagePriceAtSell || null,
       record.profit || null,
@@ -852,7 +965,7 @@ export async function saveCalculationAsScenario(
       calc.additionalBuyPrice,
       calc.additionalQuantity,
       calc.feeRate,
-      currency,
+      tickerBasedCurrency, // 티커 기반 통화 사용 (종목 단위로 통화 관리)
       currentAveragePrice,
       calc.newAveragePriceWithoutFee,
       currentQuantity,

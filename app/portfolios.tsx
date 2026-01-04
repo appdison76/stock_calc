@@ -42,8 +42,10 @@ export default function PortfoliosScreen() {
       await initDatabase();
       let accounts = await getAllAccounts();
       
-      // 포트폴리오가 없으면 기본 포트폴리오 자동 생성 (항상 최소 1개 유지)
-      if (accounts.length === 0) {
+      // "나의 포트폴리오"가 없으면 기본 포트폴리오 자동 생성 (항상 최소 1개 유지)
+      // 중복 생성 방지를 위해 먼저 확인
+      const existingDefault = accounts.find(a => a.name === '나의 포트폴리오');
+      if (!existingDefault) {
         await createAccount('나의 포트폴리오', Currency.KRW);
         accounts = await getAllAccounts();
       }

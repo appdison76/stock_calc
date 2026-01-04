@@ -328,7 +328,7 @@ export default function ProfitCalculatorView() {
       Alert.alert('입력 오류', '매수가와 수량을 입력해주세요.');
       return;
     }
-    
+
     // 매도가와 수익률 중 하나는 반드시 입력해야 함
     if (!sellPrice && !profitRate) {
       Alert.alert('입력 오류', '매도가 또는 수익률 중 하나를 입력해주세요.');
@@ -406,7 +406,7 @@ export default function ProfitCalculatorView() {
       if (resultContainerY.current > 0) {
         scrollViewRef.current?.scrollTo({ y: resultContainerY.current - 50, animated: true });
       } else {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
+      scrollViewRef.current?.scrollToEnd({ animated: true });
       }
     }, 400);
   };
@@ -584,10 +584,10 @@ export default function ProfitCalculatorView() {
             </Text>
           )}
           {selectedCurrency === Currency.KRW && profitRate && sellPrice && buyPrice && (
-            <Text style={styles.helperText}>
+              <Text style={styles.helperText}>
               수익률: {profitRate}%
-            </Text>
-          )}
+              </Text>
+            )}
           <TextInput
             style={styles.input}
             placeholder="수익률 (%)"
@@ -638,7 +638,7 @@ export default function ProfitCalculatorView() {
               onTextShare={shareResultAsText}
             >
               <View ref={resultTitleRef}>
-                <Text style={styles.resultTitle}>계산 결과</Text>
+              <Text style={styles.resultTitle}>계산 결과</Text>
               </View>
               <View style={styles.resultCards}>
                 <CalculationResultCard

@@ -153,11 +153,53 @@ export default function VisualizationScreen() {
         
         const validUpdatedCharts = updatedCharts.filter((chart): chart is ChartData => chart !== null);
         
-        // 기존 차트 데이터와 비교하여 선택된 종목 인덱스 유지
-        const currentSelectedStockId = chartsData[selectedChartIndex || 0]?.stock?.id;
-        const newSelectedIndex = validUpdatedCharts.findIndex(chart => chart.stock.id === currentSelectedStockId);
-        if (newSelectedIndex >= 0) {
+        // 선택된 종목 인덱스 유지 (우선순위: currentStockId > previousSelectedStockId > 현재 선택된 인덱스)
+        let newSelectedIndex: number | null = null;
+        
+        // 1순위: 쿼리 파라미터로 전달된 stockId
+        const currentStockId = stockId;
+        if (currentStockId) {
+          const foundIndex = validUpdatedCharts.findIndex(chart => chart && chart.stock && chart.stock.id === currentStockId);
+          if (foundIndex >= 0) {
+            newSelectedIndex = foundIndex;
+            previousSelectedStockIdRef.current = currentStockId;
+          }
+        }
+        
+        // 2순위: 이전에 선택했던 종목 ID
+        if (newSelectedIndex === null && previousSelectedStockIdRef.current) {
+          const foundIndex = validUpdatedCharts.findIndex(chart => chart && chart.stock && chart.stock.id === previousSelectedStockIdRef.current);
+          if (foundIndex >= 0) {
+            newSelectedIndex = foundIndex;
+          }
+        }
+        
+        // 3순위: 현재 선택된 인덱스 유지
+        if (newSelectedIndex === null && chartsData.length > 0 && selectedChartIndex !== null && selectedChartIndex >= 0 && selectedChartIndex < chartsData.length) {
+          const currentSelectedChart = chartsData[selectedChartIndex];
+          if (currentSelectedChart && currentSelectedChart.stock) {
+            const currentSelectedStockId = currentSelectedChart.stock.id;
+            const foundIndex = validUpdatedCharts.findIndex(chart => chart && chart.stock && chart.stock.id === currentSelectedStockId);
+            if (foundIndex >= 0) {
+              newSelectedIndex = foundIndex;
+            }
+          }
+        }
+        
+        // 4순위: 첫 번째 항목
+        if (newSelectedIndex === null && validUpdatedCharts.length > 0) {
+          newSelectedIndex = 0;
+          const firstChart = validUpdatedCharts[0];
+          if (firstChart && firstChart.stock) {
+            previousSelectedStockIdRef.current = firstChart.stock.id;
+          }
+        }
+        
+        if (newSelectedIndex !== null) {
           setSelectedChartIndex(newSelectedIndex);
+        } else {
+          setSelectedChartIndex(null);
+          previousSelectedStockIdRef.current = null;
         }
         
         setChartsData(validUpdatedCharts);
@@ -229,34 +271,43 @@ export default function VisualizationScreen() {
       setChartsData(validCharts);
       
       // 차트 데이터가 있으면 선택된 인덱스 설정
-      if (charts.length > 0) {
+      if (validCharts.length > 0) {
         // 쿼리 파라미터로 전달된 stockId가 있으면 해당 종목 선택 (우선순위 1)
         if (currentStockId) {
-          const foundIndex = charts.findIndex(chart => chart.stock.id === currentStockId);
+          const foundIndex = validCharts.findIndex(chart => chart && chart.stock && chart.stock.id === currentStockId);
           if (foundIndex !== -1) {
             setSelectedChartIndex(foundIndex);
             previousSelectedStockIdRef.current = currentStockId;
           } else {
             // stockId가 있지만 찾지 못한 경우 첫 번째 항목 선택
-            setSelectedChartIndex(0);
-            previousSelectedStockIdRef.current = charts[0]?.stock.id || null;
+            const firstChart = validCharts[0];
+            if (firstChart && firstChart.stock) {
+              setSelectedChartIndex(0);
+              previousSelectedStockIdRef.current = firstChart.stock.id;
+            }
           }
         }
         // 이전에 선택했던 종목이 있으면 그 종목을 찾아서 선택 (우선순위 2)
         else if (previousSelectedStockId) {
-          const foundIndex = charts.findIndex(chart => chart.stock.id === previousSelectedStockId);
+          const foundIndex = validCharts.findIndex(chart => chart && chart.stock && chart.stock.id === previousSelectedStockId);
           if (foundIndex !== -1) {
             setSelectedChartIndex(foundIndex);
             previousSelectedStockIdRef.current = previousSelectedStockId; // 유지
           } else {
             // 이전 선택한 종목이 없어졌으면 첫 번째 항목 선택
-            setSelectedChartIndex(0);
-            previousSelectedStockIdRef.current = charts[0]?.stock.id || null;
+            const firstChart = validCharts[0];
+            if (firstChart && firstChart.stock) {
+              setSelectedChartIndex(0);
+              previousSelectedStockIdRef.current = firstChart.stock.id;
+            }
           }
         } else {
           // 선택된 인덱스가 없거나 유효하지 않을 때 첫 번째 항목 선택
-          setSelectedChartIndex(0);
-          previousSelectedStockIdRef.current = charts[0]?.stock.id || null;
+          const firstChart = validCharts[0];
+          if (firstChart && firstChart.stock) {
+            setSelectedChartIndex(0);
+            previousSelectedStockIdRef.current = firstChart.stock.id;
+          }
         }
       } else {
         // 차트 데이터가 없으면 선택 인덱스 초기화
@@ -281,21 +332,32 @@ export default function VisualizationScreen() {
     scrollToSelectedStock();
   }, [selectedChartIndex, chartsData]);
 
-  const scrollToSelectedStock = () => {
-    if (selectedChartIndex === null || !stockTabsScrollRef.current || chartsData.length === 0) return;
+  const scrollToSelectedStock = (index?: number) => {
+    const targetIndex = index !== undefined ? index : selectedChartIndex;
+    if (targetIndex === null || !stockTabsScrollRef.current || chartsData.length === 0) return;
     
     // 약간의 지연을 두어 레이아웃이 완료된 후 스크롤
     setTimeout(() => {
-      // 각 탭의 대략적인 너비: paddingHorizontal(20*2) + marginRight(12) + 텍스트 너비(약 80-100)
-      // 대략 120-140px 정도로 추정, 안전하게 150으로 설정
-      const estimatedTabWidth = 150;
-      const scrollX = selectedChartIndex * estimatedTabWidth - 50; // 약간 왼쪽 여유 공간
+      if (!stockTabsScrollRef.current) return;
       
-      stockTabsScrollRef.current?.scrollTo({
-        x: Math.max(0, scrollX),
+      // 각 탭의 대략적인 너비 계산
+      // paddingHorizontal(20*2) + marginRight(12) + 텍스트 너비(동적)
+      // 텍스트 길이에 따라 너비가 달라지므로 더 넉넉하게 계산
+      const baseTabWidth = 120; // 기본 너비 (padding + margin)
+      const estimatedTabWidth = baseTabWidth + 80; // 텍스트 너비 포함 (최대 200px)
+      
+      // 선택된 탭의 예상 위치 계산
+      const targetScrollX = targetIndex * estimatedTabWidth;
+      
+      // 화면 중앙에 오도록 조정 (화면 너비의 절반을 빼서 중앙 정렬)
+      const screenWidth = 400; // 대략적인 화면 너비 (실제로는 동적으로 가져와야 하지만 추정값 사용)
+      const centeredScrollX = targetScrollX - screenWidth / 2 + estimatedTabWidth / 2;
+      
+      stockTabsScrollRef.current.scrollTo({
+        x: Math.max(0, centeredScrollX),
         animated: true,
       });
-    }, 200);
+    }, 300); // 레이아웃 완료를 위해 지연 시간 증가
   };
 
   if (loading) {
@@ -392,6 +454,7 @@ export default function VisualizationScreen() {
         >
           {/* 종목 선택 탭 */}
           <ScrollView
+            ref={stockTabsScrollRef}
             horizontal
             showsHorizontalScrollIndicator={false}
             style={styles.stockTabs}
@@ -403,6 +466,8 @@ export default function VisualizationScreen() {
                 onPress={() => {
                   setSelectedChartIndex(index);
                   previousSelectedStockIdRef.current = chart.stock.id;
+                  // 탭 클릭 시에도 스크롤 (인덱스를 직접 전달)
+                  scrollToSelectedStock(index);
                 }}
                 style={[
                   styles.stockTab,
@@ -765,7 +830,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#FFFFFF',
     flex: 1,

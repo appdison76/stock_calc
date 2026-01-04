@@ -26,6 +26,7 @@ import { CalculationResultCard } from '../src/components/CalculationResultCard';
 import { SharedResultSection } from '../src/components/SharedResultSection';
 import { CoupangBannerSection, CoupangBannerSectionRef } from '../src/components/CoupangBannerSection';
 import { formatCurrency, formatNumber, getKrwEquivalent, addCommas } from '../src/utils/formatUtils';
+import { getCurrencyFromTicker } from '../src/utils/stockUtils';
 import { Share } from 'react-native';
 import { useRouter } from 'expo-router';
 import { initDatabase, saveCalculationAsScenario, getAllAccounts, createAccount, updateStockCurrentPrice } from '../src/services/DatabaseService';
@@ -58,6 +59,7 @@ export default function AveragingCalculatorView() {
   const [selectedOfficialName, setSelectedOfficialName] = useState<string | null>(null);
   const [showStockNameInput, setShowStockNameInput] = useState(false);
   const [stockNameInput, setStockNameInput] = useState('');
+  const [selectedAccount, setSelectedAccount] = useState<{ id: string; name: string; currency: Currency } | null>(null);
   const coupangBannerRef = useRef<CoupangBannerSectionRef>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const resultOpacity = useRef(new Animated.Value(0)).current;
@@ -340,27 +342,19 @@ export default function AveragingCalculatorView() {
       }
 
       // 계좌 목록 조회
-      let accounts = await getAllAccounts();
+      const accounts = await getAllAccounts();
       
-      // 계좌가 없으면 기본 포트폴리오 자동 생성 (선택한 통화로)
-      if (accounts.length === 0) {
-        const defaultAccount = await createAccount('나의 포트폴리오', selectedCurrency);
-        accounts = [defaultAccount];
+      // 계좌 선택 로직:
+      // 1. 먼저 "나의 포트폴리오"가 이미 존재하는지 확인 (통화 무관)
+      let account = accounts.find(a => a.name === '나의 포트폴리오');
+      
+      // 2. "나의 포트폴리오"가 없으면 생성 (통화는 기본값 사용, 실제로는 종목 단위로 관리됨)
+      if (!account) {
+        account = await createAccount('나의 포트폴리오', Currency.KRW); // 기본값, 실제 통화는 종목 단위로 관리
       }
 
-      // 계좌 선택 로직:
-      // 1. 선택한 통화와 일치하는 포트폴리오 중에서
-      // 2. 먼저 "나의 포트폴리오" (기본 포트폴리오)를 찾고
-      // 3. 없으면 같은 통화의 첫 번째 포트폴리오를 선택
-      // 4. 같은 통화의 포트폴리오가 없으면 기본 포트폴리오 생성
-      const sameCurrencyAccounts = accounts.filter(a => a.currency === selectedCurrency);
-      let account = sameCurrencyAccounts.find(a => a.name === '나의 포트폴리오') 
-        || sameCurrencyAccounts[0];
-      
-      // 같은 통화의 포트폴리오가 없으면 기본 포트폴리오 생성
-      if (!account) {
-        account = await createAccount('나의 포트폴리오', selectedCurrency);
-      }
+      // 선택한 계좌를 상태에 저장 (handleStockNameConfirm에서 재사용)
+      setSelectedAccount(account);
 
       // 종목명 입력 모달 표시
       setTickerInput('');
@@ -394,15 +388,18 @@ export default function AveragingCalculatorView() {
     setShowStockNameInput(false);
     
     try {
-      // 계좌 조회 및 선택
-      const accounts = await getAllAccounts();
-      const sameCurrencyAccounts = accounts.filter(a => a.currency === selectedCurrency);
-      let account = sameCurrencyAccounts.find(a => a.name === '나의 포트폴리오') 
-        || sameCurrencyAccounts[0];
+      let account = selectedAccount;
       
-      // 같은 통화의 포트폴리오가 없으면 기본 포트폴리오 생성
+      // saveAsScenario에서 선택한 계좌가 없으면 다시 찾기
       if (!account) {
-        account = await createAccount('나의 포트폴리오', selectedCurrency);
+        const accounts = await getAllAccounts();
+        // "나의 포트폴리오"가 이미 존재하는지 확인 (통화 무관)
+        account = accounts.find(a => a.name === '나의 포트폴리오');
+        
+        // "나의 포트폴리오"가 없으면 생성 (통화는 기본값 사용, 실제로는 종목 단위로 관리됨)
+        if (!account) {
+          account = await createAccount('나의 포트폴리오', Currency.KRW); // 기본값, 실제 통화는 종목 단위로 관리
+        }
       }
 
       // 종목 저장 (별명 사용)
@@ -412,9 +409,12 @@ export default function AveragingCalculatorView() {
       setSelectedTicker(null);
       setSelectedOfficialName(null);
       setStockNameInput('');
+      setSelectedAccount(null);
+      setIsSavingScenario(false);
     } catch (error) {
       console.error('종목 저장 오류:', error);
       Alert.alert('오류', '종목 저장에 실패했습니다.');
+      setIsSavingScenario(false);
     }
   };
 
@@ -425,6 +425,9 @@ export default function AveragingCalculatorView() {
     stockName: string
   ) => {
     try {
+      // 티커 기반으로 통화 자동 판단 (종목 단위로 통화 관리)
+      const stockCurrency = getCurrencyFromTicker(ticker);
+      
       // 계산 히스토리를 데이터베이스 형식으로 변환
       const historyData = calculationHistory.map((calc) => ({
         additionalBuyPrice: calc.additionalBuyPrice,
@@ -443,7 +446,7 @@ export default function AveragingCalculatorView() {
         officialName,
         stockName || officialName,
         historyData,
-        selectedCurrency
+        stockCurrency // 티커 기반 통화 사용 (종목 단위)
       );
 
       // 현재가 자동 조회

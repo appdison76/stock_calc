@@ -37,7 +37,13 @@ export const AdmobBanner: React.FC = () => {
           console.log(`[${Platform.OS}] AdMob 배너 광고 로드 완료: ${adUnitId}`);
         }}
         onAdFailedToLoad={(error) => {
-          console.error(`[${Platform.OS}] AdMob 배너 광고 로드 실패:`, error);
+          // no-fill 에러는 정상적인 동작 (광고 인벤토리 부족)이므로 경고만 출력
+          if (error.code === 'googleMobileAds/error-code-no-fill') {
+            console.log(`[${Platform.OS}] AdMob 배너 광고 인벤토리 없음 (정상 동작)`);
+          } else {
+            // 다른 에러는 콘솔에만 기록 (사용자에게는 표시하지 않음)
+            console.warn(`[${Platform.OS}] AdMob 배너 광고 로드 실패:`, error.code, error.message);
+          }
         }}
       />
     </View>
