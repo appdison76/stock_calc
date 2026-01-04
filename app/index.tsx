@@ -530,172 +530,174 @@ export default function MainScreen() {
             </View>
           ) : (
             <>
-              {/* 주요 지표 (최상단, 작게 일렬로) */}
+              {/* 주요 지표 (최상단, 작게 일렬로 - 환율, 비트코인, 금, 유가) */}
               {showMarketIndicators && marketIndicators.length > 0 && (
                 <View style={styles.topIndicatorsContainer}>
-                  {marketIndicators.map((indicator, index) => (
+                  {marketIndicators.slice(0, 4).map((indicator, index) => (
                     <TouchableOpacity
                       key={index}
                       style={styles.topIndicatorCard}
                       onPress={() => router.push('/market-indicators')}
-                      activeOpacity={0.7}
+                      activeOpacity={0.8}
                     >
-                      <Text style={styles.topIndicatorName}>{indicator.name}</Text>
-                      <Text style={styles.topIndicatorPrice}>
-                        {indicator.currency === 'USD' 
-                          ? `$${indicator.price.toLocaleString(undefined, { minimumFractionDigits: indicator.price < 100 ? 2 : 0, maximumFractionDigits: indicator.price < 100 ? 2 : 0 })}`
-                          : `${Math.round(indicator.price).toLocaleString()}원`
-                        }
-                      </Text>
-                      {indicator.changePercent != null ? (
-                        <Text
-                          style={[
-                            styles.topIndicatorChange,
-                            indicator.changePercent >= 0 ? styles.positive : styles.negative,
-                          ]}
-                        >
-                          {indicator.changePercent >= 0 ? '+' : ''}
-                          {indicator.changePercent.toFixed(2)}%
+                      <LinearGradient
+                        colors={['rgba(27, 38, 59, 0.8)', 'rgba(13, 27, 42, 0.6)']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.topIndicatorGradient}
+                      >
+                        <Text style={styles.topIndicatorName}>{indicator.name}</Text>
+                        <Text style={styles.topIndicatorPrice}>
+                          {indicator.currency === 'USD' 
+                            ? `$${indicator.price.toLocaleString(undefined, { minimumFractionDigits: indicator.price < 100 ? 2 : 0, maximumFractionDigits: indicator.price < 100 ? 2 : 0 })}`
+                            : `${Math.round(indicator.price).toLocaleString()}원`
+                          }
                         </Text>
-                      ) : null}
+                        {indicator.changePercent != null ? (
+                          <View style={styles.topIndicatorChangeContainer}>
+                            <Text
+                              style={[
+                                styles.topIndicatorChange,
+                                indicator.changePercent >= 0 ? styles.positive : styles.negative,
+                              ]}
+                            >
+                              {indicator.changePercent >= 0 ? '+' : ''}
+                              {indicator.changePercent.toFixed(2)}%
+                            </Text>
+                          </View>
+                        ) : null}
+                      </LinearGradient>
                     </TouchableOpacity>
                   ))}
                 </View>
               )}
 
-              {/* 계산기 배너 (수익률 계산기, 물타기 계산기, 주식뉴스) */}
+              {/* 원형 아이콘 그리드 (3x3) */}
               {showMiniBanners && (
-              <View style={styles.menuBannersContainer}>
-                <TouchableOpacity
-                  style={styles.menuBannerCard}
-                  onPress={() => router.push('/profit')}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
-                    style={styles.menuBannerGradient}
-                  >
-                    <Text style={[styles.menuBannerIcon, { color: '#42A5F5' }]}>%</Text>
-                    <Text style={styles.menuBannerText}>수익률{'\n'}계산기</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.menuBannerCard}
-                  onPress={() => router.push('/averaging')}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
-                    style={styles.menuBannerGradient}
-                  >
-                    <Text style={styles.menuBannerIcon}>💧</Text>
-                    <Text style={styles.menuBannerText}>물타기{'\n'}계산기</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.menuBannerCard}
-                  onPress={handleAddStock}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
-                    style={styles.menuBannerGradient}
-                  >
-                    <Text style={styles.menuBannerIcon}>➕</Text>
-                    <Text style={styles.menuBannerText}>종목{'\n'}추가</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.menuBannerCard}
-                  onPress={() => router.push('/news')}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
-                    style={styles.menuBannerGradient}
-                  >
-                    <Text style={styles.menuBannerIcon}>📰</Text>
-                    <Text style={styles.menuBannerText}>주식{'\n'}뉴스</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+              <View style={styles.iconGridContainer}>
+                {/* 첫 번째 줄 */}
+                <View style={styles.iconGridRow}>
+                  <View style={styles.iconItemContainer}>
+                    <TouchableOpacity
+                      style={[styles.circularIconCard, { backgroundColor: '#42A5F5' }]}
+                      onPress={() => router.push('/profit')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.circularIconText}>%</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.circularIconLabel}>수익률 계산기</Text>
+                  </View>
+                  <View style={styles.iconItemContainer}>
+                    <TouchableOpacity
+                      style={[styles.circularIconCard, { backgroundColor: '#4CAF50' }]}
+                      onPress={() => router.push('/averaging')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.circularIconText}>💧</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.circularIconLabel}>물타기 계산기</Text>
+                  </View>
+                  <View style={styles.iconItemContainer}>
+                    <TouchableOpacity
+                      style={[styles.circularIconCard, { backgroundColor: '#EF5350' }]}
+                      onPress={handleAddStock}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.circularIconText}>+</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.circularIconLabel}>종목 추가</Text>
+                  </View>
+                </View>
+                {/* 두 번째 줄 */}
+                <View style={styles.iconGridRow}>
+                  <View style={styles.iconItemContainer}>
+                    <TouchableOpacity
+                      style={[styles.circularIconCard, { backgroundColor: '#9C27B0' }]}
+                      onPress={() => router.push('/news')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.circularIconText}>📰</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.circularIconLabel}>주식 뉴스</Text>
+                  </View>
+                  <View style={styles.iconItemContainer}>
+                    <TouchableOpacity
+                      style={[styles.circularIconCard, { backgroundColor: '#FF9800' }]}
+                      onPress={() => router.push('/portfolios')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.circularIconText}>📊</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.circularIconLabel}>포트폴리오</Text>
+                  </View>
+                  <View style={styles.iconItemContainer}>
+                    <TouchableOpacity
+                      style={[styles.circularIconCard, { backgroundColor: '#E91E63' }]}
+                      onPress={() => router.push('/visualization')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.circularIconText}>📉</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.circularIconLabel}>매매 기록</Text>
+                  </View>
+                </View>
+                {/* 세 번째 줄 */}
+                <View style={styles.iconGridRow}>
+                  <View style={styles.iconItemContainer}>
+                    <TouchableOpacity
+                      style={[styles.circularIconCard, { backgroundColor: '#2196F3' }]}
+                      onPress={() => router.push('/stock-chart')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.circularIconText}>📈</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.circularIconLabel}>종목 차트</Text>
+                  </View>
+                  <View style={styles.iconItemContainer}>
+                    <TouchableOpacity
+                      style={[styles.circularIconCard, { backgroundColor: '#757575' }]}
+                      onPress={() => router.push('/settings')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.circularIconText}>⚙</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.circularIconLabel}>환경 설정</Text>
+                  </View>
+                  <View style={styles.iconItemContainer}>
+                    <View style={styles.circularIconCardEmpty} />
+                  </View>
+                </View>
               </View>
               )}
 
-              {/* 메뉴 배너 (포트폴리오, 매매기록, 종목차트, 환경설정) */}
-              {showMiniBanners && (
-              <View style={styles.menuBannersContainer}>
-                <TouchableOpacity
-                  style={styles.menuBannerCard}
-                  onPress={() => router.push('/portfolios')}
-                  activeOpacity={0.8}
+              {/* 하단 그라데이션 카드 */}
+              <TouchableOpacity
+                style={styles.mainGradientCard}
+                onPress={() => router.push('/averaging')}
+                activeOpacity={0.9}
+              >
+                <LinearGradient
+                  colors={['#42A5F5', '#4CAF50']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.mainGradientCardContent}
                 >
-                  <LinearGradient
-                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
-                    style={styles.menuBannerGradient}
-                  >
-                    <Text style={styles.menuBannerIcon}>📊</Text>
-                    <Text style={styles.menuBannerText}>포트{'\n'}폴리오</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.menuBannerCard}
-                  onPress={() => router.push('/visualization')}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
-                    style={styles.menuBannerGradient}
-                  >
-                    <Text style={styles.menuBannerIcon}>📉</Text>
-                    <Text style={styles.menuBannerText}>매매{'\n'}기록</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.menuBannerCard}
-                  onPress={() => router.push('/stock-chart')}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
-                    style={styles.menuBannerGradient}
-                  >
-                    <Text style={styles.menuBannerIcon}>📈</Text>
-                    <Text style={styles.menuBannerText}>종목{'\n'}차트</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.menuBannerCard}
-                  onPress={() => router.push('/settings')}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['rgba(27, 38, 59, 0.6)', 'rgba(13, 27, 42, 0.4)']}
-                    style={styles.menuBannerGradient}
-                  >
-                    <Text style={[styles.menuBannerIcon, { color: '#64B5F6' }]}>⚙</Text>
-                    <Text style={styles.menuBannerText}>환경{'\n'}설정</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-              )}
-
-              <View style={styles.header}>
-            <View style={styles.headerIconContainer}>
-              <Image source={require('../assets/icon.png')} style={styles.headerIconImage} />
-            </View>
-            <Text style={styles.headerTitle}>스마트 물타기 계산기</Text>
-            <Text style={styles.headerSubtitle}>
-              평단가 & 수익률 계산
-            </Text>
-            <View style={styles.subtitleContainer}>
-              <Text style={styles.headerFeature}>
-                한국·미국 주식 지원
-              </Text>
-              <Text style={styles.headerFeature}>
-                반복 물타기 계산
-              </Text>
-            </View>
-          </View>
+                  <View style={styles.mainGradientIconContainer}>
+                    <View style={styles.mainGradientIconInner}>
+                      <View style={styles.chartBars}>
+                        <View style={[styles.chartBar, { height: 20, backgroundColor: '#4CAF50' }]} />
+                        <View style={[styles.chartBar, { height: 30, backgroundColor: '#EF5350' }]} />
+                        <View style={[styles.chartBar, { height: 25, backgroundColor: '#2196F3' }]} />
+                      </View>
+                      <View style={styles.triangleUp} />
+                    </View>
+                  </View>
+                  <Text style={styles.mainGradientTitle}>스마트 물타기 계산기</Text>
+                  <Text style={styles.mainGradientSubtitle}>평단가 & 수익률 계산</Text>
+                  <Text style={styles.mainGradientFeature}>한국·미국 주식 지원</Text>
+                  <Text style={styles.mainGradientFeature}>반복 물타기 계산</Text>
+                </LinearGradient>
+              </TouchableOpacity>
 
           {/* 포트폴리오 종목 섹션 */}
           {showPortfolio && portfolioStocks.length > 0 && (
@@ -1451,38 +1453,51 @@ const styles = StyleSheet.create({
   topIndicatorsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    marginBottom: 28,
-    gap: 6,
+    paddingHorizontal: 4,
+    marginBottom: 24,
+    gap: 8,
   },
   topIndicatorCard: {
     flex: 1,
-    backgroundColor: 'rgba(66, 165, 245, 0.15)',
-    borderRadius: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 6,
+    borderRadius: 12,
+    overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  topIndicatorGradient: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(66, 165, 245, 0.3)',
-    minHeight: 95,
     justifyContent: 'center',
+    minHeight: 85,
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderRadius: 12,
   },
   topIndicatorName: {
-    color: '#B0BEC5',
-    fontSize: 12,
+    color: '#94A3B8',
+    fontSize: 11,
     fontWeight: '600',
-    marginBottom: 6,
+    marginBottom: 8,
+    letterSpacing: 0.3,
   },
   topIndicatorPrice: {
     color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: 'bold',
-    marginBottom: 4,
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  topIndicatorChangeContainer: {
+    marginTop: 2,
   },
   topIndicatorChange: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
-    marginTop: 2,
+    letterSpacing: 0.2,
   },
   menuBannersContainer: {
     flexDirection: 'row',
@@ -1525,6 +1540,119 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     lineHeight: 18,
+  },
+  iconGridContainer: {
+    width: '100%',
+    marginBottom: 24,
+  },
+  iconGridRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  iconItemContainer: {
+    alignItems: 'center',
+    width: 70,
+  },
+  circularIconCard: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  circularIconCardEmpty: {
+    width: 60,
+    height: 60,
+  },
+  circularIconText: {
+    fontSize: 24,
+  },
+  circularIconLabel: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 6,
+    width: 70,
+  },
+  mainGradientCard: {
+    width: '100%',
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginTop: 24,
+    marginBottom: 16,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+  },
+  mainGradientCardContent: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mainGradientIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  mainGradientIconInner: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chartBars: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 4,
+    marginBottom: 4,
+  },
+  chartBar: {
+    width: 8,
+    borderRadius: 2,
+  },
+  triangleUp: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderBottomWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#42A5F5',
+    marginTop: 2,
+  },
+  mainGradientTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  mainGradientSubtitle: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    marginBottom: 4,
+    textAlign: 'center',
+    opacity: 0.9,
+  },
+  mainGradientFeature: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    marginTop: 4,
+    textAlign: 'center',
+    opacity: 0.8,
   },
   dashboardSection: {
     width: '100%',
