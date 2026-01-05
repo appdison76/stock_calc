@@ -196,6 +196,12 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="dividend"
+          options={{
+            title: '배당금 계산기',
+          }}
+        />
+        <Stack.Screen
           name="news"
           options={{
             title: '주식 뉴스',

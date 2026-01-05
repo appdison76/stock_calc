@@ -1101,7 +1101,7 @@ export default function MainScreen() {
               description={['배당금, 배당률, 보유 수량을 입력하여', '연간 배당금과 배당 수익률을 계산합니다']}
               icon="💵"
               color="#FFD93D"
-              onPress={() => Alert.alert('준비중입니다', '배당금 계산기 기능은 준비중입니다.')}
+              onPress={() => router.push('/dividend')}
             />
             <View style={styles.cardSpacer} />
 
