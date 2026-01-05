@@ -1083,7 +1083,7 @@ export default function MainScreen() {
               description={['매수가와 목표 수익률, 손절 수익률을 입력하여', '목표가와 손절가를 계산합니다']}
               icon="▲▼"
               color="#FF6B6B"
-              onPress={() => Alert.alert('준비중입니다', '손절/익절 계산기 기능은 준비중입니다.')}
+              onPress={() => router.push('/stop-loss-take-profit')}
             />
             <View style={styles.cardSpacer} />
 

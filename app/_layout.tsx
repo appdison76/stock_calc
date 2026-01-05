@@ -184,6 +184,12 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="stop-loss-take-profit"
+          options={{
+            title: '손절/익절 계산기',
+          }}
+        />
+        <Stack.Screen
           name="news"
           options={{
             title: '주식 뉴스',
