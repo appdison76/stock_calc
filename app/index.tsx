@@ -1092,7 +1092,7 @@ export default function MainScreen() {
               description={['정기 매수 금액과 주기를 입력하여', '평균 매수가와 최종 수익률을 계산합니다']}
               icon="📆"
               color="#A8E6CF"
-              onPress={() => Alert.alert('준비중입니다', '정기 매수 시뮬레이터 기능은 준비중입니다.')}
+              onPress={() => router.push('/regular-purchase-simulator')}
             />
             <View style={styles.cardSpacer} />
 

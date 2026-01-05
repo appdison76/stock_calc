@@ -190,6 +190,12 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="regular-purchase-simulator"
+          options={{
+            title: '정기 매수 시뮬레이터',
+          }}
+        />
+        <Stack.Screen
           name="news"
           options={{
             title: '주식 뉴스',
