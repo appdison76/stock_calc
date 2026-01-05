@@ -225,6 +225,12 @@ export default function RootLayout() {
             headerShown: false,
           }}
         />
+        <Stack.Screen
+          name="heatmap"
+          options={{
+            title: '히트맵',
+          }}
+        />
       </Stack>
     </>
   );

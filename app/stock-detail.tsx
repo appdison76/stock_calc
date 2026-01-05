@@ -37,7 +37,7 @@ import { US_ETF_TO_UNDERLYING_MAP } from '../src/data/us_etf_underlying_map';
 
 export default function StockDetailScreen() {
   const router = useRouter();
-  const { id, lang, scrollToNews } = useLocalSearchParams<{ id: string; lang?: string; scrollToNews?: string }>();
+  const { id, lang, scrollToNews, action } = useLocalSearchParams<{ id: string; lang?: string; scrollToNews?: string; action?: string }>();
   const scrollViewRef = useRef<ScrollView>(null);
   const [newsContainerY, setNewsContainerY] = useState<number | null>(null);
   const [stock, setStock] = useState<Stock | null>(null);
@@ -175,6 +175,19 @@ export default function StockDetailScreen() {
     }
   }, [lang]);
 
+  // URL 파라미터에서 action 확인하여 매수/매도 모달 열기
+  useEffect(() => {
+    if (stock && action) {
+      if (action === 'buy') {
+        setRecordType('BUY');
+        setShowAddRecordModal(true);
+      } else if (action === 'sell') {
+        setRecordType('SELL');
+        setShowAddRecordModal(true);
+      }
+    }
+  }, [stock, action]);
+
   useEffect(() => {
     if (stock) {
       // 뉴스 로딩은 비동기로 처리하여 화면 표시를 막지 않음
@@ -192,7 +205,7 @@ export default function StockDetailScreen() {
     }
   }, [scrollToNews, newsLoading, relatedNews.length, newsContainerY]);
 
-  // 모달이 열릴 때 매핑된 종목이면 현재가를 자동 설정
+  // 모달이 열릴 때만 매핑된 종목이면 현재가를 자동 설정 (모달이 열려있는 동안에는 재설정하지 않음)
   useEffect(() => {
     if (showAddRecordModal && stock) {
       // 매핑된 종목(officialName과 ticker가 모두 있는 경우)이고 현재가가 있으면
@@ -208,8 +221,13 @@ export default function StockDetailScreen() {
       }
       // 수량은 항상 빈 문자열로 시작
       setQuantityInput('');
+    } else if (!showAddRecordModal) {
+      // 모달이 닫히면 입력값 초기화
+      setPriceInput('');
+      setQuantityInput('');
     }
-  }, [showAddRecordModal, stock]);
+    // stock이 변경되어도 모달이 열려있으면 재설정하지 않음 (의존성 배열에서 stock 제거)
+  }, [showAddRecordModal]);
 
   const loadStockDetail = async () => {
     if (!id) return;

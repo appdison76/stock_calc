@@ -89,3 +89,5 @@ gradlew.bat bundleRelease
 
 생성된 `.aab` 파일: `android/app/build/outputs/bundle/release/app-release.aab`
 
+
+

@@ -281,7 +281,15 @@ interface MarketIndicatorStock {
   isMarketIndicator: true; // 주요지표 구분용
 }
 
-type ChartStock = Stock | MarketIndicatorStock;
+// 포트폴리오에 없는 일반 종목 타입 (히트맵 등에서 차트만 보기 위해)
+interface ExternalStock {
+  ticker: string;
+  name: string;
+  currency: Currency;
+  isMarketIndicator?: false; // 주요지표가 아님
+}
+
+type ChartStock = Stock | MarketIndicatorStock | ExternalStock;
 
 const MARKET_INDICATORS: MarketIndicatorStock[] = [
   { ticker: 'USDKRW=X', name: '환율', currency: Currency.KRW, isMarketIndicator: true },
@@ -354,6 +362,31 @@ export default function StockChartScreen() {
             setPriceChangePercent(quote.changePercent || null);
           }
         }).catch(err => console.error('현재가 조회 오류:', err));
+      } else {
+        // 포트폴리오에 없는 일반 종목 (히트맵 등에서 진입)
+        // 종목 정보를 가져와서 임시 종목 객체 생성
+        setLoading(true);
+        getStockQuote(ticker).then(quote => {
+          if (quote) {
+            const externalStock: ExternalStock = {
+              ticker: ticker,
+              name: name,
+              currency: quote.currency === 'KRW' ? Currency.KRW : Currency.USD,
+              isMarketIndicator: false,
+            };
+            setStock(externalStock);
+            setCurrentPrice(quote.price);
+            setPriceChange(quote.change || null);
+            setPriceChangePercent(quote.changePercent || null);
+            setLoading(false);
+          } else {
+            console.error('종목 정보를 가져올 수 없습니다:', ticker);
+            setLoading(false);
+          }
+        }).catch(err => {
+          console.error('종목 정보 조회 오류:', err);
+          setLoading(false);
+        });
       }
     }
   }, [id, ticker, name]);
@@ -450,15 +483,18 @@ export default function StockChartScreen() {
       setHasTradingRecords(false);
       return;
     }
-    // 일반 종목인 경우에만 매매기록 확인
-    if ('id' in stock) {
-      try {
-        const records = await getTradingRecordsByStockId(stock.id);
-        setHasTradingRecords(records.length > 0);
-      } catch (error) {
-        console.error('매매기록 확인 오류:', error);
-        setHasTradingRecords(false);
-      }
+    // 포트폴리오에 없는 일반 종목은 매매기록이 없음
+    if (!('id' in stock)) {
+      setHasTradingRecords(false);
+      return;
+    }
+    // 포트폴리오 종목인 경우에만 매매기록 확인
+    try {
+      const records = await getTradingRecordsByStockId(stock.id);
+      setHasTradingRecords(records.length > 0);
+    } catch (error) {
+      console.error('매매기록 확인 오류:', error);
+      setHasTradingRecords(false);
     }
   };
 
@@ -533,7 +569,7 @@ export default function StockChartScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, portfolioStocks.length, ticker, name]);
 
-  const handleStockSelect = async (selectedStock: Stock) => {
+  const handleStockSelect = async (selectedStock: Stock | MarketIndicatorStock) => {
     try {
       setLoading(true);
       setStock(selectedStock);
@@ -702,8 +738,10 @@ export default function StockChartScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* 종목 선택 탭 */}
-          {(portfolioStocks.length > 0 || MARKET_INDICATORS.length > 0) && (
+          {/* 종목 선택 탭 (포트폴리오 종목과 주요지표만 표시, 포트폴리오에 없는 일반 종목은 탭 숨김) */}
+          {(portfolioStocks.length > 0 || MARKET_INDICATORS.length > 0) && 
+           stock && 
+           (('id' in stock) || ('isMarketIndicator' in stock && stock.isMarketIndicator)) && (
             <ScrollView
               ref={stockTabsScrollRef}
               horizontal
@@ -759,7 +797,9 @@ export default function StockChartScreen() {
             <Text style={styles.stockName}>
               {'isMarketIndicator' in stock && stock.isMarketIndicator
                 ? stock.name
-                : ('name' in stock ? (stock.name || stock.officialName || stock.ticker) : stock.ticker)}
+                : 'id' in stock
+                  ? (stock.name || stock.officialName || stock.ticker)
+                  : stock.name || stock.ticker}
             </Text>
             <Text style={styles.stockTicker}>{stock.ticker}</Text>
           </View>

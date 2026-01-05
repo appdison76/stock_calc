@@ -65,6 +65,13 @@ const CalculatorCard: React.FC<CalculatorCardProps> = ({
           <View style={[styles.iconContainer, { borderColor: `${color}40` }]}>
             {typeof icon === 'number' ? (
               <Image source={icon} style={styles.iconImage} />
+            ) : icon === 'heatmap' ? (
+              <View style={styles.heatmapIconContainer}>
+                {/* 하단 왼쪽 - 빨간색 (내림) */}
+                <View style={[styles.heatmapBlock, styles.heatmapBlockBottom, { backgroundColor: '#EF5350' }]} />
+                {/* 상단 오른쪽 - 녹색 (오름) */}
+                <View style={[styles.heatmapBlock, styles.heatmapBlockTop, { backgroundColor: '#4CAF50' }]} />
+              </View>
             ) : (
               <Text style={[styles.icon, { color }]}>{icon}</Text>
             )}
@@ -879,11 +886,7 @@ export default function MainScreen() {
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
                       style={[styles.circularIconCard, { backgroundColor: '#424242' }]}
-                      onPress={() => {
-                        // 히트맵 화면이 있으면 router.push('/heatmap')
-                        // 없으면 임시로 알림 표시
-                        alert('히트맵 기능은 준비 중입니다.');
-                      }}
+                      onPress={() => router.push('/heatmap')}
                       activeOpacity={0.8}
                     >
                       <View style={styles.heatmapIconContainer}>
@@ -1326,6 +1329,15 @@ export default function MainScreen() {
               icon="📈"
               color="#E91E63"
               onPress={() => router.push('/stock-chart')}
+            />
+            <View style={styles.cardSpacer} />
+
+            <CalculatorCard
+              title="히트맵"
+              description={['포트폴리오 및 시장 종목의', '수익률을 색상으로 한눈에 확인합니다']}
+              icon="heatmap"
+              color="#FF6B35"
+              onPress={() => router.push('/heatmap')}
             />
           </View>
 

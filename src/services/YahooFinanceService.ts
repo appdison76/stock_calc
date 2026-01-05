@@ -5,6 +5,15 @@
  * 또는 무료 API 서비스를 활용할 수 있습니다.
  */
 
+export interface MarketStockInfo {
+  ticker: string;
+  name: string;
+  market: 'KOSPI' | 'KOSDAQ' | 'SP500';
+  marketCap?: number;
+  changePercent?: number;
+  volume?: number;
+}
+
 import {
   KOREAN_STOCK_MAP,
   KOREAN_TICKER_TO_NAME_MAP,
@@ -21,6 +30,7 @@ export interface StockQuote {
   name?: string;
   change?: number;
   changePercent?: number;
+  marketCap?: number; // 시가총액
 }
 
 /**
@@ -66,6 +76,36 @@ export async function getStockQuote(ticker: string): Promise<StockQuote | null> 
     const currentPrice = meta.regularMarketPrice;
     const change = previousClose ? currentPrice - previousClose : undefined;
     const changePercent = previousClose ? ((currentPrice - previousClose) / previousClose) * 100 : undefined;
+    // chart API에서 시가총액 가져오기 시도
+    let marketCap = meta.marketCap || meta.regularMarketMarketCap || meta.marketCapRaw;
+    
+    // marketCap이 없으면 quoteSummary API로 시도 (타임아웃 적용으로 속도 개선)
+    let finalMarketCap = marketCap;
+    if (!finalMarketCap) {
+      try {
+        // summaryDetail과 defaultKeyStatistics를 한 번에 요청 (병렬 처리)
+        const summaryUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${normalizedTicker}?modules=summaryDetail,defaultKeyStatistics`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000); // 2초 타임아웃
+        
+        const summaryResponse = await fetch(summaryUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        
+        if (summaryResponse.ok) {
+          const summaryData = await summaryResponse.json();
+          finalMarketCap = summaryData.quoteSummary?.result?.[0]?.summaryDetail?.marketCap?.raw
+            || summaryData.quoteSummary?.result?.[0]?.defaultKeyStatistics?.marketCap?.raw;
+        }
+      } catch (error) {
+        // marketCap 조회 실패는 무시 (선택적 정보, 타임아웃 포함)
+        // console.warn(`[YahooFinance] marketCap 조회 실패 (${ticker}):`, error);
+      }
+    }
 
     return {
       symbol: meta.symbol || ticker,
@@ -74,6 +114,7 @@ export async function getStockQuote(ticker: string): Promise<StockQuote | null> 
       name: meta.shortName || meta.longName,
       change: change,
       changePercent: changePercent,
+      marketCap: finalMarketCap,
     };
   } catch (error) {
     // 백그라운드 작업이므로 조용히 처리 (사용자에게 오류 표시하지 않음)
@@ -97,6 +138,46 @@ export async function getMultipleStockQuotes(
   });
   
   await Promise.all(promises);
+  
+  return results;
+}
+
+/**
+ * 여러 종목의 현재가를 배치 처리로 조회 (API 제한 방지)
+ * @param tickers 종목 티커 배열
+ * @param batchSize 배치 크기 (기본값: 10)
+ * @param delay 배치 간 지연 시간(ms) (기본값: 200)
+ * @returns 종목별 현재가 맵
+ */
+export async function getMultipleStockQuotesBatch(
+  tickers: string[],
+  batchSize: number = 10,
+  delay: number = 200
+): Promise<Map<string, StockQuote | null>> {
+  const results = new Map<string, StockQuote | null>();
+  
+  // 배치로 나눠서 처리
+  for (let i = 0; i < tickers.length; i += batchSize) {
+    const batch = tickers.slice(i, i + batchSize);
+    
+    // 배치 내에서는 병렬 처리
+    const batchPromises = batch.map(async (ticker) => {
+      try {
+        const quote = await getStockQuote(ticker);
+        results.set(ticker, quote);
+      } catch (error) {
+        console.warn(`종목 ${ticker} 조회 실패:`, error);
+        results.set(ticker, null);
+      }
+    });
+    
+    await Promise.all(batchPromises);
+    
+    // 마지막 배치가 아니면 지연 시간 대기 (API 제한 방지)
+    if (i + batchSize < tickers.length) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
   
   return results;
 }
@@ -508,6 +589,137 @@ export function calculateMovingAverage(prices: number[], period: number): number
   }
   
   return movingAverages;
+}
+
+/**
+ * 인덱스 구성 종목을 가져오기 (Yahoo Finance API 사용)
+ * 여러 엔드포인트를 시도하여 마스터 리스트를 동적으로 가져옵니다.
+ * @param market 시장 ('KOSPI' | 'KOSDAQ' | 'SP500')
+ * @param limit 상위 N개 (기본값: 50)
+ * @returns 종목 정보 배열 (ticker, name만 포함)
+ */
+export async function getIndexStocksMaster(
+  market: 'KOSPI' | 'KOSDAQ' | 'SP500',
+  limit: number = 50
+): Promise<{ ticker: string; name: string }[]> {
+  try {
+    // 인덱스 티커 매핑
+    const indexTickerMap: Record<string, string> = {
+      'KOSPI': '^KS11',
+      'KOSDAQ': '^KQ11',
+      'SP500': '^GSPC',
+    };
+
+    const indexTicker = indexTickerMap[market];
+    if (!indexTicker) {
+      console.warn(`Unknown market: ${market}`);
+      return [];
+    }
+
+    // 방법 1: Yahoo Finance Holdings API 시도 (인덱스 구성 종목)
+    try {
+      const holdingsUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${indexTicker}?modules=topHoldings`;
+      const holdingsResponse = await fetch(holdingsUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+      });
+
+      if (holdingsResponse.ok) {
+        const holdingsData = await holdingsResponse.json();
+        const holdings = holdingsData.quoteSummary?.result?.[0]?.topHoldings?.holdings || [];
+        
+        if (holdings.length > 0) {
+          const stocks = holdings
+            .slice(0, limit)
+            .map((holding: any) => ({
+              ticker: holding.symbol || '',
+              name: holding.name || holding.longName || '',
+            }))
+            .filter((stock: { ticker: string; name: string }) => stock.ticker && stock.name);
+          
+          if (stocks.length > 0) {
+            console.log(`[getIndexStocksMaster] ${market}: Holdings API로 ${stocks.length}개 종목 조회 성공`);
+            return stocks;
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(`[getIndexStocksMaster] ${market}: Holdings API 실패, 다른 방법 시도:`, error);
+    }
+
+    // 방법 2: Yahoo Finance Screener API 시도
+    try {
+      const screenerUrl = `https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=true&lang=en-US&region=US&scrIds=${indexTicker}&count=${limit * 2}&start=0`;
+      const screenerResponse = await fetch(screenerUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+      });
+
+      if (screenerResponse.ok) {
+        const screenerData = await screenerResponse.json();
+        const quotes = screenerData.finance?.result?.[0]?.quotes || [];
+        
+        if (quotes.length > 0) {
+          const stocks = quotes
+            .slice(0, limit)
+            .map((quote: any) => ({
+              ticker: quote.symbol || '',
+              name: quote.shortName || quote.longName || '',
+            }))
+            .filter((stock: { ticker: string; name: string }) => stock.ticker && stock.name);
+          
+          if (stocks.length > 0) {
+            console.log(`[getIndexStocksMaster] ${market}: Screener API로 ${stocks.length}개 종목 조회 성공`);
+            return stocks;
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(`[getIndexStocksMaster] ${market}: Screener API 실패:`, error);
+    }
+
+    // 방법 3: Yahoo Finance Components API 시도 (S&P500의 경우)
+    if (market === 'SP500') {
+      try {
+        const componentsUrl = `https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=true&lang=en-US&region=US&scrIds=sp500&count=${limit * 2}&start=0`;
+        const componentsResponse = await fetch(componentsUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+        });
+
+        if (componentsResponse.ok) {
+          const componentsData = await componentsResponse.json();
+          const quotes = componentsData.finance?.result?.[0]?.quotes || [];
+          
+          if (quotes.length > 0) {
+            const stocks = quotes
+              .slice(0, limit)
+              .map((quote: any) => ({
+                ticker: quote.symbol || '',
+                name: quote.shortName || quote.longName || '',
+              }))
+              .filter((stock: { ticker: string; name: string }) => stock.ticker && stock.name);
+            
+            if (stocks.length > 0) {
+              console.log(`[getIndexStocksMaster] ${market}: Components API로 ${stocks.length}개 종목 조회 성공`);
+              return stocks;
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`[getIndexStocksMaster] ${market}: Components API 실패:`, error);
+      }
+    }
+
+    console.warn(`[getIndexStocksMaster] ${market}: 모든 API 시도 실패, 빈 배열 반환`);
+    return [];
+  } catch (error) {
+    console.error(`[getIndexStocksMaster] ${market}: 오류 발생:`, error);
+    return [];
+  }
 }
 
 

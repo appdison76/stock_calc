@@ -129,9 +129,6 @@ export default function BottomNavigationBar() {
     } else if (item.route === '/portfolios') {
       // 종목추가 버튼은 메인 화면과 동일한 경로로 이동
       handleAddStock();
-    } else if (item.route === '/heatmap') {
-      // 히트맵 버튼은 메인 화면과 동일하게 준비중 메시지 표시
-      Alert.alert('히트맵 기능은 준비 중입니다.');
     } else {
       router.push(item.route as any);
     }
