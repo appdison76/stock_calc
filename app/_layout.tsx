@@ -202,6 +202,12 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="fee-comparison"
+          options={{
+            title: '수수료 비교 계산기',
+          }}
+        />
+        <Stack.Screen
           name="news"
           options={{
             title: '주식 뉴스',

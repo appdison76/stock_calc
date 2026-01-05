@@ -1110,7 +1110,7 @@ export default function MainScreen() {
               description={['거래 금액과 거래 횟수를 입력하여', '여러 증권사의 수수료를 비교합니다']}
               icon="⚖️"
               color="#6BCF7F"
-              onPress={() => Alert.alert('준비중입니다', '수수료 비교 계산기 기능은 준비중입니다.')}
+              onPress={() => router.push('/fee-comparison')}
             />
             <View style={styles.cardSpacer} />
 
