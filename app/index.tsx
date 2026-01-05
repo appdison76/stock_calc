@@ -1088,7 +1088,7 @@ export default function MainScreen() {
             <View style={styles.cardSpacer} />
 
             <CalculatorCard
-              title="정기 매수 시뮬레이터"
+              title="정기 매수 계산기"
               description={['정기 매수 금액과 주기를 입력하여', '평균 매수가와 최종 수익률을 계산합니다']}
               icon="📆"
               color="#A8E6CF"
@@ -1102,6 +1102,15 @@ export default function MainScreen() {
               icon="💵"
               color="#FFD93D"
               onPress={() => router.push('/dividend')}
+            />
+            <View style={styles.cardSpacer} />
+
+            <CalculatorCard
+              title="양도소득세 계산기"
+              description={['한국/미국 주식 양도차익에 대한', '양도소득세를 계산합니다']}
+              icon="💰"
+              color="#9B59B6"
+              onPress={() => router.push('/capital-gains-tax')}
             />
             <View style={styles.cardSpacer} />
 

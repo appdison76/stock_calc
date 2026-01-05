@@ -62,8 +62,9 @@ const calculatorItems: CalculatorItem[] = [
   { label: '물타기 계산기', icon: '💧', route: '/averaging', description: '평단가 계산' },
   { label: '목표가 계산기', icon: '🎯', route: '/target-price', description: '목표가와 예상 수익 계산' },
   { label: '손절/익절 계산기', icon: '▲▼', route: '/stop-loss-take-profit', description: '목표가와 손절가 계산' },
-  { label: '정기 매수 시뮬레이터', icon: '📆', route: '/regular-purchase-simulator', description: '정기 매수 평균 매수가 계산' },
+  { label: '정기 매수 계산기', icon: '📆', route: '/regular-purchase-simulator', description: '정기 매수 평균 매수가 계산' },
   { label: '배당금 계산기', icon: '💵', route: '/dividend', description: '연간 배당금과 배당 수익률 계산' },
+  { label: '양도소득세 계산기', icon: '💰', route: '/capital-gains-tax', description: '한국/미국 주식 양도소득세 계산' },
   { label: '수수료 비교 계산기', icon: '⚖️', route: '/fee-comparison', description: '여러 증권사 수수료 비교' },
 ];
 

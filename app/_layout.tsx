@@ -192,7 +192,7 @@ export default function RootLayout() {
         <Stack.Screen
           name="regular-purchase-simulator"
           options={{
-            title: '정기 매수 시뮬레이터',
+            title: '정기 매수 계산기',
           }}
         />
         <Stack.Screen
@@ -205,6 +205,12 @@ export default function RootLayout() {
           name="fee-comparison"
           options={{
             title: '수수료 비교 계산기',
+          }}
+        />
+        <Stack.Screen
+          name="capital-gains-tax"
+          options={{
+            title: '양도소득세 계산기',
           }}
         />
         <Stack.Screen
