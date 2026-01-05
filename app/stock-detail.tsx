@@ -130,6 +130,42 @@ export default function StockDetailScreen() {
     loadStockDetail();
   }, [id]);
 
+  // 종목 현재가 자동 갱신 (1분마다)
+  useEffect(() => {
+    if (!id || !stock) return;
+
+    const updatePrice = async () => {
+      try {
+        await initDatabase();
+        console.log('[StockDetail] 종목 현재가 자동 갱신 시작');
+        await updateStockCurrentPrice(id);
+        // 갱신 후 종목 정보 다시 가져오기
+        const updatedStock = await getStockById(id);
+        if (updatedStock) {
+          setStock(updatedStock);
+        }
+        console.log('[StockDetail] 종목 현재가 자동 갱신 완료');
+      } catch (error) {
+        console.error('[StockDetail] 종목 현재가 자동 갱신 오류:', error);
+      }
+    };
+
+    // 초기 로드 후 약간의 지연을 두고 첫 갱신
+    const initialTimeout = setTimeout(() => {
+      updatePrice();
+    }, 2000); // 2초 후 첫 갱신
+    
+    // 1분마다 자동 갱신
+    const interval = setInterval(() => {
+      updatePrice();
+    }, 60 * 1000); // 1분
+    
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+  }, [id, stock]);
+
   useEffect(() => {
     // URL 파라미터에서 언어 정보 가져오기
     if (lang === 'en') {

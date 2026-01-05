@@ -328,6 +328,110 @@ export default function VisualizationScreen() {
     }, [stockId]) // stockId가 변경되면 다시 로드
   );
 
+  // 매매기록 차트 현재가 자동 갱신 (1분마다)
+  useEffect(() => {
+    const updatePrices = async () => {
+      try {
+        await initDatabase();
+        const accounts = await getAllAccounts();
+        const stocksPromises = accounts.map(async (account) => {
+          return await getStocksByAccountId(account.id);
+        });
+        const stocksArrays = await Promise.all(stocksPromises);
+        const allStocks: Stock[] = stocksArrays.flat();
+
+        console.log('[Visualization] 매매기록 차트 현재가 자동 갱신 시작');
+        // 현재가 갱신
+        await Promise.all(
+          allStocks
+            .filter(stock => stock.ticker)
+            .map(stock => updateStockCurrentPrice(stock.id).catch(err => {
+              console.warn(`현재가 갱신 실패 (${stock.ticker}):`, err);
+            }))
+        );
+        
+        // 갱신 후 차트 데이터 업데이트
+        const updatedStocksPromises = accounts.map(async (account) => {
+          return await getStocksByAccountId(account.id);
+        });
+        const updatedStocksArrays = await Promise.all(updatedStocksPromises);
+        const updatedStocks = updatedStocksArrays.flat();
+        
+        const updatedCharts = await Promise.all(
+          updatedStocks.map(async (stock) => {
+            const allRecords = await getTradingRecordsByStockId(stock.id);
+            if (allRecords.length === 0) return null;
+            
+            const buyRecords: DotData[] = allRecords
+              .filter(r => r.type === 'BUY')
+              .map(r => ({ price: r.price, quantity: r.quantity, type: 'BUY' as const }));
+            const sellRecords: DotData[] = allRecords
+              .filter(r => r.type === 'SELL')
+              .map(r => ({ price: r.price, quantity: r.quantity, type: 'SELL' as const }));
+            
+            let priceChange: number | null = null;
+            let priceChangePercent: number | null = null;
+            if (stock.ticker) {
+              try {
+                const quote = await getStockQuote(stock.ticker);
+                if (quote) {
+                  priceChange = quote.change || null;
+                  priceChangePercent = quote.changePercent || null;
+                }
+              } catch (error) {
+                console.warn(`종목 ${stock.ticker} 변화량 정보 조회 실패:`, error);
+              }
+            }
+            
+            return {
+              stock,
+              averagePrice: stock.averagePrice,
+              currentPrice: stock.currentPrice || stock.averagePrice,
+              priceChange,
+              priceChangePercent,
+              buyRecords,
+              sellRecords,
+            };
+          })
+        );
+        
+        const validUpdatedCharts = updatedCharts.filter((chart): chart is ChartData => chart !== null);
+        
+        // 선택된 종목 인덱스 유지
+        if (chartsData.length > 0 && selectedChartIndex !== null && selectedChartIndex >= 0 && selectedChartIndex < chartsData.length) {
+          const currentSelectedChart = chartsData[selectedChartIndex];
+          if (currentSelectedChart && currentSelectedChart.stock) {
+            const currentSelectedStockId = currentSelectedChart.stock.id;
+            const foundIndex = validUpdatedCharts.findIndex(chart => chart && chart.stock && chart.stock.id === currentSelectedStockId);
+            if (foundIndex >= 0) {
+              setSelectedChartIndex(foundIndex);
+            }
+          }
+        }
+        
+        setChartsData(validUpdatedCharts);
+        console.log('[Visualization] 매매기록 차트 현재가 자동 갱신 완료');
+      } catch (error) {
+        console.error('[Visualization] 매매기록 차트 현재가 자동 갱신 오류:', error);
+      }
+    };
+
+    // 초기 로드 후 약간의 지연을 두고 첫 갱신
+    const initialTimeout = setTimeout(() => {
+      updatePrices();
+    }, 2000); // 2초 후 첫 갱신
+    
+    // 1분마다 자동 갱신
+    const interval = setInterval(() => {
+      updatePrices();
+    }, 60 * 1000); // 1분
+    
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+  }, []);
+
   useEffect(() => {
     scrollToSelectedStock();
   }, [selectedChartIndex, chartsData]);

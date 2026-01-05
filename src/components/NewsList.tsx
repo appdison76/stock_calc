@@ -73,6 +73,12 @@ export default function NewsList({
       nestedScrollEnabled={nestedScrollEnabled}
       onEndReached={onEndReached}
       onEndReachedThreshold={0.5}
+      // 성능 최적화: getItemLayout 추가
+      removeClippedSubviews={true}
+      maxToRenderPerBatch={10}
+      updateCellsBatchingPeriod={50}
+      initialNumToRender={10}
+      windowSize={10}
       ListFooterComponent={
         loadingMore ? (
           <View style={styles.footerLoader}>

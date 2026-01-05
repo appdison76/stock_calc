@@ -183,7 +183,7 @@ export default function NewsScreen() {
         }
       } else {
         // 새로 로드 - 초기에는 적은 수만 표시 (무한 스크롤을 위해)
-        const initialLimit = 20; // 초기 로딩 시 20개만 표시
+        const initialLimit = 10; // 초기 로딩 시 10개만 표시 (로딩 속도 개선)
         setNews(fetchedNews.slice(0, initialLimit));
         setHasMore(days < 365 && fetchedNews.length > initialLimit); // 365일까지는 더 불러올 수 있음
       }
@@ -304,7 +304,7 @@ export default function NewsScreen() {
                 return dateB - dateA; // 내림차순 (최신이 먼저)
               });
               
-              const initialLimit = 20;
+              const initialLimit = 10; // 초기 로딩 시 10개만 표시 (로딩 속도 개선)
               setNews(fetchedNews.slice(0, initialLimit));
               setHasMore(fetchedNews.length > initialLimit);
             } catch (error) {
@@ -324,7 +324,7 @@ export default function NewsScreen() {
       setLoading(true);
       try {
         const fetchedNews = await fetchGeneralNews(false, undefined, 7, targetLang);
-        const initialLimit = 20;
+        const initialLimit = 10; // 초기 로딩 시 10개만 표시 (로딩 속도 개선)
         setNews(fetchedNews.slice(0, initialLimit));
         setHasMore(fetchedNews.length > initialLimit);
       } catch (error) {

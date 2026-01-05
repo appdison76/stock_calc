@@ -68,6 +68,49 @@ export default function PortfolioDetailScreen() {
     }, [id])
   );
 
+  // 포트폴리오 현재가 자동 갱신 (1분마다)
+  useEffect(() => {
+    if (!id) return;
+
+    const updatePrices = async () => {
+      try {
+        await initDatabase();
+        console.log('[PortfolioDetail] 포트폴리오 현재가 자동 갱신 시작');
+        await updatePortfolioCurrentPrices(id);
+        // 갱신 후 종목 목록 다시 가져오기
+        const updatedStocks = await getStocksByAccountId(id);
+        setStocks(updatedStocks);
+        
+        // 각 종목의 매매기록 개수도 업데이트
+        const stocksWithCount = await Promise.all(
+          updatedStocks.map(async (stock) => {
+            const records = await getTradingRecordsByStockId(stock.id);
+            return { ...stock, recordCount: records.length };
+          })
+        );
+        setStocksWithRecordCount(stocksWithCount);
+        console.log('[PortfolioDetail] 포트폴리오 현재가 자동 갱신 완료');
+      } catch (error) {
+        console.error('[PortfolioDetail] 포트폴리오 현재가 자동 갱신 오류:', error);
+      }
+    };
+
+    // 초기 로드 후 약간의 지연을 두고 첫 갱신
+    const initialTimeout = setTimeout(() => {
+      updatePrices();
+    }, 2000); // 2초 후 첫 갱신
+    
+    // 1분마다 자동 갱신
+    const interval = setInterval(() => {
+      updatePrices();
+    }, 60 * 1000); // 1분
+    
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+  }, [id]);
+
   // 저장된 정렬/필터 옵션 로드
   const loadSortFilterOptions = async () => {
     try {

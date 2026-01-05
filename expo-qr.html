@@ -188,27 +188,30 @@
 </head>
 <body>
     <div class="container">
-        <h1>📱 Expo QR 코드 생성기</h1>
-        <p class="subtitle">Expo 개발 서버 URL을 입력하면 QR 코드가 생성됩니다</p>
+        <h1>📱 QR 코드 생성기</h1>
+        <p class="subtitle">URL을 입력하면 QR 코드가 생성됩니다 (Expo 개발 서버 또는 앱 다운로드 링크)</p>
         
         <div class="info-box">
-            💡 터미널에서 <code>npm start</code> 실행 후 표시된 URL을 입력하세요<br>
-            예: <code>exp://192.168.0.100:8081</code> 또는 <code>exp://localhost:8081</code>
+            💡 Expo 개발 서버: <code>npm start</code> 실행 후 표시된 URL 입력<br>
+            💡 앱 다운로드: Google Play Store 링크 입력 또는 아래 버튼 클릭<br>
+            예: <code>exp://192.168.123.101:8081</code> 또는 <code>https://play.google.com/store/apps/details?id=com.neovisioning.stockcalc</code>
         </div>
         
         <div class="preset-buttons">
             <button class="preset-btn" onclick="setPreset('exp://localhost:8081')">localhost</button>
-            <button class="preset-btn" onclick="setPreset('exp://192.168.0.100:8081')">WiFi (예시)</button>
+            <button class="preset-btn" onclick="setPreset('exp://192.168.123.101:8081')">WiFi</button>
+            <button class="preset-btn" onclick="setPreset('https://play.google.com/store/apps/details?id=com.neovisioning.stockcalc')">Google Play</button>
+            <button class="preset-btn" onclick="setPreset('https://play.google.com/store/apps/details?id=com.neovisioning.stockcalc', true)">앱 다운로드</button>
         </div>
         
         <form id="qrForm">
             <div class="form-group">
-                <label for="url">Expo URL *</label>
+                <label for="url">URL *</label>
                 <input 
                     type="text" 
                     id="url" 
                     name="url" 
-                    placeholder="exp://192.168.0.100:8081" 
+                    placeholder="exp://192.168.123.101:8081 또는 Google Play 링크" 
                     required
                     autocomplete="off"
                 >
@@ -246,9 +249,12 @@
             });
         });
 
-        function setPreset(url) {
+        function setPreset(url, openLink = false) {
             document.getElementById('url').value = url;
             generateQRCode();
+            if (openLink && url.startsWith('http')) {
+                window.open(url, '_blank');
+            }
         }
 
         function generateQRCode() {
@@ -259,9 +265,10 @@
                 return;
             }
 
-            // exp:// 프로토콜이 없으면 추가
+            // URL 처리
             let expoURL = url;
-            if (!expoURL.startsWith('exp://')) {
+            // http/https로 시작하면 그대로 사용, exp://로 시작하면 그대로 사용
+            if (!expoURL.startsWith('exp://') && !expoURL.startsWith('http://') && !expoURL.startsWith('https://')) {
                 expoURL = 'exp://' + expoURL;
             }
 

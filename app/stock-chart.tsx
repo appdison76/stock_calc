@@ -365,6 +365,41 @@ export default function StockChartScreen() {
     }
   }, [stock, selectedRange]);
 
+  // 종목 현재가 자동 갱신 (1분마다)
+  useEffect(() => {
+    if (!stock?.ticker) return;
+
+    const updatePrice = async () => {
+      try {
+        console.log('[StockChart] 종목 현재가 자동 갱신 시작:', stock.ticker);
+        const quote = await getStockQuote(stock.ticker);
+        if (quote) {
+          setCurrentPrice(quote.price);
+          setPriceChange(quote.change || null);
+          setPriceChangePercent(quote.changePercent || null);
+          console.log('[StockChart] 종목 현재가 자동 갱신 완료:', quote.price);
+        }
+      } catch (error) {
+        console.error('[StockChart] 종목 현재가 자동 갱신 오류:', error);
+      }
+    };
+
+    // 초기 로드 후 약간의 지연을 두고 첫 갱신
+    const initialTimeout = setTimeout(() => {
+      updatePrice();
+    }, 2000); // 2초 후 첫 갱신
+    
+    // 1분마다 자동 갱신
+    const interval = setInterval(() => {
+      updatePrice();
+    }, 60 * 1000); // 1분
+    
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+  }, [stock?.ticker]);
+
   useEffect(() => {
     scrollToSelectedStock();
   }, [stock, portfolioStocks]);

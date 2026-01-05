@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -137,6 +137,70 @@ export default function MainScreen() {
   
   // 포트폴리오 표시 개수 (기본 5개)
   const [displayedPortfolioCount, setDisplayedPortfolioCount] = useState(5);
+  
+  const UPDATE_INTERVAL = 1 * 60 * 1000; // 1분
+
+  // 시장 지표 자동 갱신 (1분마다)
+  useEffect(() => {
+    // 초기 로드
+    loadMarketIndicators();
+    
+    // 1분마다 자동 갱신
+    const interval = setInterval(() => {
+      loadMarketIndicators();
+    }, UPDATE_INTERVAL);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // 포트폴리오 현재가 자동 갱신 (1분마다)
+  useEffect(() => {
+    const updatePortfolioPrices = async () => {
+      try {
+        await initDatabase();
+        const accounts = await getAllAccounts();
+        if (accounts.length > 0) {
+          console.log('[MainScreen] 포트폴리오 현재가 자동 갱신 시작');
+          await Promise.all(
+            accounts.map(account => 
+              updatePortfolioCurrentPrices(account.id).catch(err => 
+                console.warn('현재가 업데이트 실패:', err)
+              )
+            )
+          );
+          // 갱신 후 종목 목록 다시 가져오기
+          const updatedStocksPromises = accounts.map(async (account) => {
+            const stocks = await getStocksByAccountId(account.id);
+            return stocks.map(stock => ({
+              ...stock,
+              accountName: account.name,
+            }));
+          });
+          const updatedStocksArrays = await Promise.all(updatedStocksPromises);
+          const updatedStocks = updatedStocksArrays.flat();
+          setPortfolioStocks(updatedStocks);
+          console.log('[MainScreen] 포트폴리오 현재가 자동 갱신 완료');
+        }
+      } catch (error) {
+        console.error('[MainScreen] 포트폴리오 현재가 자동 갱신 오류:', error);
+      }
+    };
+
+    // 초기 로드 (약간의 지연을 두어 화면 표시 후 실행)
+    const initialTimeout = setTimeout(() => {
+      updatePortfolioPrices();
+    }, 2000); // 2초 후 첫 갱신
+    
+    // 1분마다 자동 갱신
+    const interval = setInterval(() => {
+      updatePortfolioPrices();
+    }, UPDATE_INTERVAL);
+    
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+  }, []);
 
   // 뉴욕 및 유럽 시간 업데이트
   useEffect(() => {
@@ -222,7 +286,10 @@ export default function MainScreen() {
   useFocusEffect(
     useCallback(() => {
       loadDisplaySettings();
-      loadDashboardData();
+      // 포그라운드로 돌아올 때는 항상 갱신 (1분이 안 지났더라도)
+      loadDashboardData(true);
+      // 화면 포커스 시 시장 지표도 갱신 (1분마다 자동 갱신도 계속됨)
+      loadMarketIndicators();
     }, [])
   );
 
@@ -285,6 +352,7 @@ export default function MainScreen() {
 
       // 현재가 업데이트는 백그라운드에서 비동기로 실행 (화면 표시를 막지 않음)
       if (forceRefresh) {
+        console.log('[MainScreen] 현재가 갱신 시작');
         Promise.all(
           accounts.map(account => 
             updatePortfolioCurrentPrices(account.id).catch(err => 
@@ -292,6 +360,7 @@ export default function MainScreen() {
             )
           )
         ).then(async () => {
+          console.log('[MainScreen] 현재가 갱신 완료');
           // 현재가 업데이트 완료 후 종목 목록 다시 가져오기
           const updatedStocksPromises = accounts.map(async (account) => {
             const stocks = await getStocksByAccountId(account.id);
@@ -306,8 +375,8 @@ export default function MainScreen() {
         });
       }
 
-      // 중요 지표 가져오기 (비트코인, 금, 유가, 환율) - 병렬 처리로 변경
-      loadMarketIndicators();
+      // 중요 지표는 useEffect에서 1분마다 자동 갱신되므로 여기서는 호출하지 않음
+      // (초기 로드 시에만 useEffect에서 호출됨)
 
       // 기준금리 가져오기 (비동기로 처리하여 화면 표시를 막지 않음)
       InterestRateService.getAllInterestRates()

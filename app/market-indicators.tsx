@@ -23,6 +23,17 @@ export default function MarketIndicatorsScreen() {
     loadMarketIndicators();
   }, []);
 
+  // 주요 지표 자동 갱신 (1분마다)
+  useEffect(() => {
+    // 초기 로드는 위의 useEffect에서 처리
+    // 1분마다 자동 갱신
+    const interval = setInterval(() => {
+      loadMarketIndicators();
+    }, 60 * 1000); // 1분
+    
+    return () => clearInterval(interval);
+  }, []);
+
   const loadMarketIndicators = async () => {
     try {
       setLoading(true);
