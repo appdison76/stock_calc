@@ -11,6 +11,7 @@ import {
   RefreshControl,
   Linking,
   Image,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -71,6 +72,13 @@ const CalculatorCard: React.FC<CalculatorCardProps> = ({
                 <View style={[styles.heatmapBlock, styles.heatmapBlockBottom, { backgroundColor: '#EF5350' }]} />
                 {/* 상단 오른쪽 - 녹색 (오름) */}
                 <View style={[styles.heatmapBlock, styles.heatmapBlockTop, { backgroundColor: '#4CAF50' }]} />
+              </View>
+            ) : icon === '▲▼' ? (
+              <View style={styles.triangleIconContainer}>
+                {/* 위쪽 삼각형 - 녹색 (익절) */}
+                <Text style={[styles.triangleIcon, { color: '#4CAF50' }]}>▲</Text>
+                {/* 아래쪽 삼각형 - 빨간색 (손절) */}
+                <Text style={[styles.triangleIcon, { color: '#EF5350' }]}>▼</Text>
               </View>
             ) : (
               <Text style={[styles.icon, { color }]}>{icon}</Text>
@@ -1061,6 +1069,51 @@ export default function MainScreen() {
             />
             <View style={styles.cardSpacer} />
 
+            <CalculatorCard
+              title="목표가 계산기"
+              description={['현재가와 목표 수익률을 입력하여', '목표가와 예상 수익을 계산합니다']}
+              icon="🎯"
+              color="#4ECDC4"
+              onPress={() => router.push('/target-price')}
+            />
+            <View style={styles.cardSpacer} />
+
+            <CalculatorCard
+              title="손절/익절 계산기"
+              description={['매수가와 목표 수익률, 손절 수익률을 입력하여', '목표가와 손절가를 계산합니다']}
+              icon="▲▼"
+              color="#FF6B6B"
+              onPress={() => Alert.alert('준비중입니다', '손절/익절 계산기 기능은 준비중입니다.')}
+            />
+            <View style={styles.cardSpacer} />
+
+            <CalculatorCard
+              title="정기 매수 시뮬레이터"
+              description={['정기 매수 금액과 주기를 입력하여', '평균 매수가와 최종 수익률을 계산합니다']}
+              icon="📆"
+              color="#A8E6CF"
+              onPress={() => Alert.alert('준비중입니다', '정기 매수 시뮬레이터 기능은 준비중입니다.')}
+            />
+            <View style={styles.cardSpacer} />
+
+            <CalculatorCard
+              title="배당금 계산기"
+              description={['배당금, 배당률, 보유 수량을 입력하여', '연간 배당금과 배당 수익률을 계산합니다']}
+              icon="💵"
+              color="#FFD93D"
+              onPress={() => Alert.alert('준비중입니다', '배당금 계산기 기능은 준비중입니다.')}
+            />
+            <View style={styles.cardSpacer} />
+
+            <CalculatorCard
+              title="수수료 비교 계산기"
+              description={['거래 금액과 거래 횟수를 입력하여', '여러 증권사의 수수료를 비교합니다']}
+              icon="⚖️"
+              color="#6BCF7F"
+              onPress={() => Alert.alert('준비중입니다', '수수료 비교 계산기 기능은 준비중입니다.')}
+            />
+            <View style={styles.cardSpacer} />
+
           </View>
 
           <View style={styles.adSpacer} />
@@ -1918,6 +1971,15 @@ const styles = StyleSheet.create({
     right: 4,
     zIndex: 2,
   },
+  triangleIconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'column',
+  },
+  triangleIcon: {
+    fontSize: 20,
+    lineHeight: 22,
+  },
   mainGradientCard: {
     width: '100%',
     borderRadius: 20,
@@ -1946,8 +2008,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   mainGradientLogo: {
-    width: 80,
-    height: 80,
+    width: 100,
+    height: 100,
   },
   mainGradientTitle: {
     fontSize: 24,

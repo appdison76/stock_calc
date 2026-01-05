@@ -178,6 +178,12 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="target-price"
+          options={{
+            title: '목표가 계산기',
+          }}
+        />
+        <Stack.Screen
           name="news"
           options={{
             title: '주식 뉴스',

@@ -1066,7 +1066,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   resultContainer: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   resultHeader: {
     marginBottom: 16,
@@ -1085,16 +1085,17 @@ const styles = StyleSheet.create({
     color: '#42A5F5',
   },
   resultGrid: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   gridRow: {
     flexDirection: 'row',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   gridItem: {
     flex: 1,
   },
   resultCardsVertical: {
+    marginTop: 4,
   },
   continueButton: {
     backgroundColor: '#42A5F5',
@@ -1102,7 +1103,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 16,
+    marginTop: 12,
     borderWidth: 1,
     borderColor: 'rgba(66, 165, 245, 0.3)',
   },

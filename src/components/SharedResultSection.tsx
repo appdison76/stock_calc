@@ -209,11 +209,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 8,
-    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    marginTop: 12,
     flexWrap: 'wrap',
+    gap: 10,
   },
   buttonWrapper: {
     borderRadius: 12,
@@ -225,11 +226,11 @@ const styles = StyleSheet.create({
   },
   labelButtonWrapper: {
     width: '100%',
-    marginTop: 12,
+    marginTop: 8,
   },
   shareButton: {
-    minWidth: 44,
-    height: 44,
+    minWidth: 48,
+    height: 48,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -257,7 +258,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   buttonSpacer: {
-    width: 8,
+    width: 0,
   },
   labelButtonSpacer: {
     width: 0,

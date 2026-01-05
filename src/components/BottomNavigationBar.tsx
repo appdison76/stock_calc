@@ -60,7 +60,11 @@ interface CalculatorItem {
 const calculatorItems: CalculatorItem[] = [
   { label: '수익률 계산기', icon: '%', route: '/profit', description: '매수/매도 수익률 계산' },
   { label: '물타기 계산기', icon: '💧', route: '/averaging', description: '평단가 계산' },
-  // 여기에 추가 계산기들을 계속 추가할 수 있음
+  { label: '목표가 계산기', icon: '🎯', route: '/target-price', description: '목표가와 예상 수익 계산' },
+  { label: '손절/익절 계산기', icon: '▲▼', route: 'coming_soon', description: '목표가와 손절가 계산' },
+  { label: '정기 매수 시뮬레이터', icon: '📆', route: 'coming_soon', description: '정기 매수 평균 매수가 계산' },
+  { label: '배당금 계산기', icon: '💵', route: 'coming_soon', description: '연간 배당금과 배당 수익률 계산' },
+  { label: '수수료 비교 계산기', icon: '⚖️', route: 'coming_soon', description: '여러 증권사 수수료 비교' },
 ];
 
 // 더보기 메뉴 목록 (확장 가능)
@@ -136,7 +140,11 @@ export default function BottomNavigationBar() {
 
   const handleCalculatorSelect = (route: string) => {
     setCalculatorModalVisible(false);
-    router.push(route as any);
+    if (route === 'coming_soon') {
+      Alert.alert('준비중입니다', '이 기능은 준비중입니다.');
+    } else {
+      router.push(route as any);
+    }
   };
 
   const handleMoreMenuSelect = (route: string) => {
@@ -222,13 +230,20 @@ export default function BottomNavigationBar() {
               {calculatorItems.length > 0 ? (
                 calculatorItems.map((calculator) => (
                   <TouchableOpacity
-                    key={calculator.route}
+                    key={calculator.label}
                     style={styles.menuItem}
                     onPress={() => handleCalculatorSelect(calculator.route)}
                     activeOpacity={0.7}
                   >
                     <View style={styles.menuItemIconContainer}>
-                      <Text style={styles.menuItemIcon}>{calculator.icon}</Text>
+                      {calculator.icon === '▲▼' ? (
+                        <View style={styles.triangleIconContainer}>
+                          <Text style={[styles.triangleIcon, { color: '#4CAF50' }]}>▲</Text>
+                          <Text style={[styles.triangleIcon, { color: '#EF5350' }]}>▼</Text>
+                        </View>
+                      ) : (
+                        <Text style={[styles.menuItemIcon, calculator.icon === '%' && { color: '#FFFFFF' }]}>{calculator.icon}</Text>
+                      )}
                     </View>
                     <View style={styles.menuItemTextContainer}>
                       <Text style={styles.menuItemLabel}>{calculator.label}</Text>
@@ -496,6 +511,16 @@ const styles = StyleSheet.create({
   },
   menuItemIcon: {
     fontSize: 24,
+    color: '#FFFFFF',
+  },
+  triangleIconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'column',
+  },
+  triangleIcon: {
+    fontSize: 16,
+    lineHeight: 18,
   },
   menuItemTextContainer: {
     flex: 1,
