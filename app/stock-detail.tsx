@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -188,12 +188,36 @@ export default function StockDetailScreen() {
     }
   }, [stock, action]);
 
+  // 초기 로드 시에만 뉴스 로드 (stock이 처음 로드될 때만)
+  const hasLoadedNews = useRef(false);
+  const lastStockId = useRef<string | null>(null);
+  
   useEffect(() => {
-    if (stock) {
-      // 뉴스 로딩은 비동기로 처리하여 화면 표시를 막지 않음
+    // 종목이 변경되면 리셋
+    if (id !== lastStockId.current) {
+      hasLoadedNews.current = false;
+      lastStockId.current = id;
+      // 뉴스 초기화
+      setRelatedNews([]);
+      setRelatedNewsKo([]);
+      setRelatedNewsEn([]);
+    }
+    
+    if (stock && !hasLoadedNews.current) {
+      // 초기 로드 시에만 뉴스 로딩
+      hasLoadedNews.current = true;
       loadRelatedNews(true, 7, false, relatedNewsLanguage);
     }
-  }, [stock, relatedNewsLanguage]);
+  }, [id, stock, loadRelatedNews, relatedNewsLanguage]);
+
+  // 언어 변경 시에는 이미 로드된 뉴스를 표시만 변경
+  useEffect(() => {
+    if (relatedNewsLanguage === 'ko' && relatedNewsKo.length > 0) {
+      setRelatedNews(relatedNewsKo);
+    } else if (relatedNewsLanguage === 'en' && relatedNewsEn.length > 0) {
+      setRelatedNews(relatedNewsEn);
+    }
+  }, [relatedNewsLanguage, relatedNewsKo, relatedNewsEn]);
 
   // 관련 뉴스가 로드되고 scrollToNews 파라미터가 있으면 스크롤
   useEffect(() => {
@@ -382,7 +406,7 @@ export default function StockDetailScreen() {
     }
   };
 
-  const loadRelatedNews = async (forceRefresh: boolean = false, days: number = 7, append: boolean = false, targetLang?: 'ko' | 'en') => {
+  const loadRelatedNews = useCallback(async (forceRefresh: boolean = false, days: number = 7, append: boolean = false, targetLang?: 'ko' | 'en') => {
     if (!stock) return;
     
     const language = targetLang || relatedNewsLanguage;
@@ -490,33 +514,35 @@ export default function StockDetailScreen() {
       if (append) {
         // 기존 뉴스에 추가 (중복 제거)
         if (language === 'ko') {
-          const existingIds = new Set(relatedNewsKo.map(n => n.id));
-          const newNews = newsKo.filter(n => !existingIds.has(n.id));
           setRelatedNewsKo(prev => {
+            const existingIds = new Set(prev.map(n => n.id));
+            const newNews = newsKo.filter(n => !existingIds.has(n.id));
             const updated = [...prev, ...newNews];
-            if (relatedNewsLanguage === 'ko') {
+            // 현재 선택된 언어가 한글이면 업데이트
+            if (language === 'ko') {
               setRelatedNews(updated);
+            }
+            // 새 뉴스가 없고 365일까지 검색했으면 더 이상 없음
+            if (newNews.length === 0 && days >= 365) {
+              setNewsHasMore(false);
             }
             return updated;
           });
-          
-          if (newNews.length === 0 && days >= 365) {
-            setNewsHasMore(false);
-          }
         } else {
-          const existingIds = new Set(relatedNewsEn.map(n => n.id));
-          const newNews = newsEn.filter(n => !existingIds.has(n.id));
           setRelatedNewsEn(prev => {
+            const existingIds = new Set(prev.map(n => n.id));
+            const newNews = newsEn.filter(n => !existingIds.has(n.id));
             const updated = [...prev, ...newNews];
-            if (relatedNewsLanguage === 'en') {
+            // 현재 선택된 언어가 영문이면 업데이트
+            if (language === 'en') {
               setRelatedNews(updated);
+            }
+            // 새 뉴스가 없고 365일까지 검색했으면 더 이상 없음
+            if (newNews.length === 0 && days >= 365) {
+              setNewsHasMore(false);
             }
             return updated;
           });
-          
-          if (newNews.length === 0 && days >= 365) {
-            setNewsHasMore(false);
-          }
         }
       } else {
         // 초기 로드 또는 새로고침
@@ -535,7 +561,7 @@ export default function StockDetailScreen() {
       setNewsRefreshing(false);
       setNewsLoadingMore(false);
     }
-  };
+  }, [stock, relatedNewsLanguage]);
 
   const handleNewsRefresh = () => {
     setNewsDaysBack(7);

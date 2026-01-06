@@ -40,6 +40,7 @@ export default function PortfoliosScreen() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingPortfolio, setEditingPortfolio] = useState<Account | null>(null);
   const [portfolioName, setPortfolioName] = useState('');
+  const [expandedPortfolios, setExpandedPortfolios] = useState<Set<string>>(new Set()); // 접기/펼치기 상태 관리
 
   useFocusEffect(
     React.useCallback(() => {
@@ -274,175 +275,216 @@ export default function PortfoliosScreen() {
                                 <Text style={styles.defaultBadgeText}>기본</Text>
                               </View>
                             )}
-                          </View>
-                          <View style={styles.metaContainer}>
                             <View style={styles.stockCountBadge}>
                               <Text style={styles.stockCountBadgeText}>
                                 종목 {portfolio.stockCount}개
                               </Text>
                             </View>
-                            {portfolio.stockCount > 0 && (
-                              <View style={styles.summaryContainer}>
+                          </View>
+                        </View>
+                        {portfolio.stockCount > 0 && (
+                          <View style={styles.summaryContainer}>
                                 {(portfolio.totalInvestmentKrw > 0 || portfolio.totalInvestmentUsd > 0) && (
-                                  <>
-                                    {portfolio.totalInvestmentKrw > 0 && (
-                                      <>
-                                        <View style={styles.summarySection}>
-                                          <Text style={styles.summarySectionTitle}>원화 (KRW)</Text>
-                                          <View style={styles.summaryRow}>
-                                            <Text style={styles.summaryLabel}>투자금액:</Text>
-                                            <Text style={styles.summaryValue}>
-                                              {formatCurrency(portfolio.totalInvestmentKrw, Currency.KRW)}
+                                  <View style={styles.summaryWrapper}>
+                                    {/* 접기/펼치기 헤더 */}
+                                    <TouchableOpacity
+                                      style={styles.summaryHeader}
+                                      onPress={() => {
+                                        const newExpanded = new Set(expandedPortfolios);
+                                        if (newExpanded.has(portfolio.id)) {
+                                          newExpanded.delete(portfolio.id);
+                                        } else {
+                                          newExpanded.add(portfolio.id);
+                                        }
+                                        setExpandedPortfolios(newExpanded);
+                                      }}
+                                      activeOpacity={0.7}
+                                    >
+                                      <View style={styles.summaryHeaderContent}>
+                                        <Text style={styles.summaryHeaderTitle}>포트폴리오 합계</Text>
+                                        {!expandedPortfolios.has(portfolio.id) && (
+                                          <View style={styles.summaryHeaderSummary}>
+                                            <Text style={[
+                                              styles.summaryHeaderSummaryText,
+                                              portfolio.totalProfitRate >= 0 ? styles.profitText : styles.lossText
+                                            ]}>
+                                              총 수익률: {portfolio.totalProfitRate >= 0 ? '+' : ''}{portfolio.totalProfitRate.toFixed(2)}%
+                                            </Text>
+                                            <Text style={[
+                                              styles.summaryHeaderSummaryText,
+                                              portfolio.totalProfitAmountKrwConverted >= 0 ? styles.profitText : styles.lossText
+                                            ]}>
+                                              총 수익금: {portfolio.totalProfitAmountKrwConverted >= 0 ? '+' : ''}{formatCurrency(portfolio.totalProfitAmountKrwConverted, Currency.KRW)}
                                             </Text>
                                           </View>
-                                          <View style={styles.summaryRow}>
-                                            <Text style={styles.summaryLabel}>평가액:</Text>
-                                            <Text style={styles.summaryValue}>
-                                              {formatCurrency(portfolio.totalCurrentValueKrw, Currency.KRW)}
-                                            </Text>
-                                          </View>
-                                          <View style={styles.summaryRow}>
-                                            <Text style={styles.summaryLabel}>수익률:</Text>
-                                            {(() => {
-                                              const krwProfitRate = portfolio.totalInvestmentKrw > 0 
-                                                ? ((portfolio.totalCurrentValueKrw - portfolio.totalInvestmentKrw) / portfolio.totalInvestmentKrw) * 100 
-                                                : 0;
-                                              const krwProfitAmount = portfolio.totalCurrentValueKrw - portfolio.totalInvestmentKrw;
-                                              return (
-                                                <Text style={[
-                                                  styles.summaryValue,
-                                                  krwProfitRate >= 0 ? styles.profitText : styles.lossText
-                                                ]}>
-                                                  {krwProfitRate >= 0 ? '+' : ''}{krwProfitRate.toFixed(2)}%
+                                        )}
+                                      </View>
+                                      <Text style={styles.summaryHeaderText}>
+                                        {expandedPortfolios.has(portfolio.id) ? '접기' : '자세히'}
+                                      </Text>
+                                    </TouchableOpacity>
+
+                                    {/* 상세 정보 (펼침 상태일 때만 표시) */}
+                                    {expandedPortfolios.has(portfolio.id) && (
+                                      <View style={styles.summaryExpandedContent}>
+                                        {portfolio.totalInvestmentKrw > 0 && (
+                                          <>
+                                            <View style={styles.summarySection}>
+                                              <Text style={styles.summarySectionTitle}>원화 (KRW)</Text>
+                                              <View style={styles.summaryRow}>
+                                                <Text style={styles.summaryLabel}>투자금액:</Text>
+                                                <Text style={styles.summaryValue}>
+                                                  {formatCurrency(portfolio.totalInvestmentKrw, Currency.KRW)}
                                                 </Text>
-                                              );
-                                            })()}
-                                          </View>
-                                          <View style={styles.summaryRow}>
-                                            <Text style={styles.summaryLabel}>수익금:</Text>
-                                            {(() => {
-                                              const krwProfitAmount = portfolio.totalCurrentValueKrw - portfolio.totalInvestmentKrw;
-                                              return (
-                                                <Text style={[
-                                                  styles.summaryValue,
-                                                  krwProfitAmount >= 0 ? styles.profitText : styles.lossText
-                                                ]}>
-                                                  {krwProfitAmount >= 0 ? '+' : ''}{formatCurrency(krwProfitAmount, Currency.KRW)}
+                                              </View>
+                                              <View style={styles.summaryRow}>
+                                                <Text style={styles.summaryLabel}>평가액:</Text>
+                                                <Text style={styles.summaryValue}>
+                                                  {formatCurrency(portfolio.totalCurrentValueKrw, Currency.KRW)}
                                                 </Text>
-                                              );
-                                            })()}
-                                          </View>
-                                        </View>
-                                      </>
-                                    )}
-                                    {portfolio.totalInvestmentUsd > 0 && (
-                                      <>
-                                        <View style={styles.summarySection}>
-                                          <Text style={styles.summarySectionTitle}>달러 (USD)</Text>
-                                          <View style={styles.summaryRow}>
-                                            <Text style={styles.summaryLabel}>투자금액:</Text>
-                                            <View style={styles.summaryValueContainer}>
-                                              <Text style={styles.summaryValue}>
-                                                {formatCurrency(portfolio.totalInvestmentUsd, Currency.USD)}
-                                              </Text>
-                                              <Text style={styles.summaryValueConverted}>
-                                                ({formatCurrency(portfolio.totalInvestmentUsd * portfolio.exchangeRate, Currency.KRW)})
-                                              </Text>
+                                              </View>
+                                              <View style={styles.summaryRow}>
+                                                <Text style={styles.summaryLabel}>수익률:</Text>
+                                                {(() => {
+                                                  const krwProfitRate = portfolio.totalInvestmentKrw > 0 
+                                                    ? ((portfolio.totalCurrentValueKrw - portfolio.totalInvestmentKrw) / portfolio.totalInvestmentKrw) * 100 
+                                                    : 0;
+                                                  const krwProfitAmount = portfolio.totalCurrentValueKrw - portfolio.totalInvestmentKrw;
+                                                  return (
+                                                    <Text style={[
+                                                      styles.summaryValue,
+                                                      krwProfitRate >= 0 ? styles.profitText : styles.lossText
+                                                    ]}>
+                                                      {krwProfitRate >= 0 ? '+' : ''}{krwProfitRate.toFixed(2)}%
+                                                    </Text>
+                                                  );
+                                                })()}
+                                              </View>
+                                              <View style={styles.summaryRow}>
+                                                <Text style={styles.summaryLabel}>수익금:</Text>
+                                                {(() => {
+                                                  const krwProfitAmount = portfolio.totalCurrentValueKrw - portfolio.totalInvestmentKrw;
+                                                  return (
+                                                    <Text style={[
+                                                      styles.summaryValue,
+                                                      krwProfitAmount >= 0 ? styles.profitText : styles.lossText
+                                                    ]}>
+                                                      {krwProfitAmount >= 0 ? '+' : ''}{formatCurrency(krwProfitAmount, Currency.KRW)}
+                                                    </Text>
+                                                  );
+                                                })()}
+                                              </View>
                                             </View>
-                                          </View>
-                                          <View style={styles.summaryRow}>
-                                            <Text style={styles.summaryLabel}>평가액:</Text>
-                                            <View style={styles.summaryValueContainer}>
-                                              <Text style={styles.summaryValue}>
-                                                {formatCurrency(portfolio.totalCurrentValueUsd, Currency.USD)}
-                                              </Text>
-                                              <Text style={styles.summaryValueConverted}>
-                                                ({formatCurrency(portfolio.totalCurrentValueUsd * portfolio.exchangeRate, Currency.KRW)})
-                                              </Text>
-                                            </View>
-                                          </View>
-                                          <View style={styles.summaryRow}>
-                                            <Text style={styles.summaryLabel}>수익률:</Text>
-                                            {(() => {
-                                              const usdProfitRate = portfolio.totalInvestmentUsd > 0 
-                                                ? ((portfolio.totalCurrentValueUsd - portfolio.totalInvestmentUsd) / portfolio.totalInvestmentUsd) * 100 
-                                                : 0;
-                                              return (
-                                                <Text style={[
-                                                  styles.summaryValue,
-                                                  usdProfitRate >= 0 ? styles.profitText : styles.lossText
-                                                ]}>
-                                                  {usdProfitRate >= 0 ? '+' : ''}{usdProfitRate.toFixed(2)}%
-                                                </Text>
-                                              );
-                                            })()}
-                                          </View>
-                                          <View style={styles.summaryRow}>
-                                            <Text style={styles.summaryLabel}>수익금:</Text>
-                                            {(() => {
-                                              const usdProfitAmount = portfolio.totalCurrentValueUsd - portfolio.totalInvestmentUsd;
-                                              return (
+                                          </>
+                                        )}
+                                        {portfolio.totalInvestmentUsd > 0 && (
+                                          <>
+                                            <View style={styles.summarySection}>
+                                              <Text style={styles.summarySectionTitle}>달러 (USD)</Text>
+                                              <View style={styles.summaryRow}>
+                                                <Text style={styles.summaryLabel}>투자금액:</Text>
                                                 <View style={styles.summaryValueContainer}>
-                                                  <Text style={[
-                                                    styles.summaryValue,
-                                                    usdProfitAmount >= 0 ? styles.profitText : styles.lossText
-                                                  ]}>
-                                                    {usdProfitAmount >= 0 ? '+' : ''}{formatCurrency(usdProfitAmount, Currency.USD)}
+                                                  <Text style={styles.summaryValueInContainer}>
+                                                    {formatCurrency(portfolio.totalInvestmentUsd, Currency.USD)}
                                                   </Text>
-                                                  <Text style={[
-                                                    styles.summaryValueConverted,
-                                                    usdProfitAmount >= 0 ? styles.profitText : styles.lossText
-                                                  ]}>
-                                                    ({usdProfitAmount >= 0 ? '+' : ''}{formatCurrency(usdProfitAmount * portfolio.exchangeRate, Currency.KRW)})
+                                                  <Text style={styles.summaryValueConverted}>
+                                                    ({formatCurrency(portfolio.totalInvestmentUsd * portfolio.exchangeRate, Currency.KRW)})
                                                   </Text>
                                                 </View>
-                                              );
-                                            })()}
+                                              </View>
+                                              <View style={styles.summaryRow}>
+                                                <Text style={styles.summaryLabel}>평가액:</Text>
+                                                <View style={styles.summaryValueContainer}>
+                                                  <Text style={styles.summaryValueInContainer}>
+                                                    {formatCurrency(portfolio.totalCurrentValueUsd, Currency.USD)}
+                                                  </Text>
+                                                  <Text style={styles.summaryValueConverted}>
+                                                    ({formatCurrency(portfolio.totalCurrentValueUsd * portfolio.exchangeRate, Currency.KRW)})
+                                                  </Text>
+                                                </View>
+                                              </View>
+                                              <View style={styles.summaryRow}>
+                                                <Text style={styles.summaryLabel}>수익률:</Text>
+                                                {(() => {
+                                                  const usdProfitRate = portfolio.totalInvestmentUsd > 0 
+                                                    ? ((portfolio.totalCurrentValueUsd - portfolio.totalInvestmentUsd) / portfolio.totalInvestmentUsd) * 100 
+                                                    : 0;
+                                                  return (
+                                                    <Text style={[
+                                                      styles.summaryValue,
+                                                      usdProfitRate >= 0 ? styles.profitText : styles.lossText
+                                                    ]}>
+                                                      {usdProfitRate >= 0 ? '+' : ''}{usdProfitRate.toFixed(2)}%
+                                                    </Text>
+                                                  );
+                                                })()}
+                                              </View>
+                                              <View style={styles.summaryRow}>
+                                                <Text style={styles.summaryLabel}>수익금:</Text>
+                                                {(() => {
+                                                  const usdProfitAmount = portfolio.totalCurrentValueUsd - portfolio.totalInvestmentUsd;
+                                                  return (
+                                                    <View style={styles.summaryValueContainer}>
+                                                      <Text style={[
+                                                        styles.summaryValueInContainer,
+                                                        usdProfitAmount >= 0 ? styles.profitText : styles.lossText
+                                                      ]}>
+                                                        {usdProfitAmount >= 0 ? '+' : ''}{formatCurrency(usdProfitAmount, Currency.USD)}
+                                                      </Text>
+                                                      <Text style={[
+                                                        styles.summaryValueConverted,
+                                                        usdProfitAmount >= 0 ? styles.profitText : styles.lossText
+                                                      ]}>
+                                                        ({usdProfitAmount >= 0 ? '+' : ''}{formatCurrency(usdProfitAmount * portfolio.exchangeRate, Currency.KRW)})
+                                                      </Text>
+                                                    </View>
+                                                  );
+                                                })()}
+                                              </View>
+                                            </View>
+                                          </>
+                                        )}
+                                        {(portfolio.totalInvestmentKrw > 0 && portfolio.totalInvestmentUsd > 0) && (
+                                          <View style={styles.summarySection}>
+                                            <Text style={styles.summarySectionTitle}>전체 합계</Text>
+                                            <View style={styles.summaryRow}>
+                                              <Text style={styles.summaryLabel}>총 투자금액:</Text>
+                                              <Text style={styles.summaryValue}>
+                                                {formatCurrency(portfolio.totalInvestmentKrwConverted, Currency.KRW)}
+                                              </Text>
+                                            </View>
+                                            <View style={styles.summaryRow}>
+                                              <Text style={styles.summaryLabel}>총 평가액:</Text>
+                                              <Text style={styles.summaryValue}>
+                                                {formatCurrency(portfolio.totalCurrentValueKrwConverted, Currency.KRW)}
+                                              </Text>
+                                            </View>
+                                            <View style={styles.summaryRow}>
+                                              <Text style={styles.summaryLabel}>총 수익률:</Text>
+                                              <Text style={[
+                                                styles.summaryValue,
+                                                portfolio.totalProfitRate >= 0 ? styles.profitText : styles.lossText
+                                              ]}>
+                                                {portfolio.totalProfitRate >= 0 ? '+' : ''}{portfolio.totalProfitRate.toFixed(2)}%
+                                              </Text>
+                                            </View>
+                                            <View style={styles.summaryRow}>
+                                              <Text style={styles.summaryLabel}>총 수익금:</Text>
+                                              <Text style={[
+                                                styles.summaryValue,
+                                                portfolio.totalProfitAmountKrwConverted >= 0 ? styles.profitText : styles.lossText
+                                              ]}>
+                                                {portfolio.totalProfitAmountKrwConverted >= 0 ? '+' : ''}{formatCurrency(portfolio.totalProfitAmountKrwConverted, Currency.KRW)}
+                                              </Text>
+                                            </View>
                                           </View>
-                                        </View>
-                                      </>
-                                    )}
-                                    {(portfolio.totalInvestmentKrw > 0 && portfolio.totalInvestmentUsd > 0) && (
-                                      <View style={styles.summarySection}>
-                                        <Text style={styles.summarySectionTitle}>전체 합계</Text>
-                                        <View style={styles.summaryRow}>
-                                          <Text style={styles.summaryLabel}>총 투자금액:</Text>
-                                          <Text style={styles.summaryValue}>
-                                            {formatCurrency(portfolio.totalInvestmentKrwConverted, Currency.KRW)}
-                                          </Text>
-                                        </View>
-                                        <View style={styles.summaryRow}>
-                                          <Text style={styles.summaryLabel}>총 평가액:</Text>
-                                          <Text style={styles.summaryValue}>
-                                            {formatCurrency(portfolio.totalCurrentValueKrwConverted, Currency.KRW)}
-                                          </Text>
-                                        </View>
-                                        <View style={styles.summaryRow}>
-                                          <Text style={styles.summaryLabel}>총 수익률:</Text>
-                                          <Text style={[
-                                            styles.summaryValue,
-                                            portfolio.totalProfitRate >= 0 ? styles.profitText : styles.lossText
-                                          ]}>
-                                            {portfolio.totalProfitRate >= 0 ? '+' : ''}{portfolio.totalProfitRate.toFixed(2)}%
-                                          </Text>
-                                        </View>
-                                        <View style={styles.summaryRow}>
-                                          <Text style={styles.summaryLabel}>총 수익금:</Text>
-                                          <Text style={[
-                                            styles.summaryValue,
-                                            portfolio.totalProfitAmountKrwConverted >= 0 ? styles.profitText : styles.lossText
-                                          ]}>
-                                            {portfolio.totalProfitAmountKrwConverted >= 0 ? '+' : ''}{formatCurrency(portfolio.totalProfitAmountKrwConverted, Currency.KRW)}
-                                          </Text>
-                                        </View>
+                                        )}
                                       </View>
                                     )}
-                                  </>
+                                  </View>
                                 )}
                               </View>
                             )}
-                          </View>
-                        </View>
                       </View>
                       <View style={styles.cardRight}>
                         <Text style={styles.arrow}>→</Text>
@@ -727,6 +769,50 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: 'rgba(66, 165, 245, 0.1)',
   },
+  summaryWrapper: {
+    backgroundColor: 'rgba(27, 38, 59, 0.6)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.2)',
+    overflow: 'hidden',
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  summaryExpandedContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(66, 165, 245, 0.1)',
+  },
+  summaryHeaderContent: {
+    flex: 1,
+  },
+  summaryHeaderTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  summaryHeaderSummary: {
+    marginTop: 4,
+  },
+  summaryHeaderSummaryText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  summaryHeaderText: {
+    fontSize: 12,
+    color: '#42A5F5',
+    fontWeight: '600',
+    marginLeft: 12,
+  },
   summarySection: {
     marginBottom: 12,
     paddingBottom: 12,
@@ -766,11 +852,18 @@ const styles = StyleSheet.create({
     marginRight: 20,
     alignItems: 'flex-end',
   },
+  summaryValueInContainer: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    textAlign: 'right',
+  },
   summaryValueConverted: {
     fontSize: 10,
     color: '#94A3B8',
     fontWeight: '400',
     marginTop: 2,
+    textAlign: 'right',
   },
   profitText: {
     color: '#4CAF50',

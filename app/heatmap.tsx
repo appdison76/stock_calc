@@ -76,8 +76,10 @@ export default function HeatmapScreen() {
   const [portfolioSortType, setPortfolioSortType] = useState<PortfolioSortType>('holdingValue');
   const [stocks, setStocks] = useState<PortfolioStock[]>([]);
   const [marketStocks, setMarketStocks] = useState<MarketStockData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // 초기 로딩만 사용
   const [isLoadingMarket, setIsLoadingMarket] = useState(false);
+  const [isLoadingPortfolio, setIsLoadingPortfolio] = useState(false); // 포트폴리오 부분 로딩
+  const [portfolioDataCache, setPortfolioDataCache] = useState<PortfolioStock[] | null>(null); // 포트폴리오 데이터 캐시
   const [selectedStock, setSelectedStock] = useState<PortfolioStock | null>(null);
   const [selectedMarketStock, setSelectedMarketStock] = useState<MarketStockData | null>(null);
   const [showChartModal, setShowChartModal] = useState(false);
@@ -87,21 +89,42 @@ export default function HeatmapScreen() {
   const [selectedSector, setSelectedSector] = useState<string | null>(null); // 선택된 섹터 ID
   const [sectorStocks, setSectorStocks] = useState<MarketStockData[]>([]); // 섹터별 종목 데이터
   const [isLoadingSector, setIsLoadingSector] = useState(false); // 섹터 데이터 로딩 상태
+  const [marketDataCache, setMarketDataCache] = useState<Map<MarketTabType, MarketStockData[]>>(new Map()); // 시장 데이터 캐시
 
-  // viewMode 변경 시 데이터 초기화 및 로드
+  // viewMode 변경 시 데이터 로드 (전체 로딩 없이)
   useEffect(() => {
-    setStocks([]);
-    setMarketStocks([]);
-    setIsLoading(true);
     setSortType('marketCap'); // 정렬 기준 초기화
     // viewMode가 portfolio로 변경될 때 섹터 관련 상태 초기화
     if (viewMode === 'portfolio') {
       setSelectedSector(null);
       setSectorStocks([]);
       setShowSectorView(false);
+      
+      // 포트폴리오 모드: 캐시된 데이터가 있으면 먼저 표시
+      if (portfolioDataCache && portfolioDataCache.length > 0) {
+        setStocks(portfolioDataCache);
+        setMarketStocks([]);
+      } else {
+        setStocks([]);
+        setMarketStocks([]);
+      }
+      
+      // 백그라운드에서 최신 데이터 로드
+      loadPortfolioHeatmapData();
+    } else if (viewMode === 'market') {
+      // 시장 모드: 캐시된 데이터가 있으면 먼저 표시
+      const cachedData = marketDataCache.get(marketTab);
+      if (cachedData && cachedData.length > 0) {
+        setMarketStocks(cachedData);
+        setStocks([]);
+      } else {
+        setMarketStocks([]);
+        setStocks([]);
+      }
+      
+      // 백그라운드에서 최신 데이터 로드
+      loadMarketHeatmapData();
     }
-    // viewMode 변경 시 데이터 로드
-    loadHeatmapData();
   }, [viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // showSectorView 변경 시 섹터 선택
@@ -128,11 +151,19 @@ export default function HeatmapScreen() {
     }
   }, [selectedSector, viewMode, showSectorView, isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // marketTab, sortType 변경 시 데이터 다시 로드 (부분 로딩만)
+  // marketTab, sortType 변경 시 데이터 다시 로드 (캐시 우선 사용)
   useEffect(() => {
     if (viewMode === 'market' && !isLoading) {
-      // 초기 로딩이 완료된 후에만 부분 로딩 사용 (전체 로딩 방지)
+      // 캐시에 데이터가 있으면 먼저 표시
+      const cachedData = marketDataCache.get(marketTab);
+      if (cachedData && cachedData.length > 0) {
+        setMarketStocks(cachedData);
+        setIsLoadingMarket(false);
+      }
+      
+      // 백그라운드에서 최신 데이터 로드
       loadMarketHeatmapData();
+      
       // marketTab 변경 시 첫 번째 섹터 선택
       if (showSectorView) {
         const sectors = SECTORS_BY_MARKET[marketTab];
@@ -179,16 +210,23 @@ export default function HeatmapScreen() {
     }
   }, [portfolioSortType]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 초기 마운트 시 데이터 로드
+  useEffect(() => {
+    // 초기 로딩만 전체 화면 로딩 사용
+    loadHeatmapData();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useFocusEffect(
     React.useCallback(() => {
-      // 화면 포커스 시 데이터 갱신 (전체 로딩 없이)
-      if (viewMode === 'portfolio') {
-        loadHeatmapData();
-      } else if (viewMode === 'market' && !isLoading) {
-        // 시장 모드는 초기 로딩이 완료된 후에만 부분 로딩
-        loadMarketHeatmapData();
+      // 화면 포커스 시 데이터 갱신 (전체 로딩 없이, 초기 로딩 완료 후)
+      if (!isLoading) {
+        if (viewMode === 'portfolio') {
+          loadPortfolioHeatmapData();
+        } else if (viewMode === 'market') {
+          loadMarketHeatmapData();
+        }
       }
-    }, [viewMode]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [viewMode, isLoading]) // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // 포트폴리오 히트맵 자동 갱신 (5분마다)
@@ -197,7 +235,7 @@ export default function HeatmapScreen() {
 
     const interval = setInterval(() => {
       console.log('[Heatmap] 포트폴리오 히트맵 자동 갱신 시작');
-      loadHeatmapData();
+      loadPortfolioHeatmapData();
     }, 5 * 60 * 1000); // 5분
 
     return () => clearInterval(interval);
@@ -216,11 +254,114 @@ export default function HeatmapScreen() {
   }, [viewMode, marketTab, sortType]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
+  // 포트폴리오 데이터 로드 (부분 로딩)
+  const loadPortfolioHeatmapData = async () => {
+    try {
+      setIsLoadingPortfolio(true);
+      
+      await initDatabase();
+      
+      // 환율 가져오기 (USD 종목이 있을 수 있으므로)
+      let usdToKrwRate = 1350; // 기본값
+      try {
+        usdToKrwRate = await ExchangeRateService.getUsdToKrwRate();
+        setExchangeRate(usdToKrwRate);
+      } catch (error) {
+        console.warn('[Heatmap] 환율 조회 실패, 기본값 사용:', error);
+      }
+      
+      // 포트폴리오 히트맵: 모든 계좌의 종목 가져오기
+      const accounts = await getAllAccounts();
+      const stocksArrays = await Promise.all(
+        accounts.map(async (account) => {
+          const accountStocks = await getStocksByAccountId(account.id);
+          return accountStocks.map(stock => ({
+            ...stock,
+            accountName: account.name,
+          }));
+        })
+      );
+      const allStocks: PortfolioStock[] = stocksArrays.flat();
+
+      // 수익률, 보유금액 및 매매기록 존재 여부 계산
+      const stocksWithProfit = await Promise.all(
+        allStocks.map(async (stock) => {
+          const profitRate = calculateProfitRate(stock);
+          const profitAmount = calculateProfitAmount(stock, profitRate);
+          const holdingValue = calculateHoldingValue(stock, usdToKrwRate); // 환율 전달
+          
+          // 매매기록 존재 여부 확인
+          let hasTradingRecords = false;
+          try {
+            const records = await getTradingRecordsByStockId(stock.id);
+            hasTradingRecords = records && records.length > 0;
+          } catch (error) {
+            console.warn(`매매기록 확인 실패 (${stock.ticker}):`, error);
+          }
+          
+          return {
+            ...stock,
+            profitRate,
+            profitAmount,
+            holdingValue,
+            hasTradingRecords,
+          };
+        })
+      );
+
+      // 정렬 기준에 따라 정렬 (매매기록이 없는 종목은 항상 마지막)
+      let sortedStocks = [...stocksWithProfit];
+      if (portfolioSortType === 'holdingValue') {
+        // 보유금액이 큰 순 (매매기록 없는 종목은 마지막)
+        sortedStocks.sort((a, b) => {
+          // 매매기록이 없는 종목은 항상 뒤로
+          if (!a.hasTradingRecords && b.hasTradingRecords) return 1;
+          if (a.hasTradingRecords && !b.hasTradingRecords) return -1;
+          // 둘 다 매매기록이 있거나 없으면 보유금액으로 정렬
+          return (b.holdingValue || 0) - (a.holdingValue || 0);
+        });
+      } else if (portfolioSortType === 'profitRate') {
+        // 수익률 순 (손실 → 수익, 매매기록 없는 종목은 마지막)
+        sortedStocks.sort((a, b) => {
+          // 매매기록이 없는 종목은 항상 뒤로
+          if (!a.hasTradingRecords && b.hasTradingRecords) return 1;
+          if (a.hasTradingRecords && !b.hasTradingRecords) return -1;
+          // 둘 다 매매기록이 있거나 없으면 수익률로 정렬
+          return a.profitRate - b.profitRate;
+        });
+      } else if (portfolioSortType === 'profitAmount') {
+        // 수익금액 순 (손실 → 수익, 매매기록 없는 종목은 마지막)
+        sortedStocks.sort((a, b) => {
+          // 매매기록이 없는 종목은 항상 뒤로
+          if (!a.hasTradingRecords && b.hasTradingRecords) return 1;
+          if (a.hasTradingRecords && !b.hasTradingRecords) return -1;
+          // 둘 다 매매기록이 있거나 없으면 수익금액으로 정렬
+          return a.profitAmount - b.profitAmount;
+        });
+      }
+      
+      setStocks(sortedStocks);
+      
+      // 캐시에 저장
+      setPortfolioDataCache(sortedStocks);
+    } catch (error) {
+      console.error('[Heatmap] 포트폴리오 데이터 로드 오류:', error);
+      // 에러 발생 시에도 캐시된 데이터가 있으면 유지
+      if (portfolioDataCache && portfolioDataCache.length > 0) {
+        setStocks(portfolioDataCache);
+      }
+    } finally {
+      setIsLoadingPortfolio(false);
+    }
+  };
+
+  // 초기 로딩용 (전체 화면 로딩)
   const loadHeatmapData = async () => {
     try {
       setIsLoading(true);
       
       if (viewMode === 'portfolio') {
+        // 포트폴리오 데이터 로드 (부분 로딩 함수를 직접 호출하지 않고 내부 로직 사용)
         await initDatabase();
         
         // 환율 가져오기 (USD 종목이 있을 수 있으므로)
@@ -250,7 +391,7 @@ export default function HeatmapScreen() {
           allStocks.map(async (stock) => {
             const profitRate = calculateProfitRate(stock);
             const profitAmount = calculateProfitAmount(stock, profitRate);
-            const holdingValue = calculateHoldingValue(stock, usdToKrwRate); // 환율 전달
+            const holdingValue = calculateHoldingValue(stock, usdToKrwRate);
             
             // 매매기록 존재 여부 확인
             let hasTradingRecords = false;
@@ -271,41 +412,34 @@ export default function HeatmapScreen() {
           })
         );
 
-        // 정렬 기준에 따라 정렬 (매매기록이 없는 종목은 항상 마지막)
+        // 정렬 기준에 따라 정렬
         let sortedStocks = [...stocksWithProfit];
         if (portfolioSortType === 'holdingValue') {
-          // 보유금액이 큰 순 (매매기록 없는 종목은 마지막)
           sortedStocks.sort((a, b) => {
-            // 매매기록이 없는 종목은 항상 뒤로
             if (!a.hasTradingRecords && b.hasTradingRecords) return 1;
             if (a.hasTradingRecords && !b.hasTradingRecords) return -1;
-            // 둘 다 매매기록이 있거나 없으면 보유금액으로 정렬
             return (b.holdingValue || 0) - (a.holdingValue || 0);
           });
         } else if (portfolioSortType === 'profitRate') {
-          // 수익률 순 (손실 → 수익, 매매기록 없는 종목은 마지막)
           sortedStocks.sort((a, b) => {
-            // 매매기록이 없는 종목은 항상 뒤로
             if (!a.hasTradingRecords && b.hasTradingRecords) return 1;
             if (a.hasTradingRecords && !b.hasTradingRecords) return -1;
-            // 둘 다 매매기록이 있거나 없으면 수익률로 정렬
             return a.profitRate - b.profitRate;
           });
         } else if (portfolioSortType === 'profitAmount') {
-          // 수익금액 순 (손실 → 수익, 매매기록 없는 종목은 마지막)
           sortedStocks.sort((a, b) => {
-            // 매매기록이 없는 종목은 항상 뒤로
             if (!a.hasTradingRecords && b.hasTradingRecords) return 1;
             if (a.hasTradingRecords && !b.hasTradingRecords) return -1;
-            // 둘 다 매매기록이 있거나 없으면 수익금액으로 정렬
             return a.profitAmount - b.profitAmount;
           });
         }
+        
         setStocks(sortedStocks);
-        setMarketStocks([]); // 포트폴리오 모드일 때 시장 데이터 초기화
+        setPortfolioDataCache(sortedStocks);
+        setMarketStocks([]);
       } else {
         // 시장 히트맵: 코스피 상위 종목 조회
-        setStocks([]); // 시장 모드일 때 포트폴리오 데이터 초기화
+        setStocks([]);
         await loadMarketHeatmapData();
       }
     } catch (error) {
@@ -424,9 +558,22 @@ export default function HeatmapScreen() {
       }
       
       setMarketStocks(finalData);
+      
+      // 캐시에 저장 (다음에 빠르게 표시)
+      setMarketDataCache(prev => {
+        const newCache = new Map(prev);
+        newCache.set(marketTab, finalData);
+        return newCache;
+      });
     } catch (error) {
       console.error('[Heatmap] 시장 종목 조회 오류:', error);
-      setMarketStocks([]);
+      // 에러 발생 시에도 캐시된 데이터가 있으면 유지
+      const cachedData = marketDataCache.get(marketTab);
+      if (cachedData && cachedData.length > 0) {
+        setMarketStocks(cachedData);
+      } else {
+        setMarketStocks([]);
+      }
     } finally {
       setIsLoadingMarket(false);
     }
@@ -735,15 +882,15 @@ export default function HeatmapScreen() {
                     style={styles.refreshButton}
                     onPress={() => {
                       if (viewMode === 'portfolio') {
-                        loadHeatmapData();
+                        loadPortfolioHeatmapData();
                       } else {
                         loadMarketHeatmapData();
                       }
                     }}
                     activeOpacity={0.7}
-                    disabled={isLoading || isLoadingMarket}
+                    disabled={isLoading || isLoadingMarket || isLoadingPortfolio}
                   >
-                    {isLoading || isLoadingMarket ? (
+                    {(isLoading || isLoadingMarket || isLoadingPortfolio) ? (
                       <ActivityIndicator size="small" color="#42A5F5" />
                     ) : (
                       <Text style={styles.refreshButtonText}>🔄</Text>

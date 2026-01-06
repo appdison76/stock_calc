@@ -224,9 +224,10 @@ export interface StockSearchResult {
 /**
  * Yahoo Finance에서 종목 검색
  * @param query 검색어 (예: 'Apple', '삼성전자', 'Samsung', '005930')
+ * @param marketFilter 시장 필터 ('all' | 'kr' | 'us')
  * @returns 검색 결과 배열
  */
-export async function searchStocks(query: string): Promise<StockSearchResult[]> {
+export async function searchStocks(query: string, marketFilter: 'all' | 'kr' | 'us' = 'all'): Promise<StockSearchResult[]> {
   try {
     if (!query || query.trim().length === 0) {
       return [];
@@ -235,53 +236,72 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
     const trimmedQuery = query.trim();
     
     // 한국 주식 한글명으로 검색한 경우, 티커로 변환하여 추가 검색
-    const koreanStockTicker = KOREAN_STOCK_MAP[trimmedQuery];
+    const koreanStockTicker = marketFilter !== 'us' ? KOREAN_STOCK_MAP[trimmedQuery] : undefined;
     
     // 미국 주식 한글명으로 검색한 경우, 티커로 변환하여 추가 검색
-    const usStockTicker = US_STOCK_MAP[trimmedQuery];
+    const usStockTicker = marketFilter !== 'kr' ? US_STOCK_MAP[trimmedQuery] : undefined;
     
     // 검색어가 짧을 때(2-4글자) KOREAN_STOCK_MAP에서 매칭되는 종목들의 티커로도 검색
     let additionalQueries: string[] = [];
     const upperQuery = trimmedQuery.toUpperCase();
     
-    // 검색어가 2-4글자이고 한국어인 경우, KOREAN_STOCK_MAP에서 검색어를 포함하는 항목 찾기
-    if (trimmedQuery.length >= 2 && trimmedQuery.length <= 4 && /[가-힣]/.test(trimmedQuery)) {
-      // KOREAN_STOCK_MAP에서 검색어를 포함하는 항목 찾기
-      const matchingStocks = Object.entries(KOREAN_STOCK_MAP).filter(([name, ticker]) => 
-        name.includes(trimmedQuery) || trimmedQuery.includes(name.substring(0, Math.min(trimmedQuery.length, name.length)))
-      );
-      
-      // 매칭되는 종목들의 티커로 추가 검색 (티커에서 .KS 제거)
-      matchingStocks.forEach(([name, ticker]) => {
-        const tickerWithoutKS = ticker.replace('.KS', '');
-        if (!additionalQueries.includes(tickerWithoutKS)) {
-          additionalQueries.push(tickerWithoutKS);
-        }
-      });
+    // 한국 주식 필터가 아닐 때만 한국 주식 매칭 로직 실행
+    if (marketFilter !== 'kr') {
+      // 검색어가 2-4글자이고 한국어인 경우, KOREAN_STOCK_MAP에서 검색어를 포함하는 항목 찾기
+      // 단, 영문 티커 패턴이면 스킵 (예: "NVDA", "MSFT")
+      if (trimmedQuery.length >= 2 && trimmedQuery.length <= 4 && /[가-힣]/.test(trimmedQuery)) {
+        // KOREAN_STOCK_MAP에서 검색어를 포함하는 항목 찾기
+        const matchingStocks = Object.entries(KOREAN_STOCK_MAP).filter(([name, ticker]) => 
+          name.includes(trimmedQuery) || trimmedQuery.includes(name.substring(0, Math.min(trimmedQuery.length, name.length)))
+        );
+        
+        // 매칭되는 종목들의 티커로 추가 검색 (티커에서 .KS 제거)
+        matchingStocks.forEach(([name, ticker]) => {
+          const tickerWithoutKS = ticker.replace('.KS', '');
+          if (!additionalQueries.includes(tickerWithoutKS)) {
+            additionalQueries.push(tickerWithoutKS);
+          }
+        });
+      }
     }
     
     // 영문 검색어가 짧을 때(2-4글자) 주요 패턴 매칭
-    if (trimmedQuery.length >= 2 && trimmedQuery.length <= 4 && /^[A-Za-z]+$/.test(trimmedQuery)) {
-      // KOREAN_STOCK_MAP에서 대소문자 무시하고 매칭되는 항목 찾기
-      const matchingStocks = Object.entries(KOREAN_STOCK_MAP).filter(([name, ticker]) => 
-        name.toUpperCase().includes(upperQuery) || upperQuery.includes(name.toUpperCase().substring(0, Math.min(upperQuery.length, name.length)))
-      );
+    // 단, 영문 티커 패턴이면 한국 주식 매칭 스킵 (예: "NVDA", "MSFT")
+    if (marketFilter !== 'kr' && trimmedQuery.length >= 2 && trimmedQuery.length <= 4 && /^[A-Za-z]+$/.test(trimmedQuery)) {
+      // 영문 티커 패턴인지 확인 (2-5자, 대문자)
+      const isTickerPattern = /^[A-Z]{2,5}$/.test(trimmedQuery.toUpperCase());
       
-      matchingStocks.forEach(([name, ticker]) => {
-        const tickerWithoutKS = ticker.replace('.KS', '');
-        if (!additionalQueries.includes(tickerWithoutKS)) {
-          additionalQueries.push(tickerWithoutKS);
-        }
-      });
+      // 티커 패턴이 아니거나, 티커 패턴이지만 US_STOCK_MAP에 없는 경우에만 한국 주식 매칭
+      if (!isTickerPattern || (isTickerPattern && !US_STOCK_MAP[trimmedQuery.toUpperCase()])) {
+        // KOREAN_STOCK_MAP에서 대소문자 무시하고 매칭되는 항목 찾기
+        const matchingStocks = Object.entries(KOREAN_STOCK_MAP).filter(([name, ticker]) => 
+          name.toUpperCase().includes(upperQuery) || upperQuery.includes(name.toUpperCase().substring(0, Math.min(upperQuery.length, name.length)))
+        );
+        
+        matchingStocks.forEach(([name, ticker]) => {
+          const tickerWithoutKS = ticker.replace('.KS', '');
+          if (!additionalQueries.includes(tickerWithoutKS)) {
+            additionalQueries.push(tickerWithoutKS);
+          }
+        });
+      }
     }
     
     // 여러 검색어로 시도 (원래 검색어 + 한국 티커 + 미국 티커 + 추가 검색어)
-    const searchQueries = [
-      trimmedQuery,
-      ...(koreanStockTicker ? [koreanStockTicker.replace('.KS', '')] : []), // 티커에서 .KS 제거하여 검색
-      ...(usStockTicker ? [usStockTicker] : []), // 미국 티커 추가
-      ...additionalQueries,
-    ];
+    // 필터에 따라 검색어 선택
+    const searchQueries: string[] = [trimmedQuery];
+    
+    if (marketFilter !== 'us' && koreanStockTicker) {
+      searchQueries.push(koreanStockTicker.replace('.KS', ''));
+    }
+    
+    if (marketFilter !== 'kr' && usStockTicker) {
+      searchQueries.push(usStockTicker);
+    }
+    
+    if (marketFilter !== 'kr') {
+      searchQueries.push(...additionalQueries);
+    }
     
     let allResults: StockSearchResult[] = [];
     
@@ -314,9 +334,15 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
             return [];
           }
           
+          // 한국 주식 판별 헬퍼 함수
+          const isKoreanStock = (symbol: string | undefined): boolean => {
+            if (!symbol) return false;
+            return symbol.endsWith('.KS') || symbol.endsWith('.KQ');
+          };
+
           // 디버깅: 원본 검색 결과 수 확인
           const totalQuotes = data.quotes.length;
-          const koreanQuotes = data.quotes.filter((q: any) => q.symbol?.endsWith('.KS')).length;
+          const koreanQuotes = data.quotes.filter((q: any) => isKoreanStock(q.symbol)).length;
           console.log(`Search query "${searchQuery}": ${totalQuotes} total quotes (${koreanQuotes} Korean)`);
 
           // 검색 결과를 StockSearchResult 형식으로 변환
@@ -326,8 +352,8 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
               if (!quote.symbol || (!quote.shortname && !quote.longname)) {
                 return false;
               }
-              // 한국 주식(.KS)인 경우 모든 타입 허용 (더 많은 결과를 위해)
-              if (quote.symbol && quote.symbol.endsWith('.KS')) {
+              // 한국 주식(.KS 또는 .KQ)인 경우 모든 타입 허용 (더 많은 결과를 위해)
+              if (isKoreanStock(quote.symbol)) {
                 // 한국 주식은 타입 필터링 완화
                 if (quote.quoteType && quote.quoteType === 'CURRENCY') {
                   return false; // 통화만 제외
@@ -341,12 +367,15 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
               return true;
             })
             .map((quote: any) => {
-              // 한국 주식(.KS)인 경우 한글명으로 우선 표시
+              // 한국 주식 판별 헬퍼 함수
+              const isKR = isKoreanStock(quote.symbol);
+              
+              // 한국 주식(.KS 또는 .KQ)인 경우 한글명으로 우선 표시
               const originalName = quote.longname || quote.shortname || quote.symbol;
               let displayName = originalName;
               let savedOriginalName: string | undefined = undefined;
               
-              if (quote.symbol && quote.symbol.endsWith('.KS')) {
+              if (isKR) {
                 const koreanName = KOREAN_TICKER_TO_NAME_MAP[quote.symbol];
                 if (koreanName) {
                   displayName = koreanName;
@@ -391,12 +420,38 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
       index === self.findIndex((r) => r.symbol === result.symbol)
     );
 
-    // 한국 주식(.KS)을 우선 정렬
+    // 한국 주식 판별 헬퍼 함수
+    const isKoreanStock = (symbol: string | undefined): boolean => {
+      if (!symbol) return false;
+      return symbol.endsWith('.KS') || symbol.endsWith('.KQ');
+    };
+
+    // 필터에 따른 정렬
     const sortedResults = uniqueResults.sort((a: StockSearchResult, b: StockSearchResult) => {
-      const aIsKorean = a.symbol?.endsWith('.KS') || false;
-      const bIsKorean = b.symbol?.endsWith('.KS') || false;
-      if (aIsKorean && !bIsKorean) return -1;
-      if (!aIsKorean && bIsKorean) return 1;
+      // 필터가 'all'이 아닌 경우 필터에 맞는 결과를 우선 정렬
+      if (marketFilter === 'kr') {
+        const aIsKorean = isKoreanStock(a.symbol);
+        const bIsKorean = isKoreanStock(b.symbol);
+        if (aIsKorean && !bIsKorean) return -1;
+        if (!aIsKorean && bIsKorean) return 1;
+      } else if (marketFilter === 'us') {
+        const aIsKorean = isKoreanStock(a.symbol);
+        const bIsKorean = isKoreanStock(b.symbol);
+        if (!aIsKorean && bIsKorean) return -1;
+        if (aIsKorean && !bIsKorean) return 1;
+      } else {
+        // 'all'인 경우: 검색어와 정확히 일치하는 티커 우선, 그 다음 한국 주식 우선
+        const aIsExactMatch = a.symbol === trimmedQuery || a.symbol === koreanStockTicker || a.symbol === usStockTicker;
+        const bIsExactMatch = b.symbol === trimmedQuery || b.symbol === koreanStockTicker || b.symbol === usStockTicker;
+        if (aIsExactMatch && !bIsExactMatch) return -1;
+        if (!aIsExactMatch && bIsExactMatch) return 1;
+        
+        // 정확히 일치하지 않는 경우 한국 주식 우선 (기존 동작 유지)
+        const aIsKorean = isKoreanStock(a.symbol);
+        const bIsKorean = isKoreanStock(b.symbol);
+        if (aIsKorean && !bIsKorean) return -1;
+        if (!aIsKorean && bIsKorean) return 1;
+      }
       return 0;
     });
 
@@ -404,7 +459,8 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
     const finalResults = sortedResults.slice(0, 50);
 
     // 검색어가 짧을 때(2-4글자) KOREAN_STOCK_MAP에서 매칭되는 종목들 추가
-    if (trimmedQuery.length >= 2 && trimmedQuery.length <= 4) {
+    // 단, 미국 주식 필터일 때는 스킵
+    if (marketFilter !== 'us' && trimmedQuery.length >= 2 && trimmedQuery.length <= 4) {
       const matchingStocks = Object.entries(KOREAN_STOCK_MAP).filter(([name, ticker]) => 
         name.includes(trimmedQuery) || trimmedQuery.includes(name.substring(0, Math.min(trimmedQuery.length, name.length)))
       );
@@ -430,12 +486,22 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
         }
       }
       
-      // 다시 한국 주식 우선 정렬
+      // 필터에 따른 정렬
       finalResults.sort((a: StockSearchResult, b: StockSearchResult) => {
-        const aIsKorean = a.symbol?.endsWith('.KS') || false;
-        const bIsKorean = b.symbol?.endsWith('.KS') || false;
-        if (aIsKorean && !bIsKorean) return -1;
-        if (!aIsKorean && bIsKorean) return 1;
+        const aIsKorean = isKoreanStock(a.symbol);
+        const bIsKorean = isKoreanStock(b.symbol);
+        
+        if (marketFilter === 'kr') {
+          if (aIsKorean && !bIsKorean) return -1;
+          if (!aIsKorean && bIsKorean) return 1;
+        } else if (marketFilter === 'us') {
+          if (!aIsKorean && bIsKorean) return -1;
+          if (aIsKorean && !bIsKorean) return 1;
+        } else {
+          // 'all'인 경우 한국 주식 우선
+          if (aIsKorean && !bIsKorean) return -1;
+          if (!aIsKorean && bIsKorean) return 1;
+        }
         return 0;
       });
       // 최대 50개 유지
@@ -445,7 +511,8 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
     }
     
     // 한국 주식 티커 매핑이 있는 경우, 해당 티커가 결과에 없으면 추가
-    if (koreanStockTicker && !finalResults.some(r => r.symbol === koreanStockTicker)) {
+    // 단, 미국 주식 필터일 때는 스킵
+    if (marketFilter !== 'us' && koreanStockTicker && !finalResults.some(r => r.symbol === koreanStockTicker)) {
       // 티커로 직접 현재가 조회하여 종목명 가져오기
       try {
         const quote = await getStockQuote(koreanStockTicker);
@@ -471,7 +538,7 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
     }
 
     // 디버깅: 한국 종목 수 확인
-    const koreanStocksCount = finalResults.filter(r => r.symbol?.endsWith('.KS')).length;
+    const koreanStocksCount = finalResults.filter(r => isKoreanStock(r.symbol)).length;
     console.log(`Yahoo Finance search for "${trimmedQuery}": ${finalResults.length} results (${koreanStocksCount} Korean stocks)`);
 
     return finalResults;

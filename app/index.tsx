@@ -817,7 +817,7 @@ export default function MainScreen() {
                 <View style={styles.iconGridRow}>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: '#42A5F5' }]}
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(92, 124, 250, 0.85)' }]}
                       onPress={() => router.push('/profit')}
                       activeOpacity={0.8}
                     >
@@ -827,7 +827,7 @@ export default function MainScreen() {
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: '#4CAF50' }]}
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(102, 187, 106, 0.85)' }]}
                       onPress={() => router.push('/averaging')}
                       activeOpacity={0.8}
                     >
@@ -837,7 +837,7 @@ export default function MainScreen() {
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: '#EF5350' }]}
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(255, 107, 107, 0.85)' }]}
                       onPress={handleAddStock}
                       activeOpacity={0.8}
                     >
@@ -850,7 +850,7 @@ export default function MainScreen() {
                 <View style={styles.iconGridRow}>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: '#9C27B0' }]}
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(171, 71, 188, 0.85)' }]}
                       onPress={() => router.push('/news')}
                       activeOpacity={0.8}
                     >
@@ -860,7 +860,7 @@ export default function MainScreen() {
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: '#FF9800' }]}
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(255, 167, 38, 0.85)' }]}
                       onPress={() => router.push('/portfolios')}
                       activeOpacity={0.8}
                     >
@@ -870,7 +870,7 @@ export default function MainScreen() {
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: '#E91E63' }]}
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(236, 64, 122, 0.85)' }]}
                       onPress={() => router.push('/visualization')}
                       activeOpacity={0.8}
                     >
@@ -883,7 +883,7 @@ export default function MainScreen() {
                 <View style={styles.iconGridRow}>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: '#2196F3' }]}
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(66, 165, 245, 0.85)' }]}
                       onPress={() => router.push('/stock-chart')}
                       activeOpacity={0.8}
                     >
@@ -893,7 +893,7 @@ export default function MainScreen() {
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: '#424242' }]}
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(84, 110, 122, 0.85)' }]}
                       onPress={() => router.push('/heatmap')}
                       activeOpacity={0.8}
                     >
@@ -908,7 +908,7 @@ export default function MainScreen() {
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: '#757575' }]}
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(120, 144, 156, 0.85)' }]}
                       onPress={() => router.push('/settings')}
                       activeOpacity={0.8}
                     >

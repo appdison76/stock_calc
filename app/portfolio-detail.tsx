@@ -50,6 +50,7 @@ export default function PortfolioDetailScreen() {
   const [sortOption, setSortOption] = useState<SortOption>('name'); // 기본값: 이름순
   const [filterOption, setFilterOption] = useState<FilterOption>('all'); // 기본값: 전체
   const [showSortFilterModal, setShowSortFilterModal] = useState(false);
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false); // 합계 영역 접기/펼치기
 
   // USD 가격에 대한 원화 변환값 표시 (작은 글씨)
   const getKrwEquivalentForDisplay = (usdValue: number | undefined | null): string | null => {
@@ -544,10 +545,43 @@ export default function PortfolioDetailScreen() {
             {filteredAndSortedStocks.length > 0 && (
               <View style={styles.summaryContainer}>
                 {(portfolioSummary.totalInvestmentKrw > 0 || portfolioSummary.totalInvestmentUsd > 0) && (
-                  <>
-                    {portfolioSummary.totalInvestmentKrw > 0 && (
-                      <View style={styles.summarySection}>
-                        <Text style={styles.summarySectionTitle}>원화 (KRW)</Text>
+                  <View style={styles.summaryWrapper}>
+                    {/* 접기/펼치기 헤더 */}
+                    <TouchableOpacity
+                      style={styles.summaryHeader}
+                      onPress={() => setIsSummaryExpanded(!isSummaryExpanded)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.summaryHeaderContent}>
+                        <Text style={styles.summaryHeaderTitle}>포트폴리오 합계</Text>
+                        {!isSummaryExpanded && (
+                          <View style={styles.summaryHeaderSummary}>
+                            <Text style={[
+                              styles.summaryHeaderSummaryText,
+                              portfolioSummary.totalProfitRate >= 0 ? styles.profitText : styles.lossText
+                            ]}>
+                              총 수익률: {portfolioSummary.totalProfitRate >= 0 ? '+' : ''}{portfolioSummary.totalProfitRate.toFixed(2)}%
+                            </Text>
+                            <Text style={[
+                              styles.summaryHeaderSummaryText,
+                              portfolioSummary.totalProfitAmountKrwConverted >= 0 ? styles.profitText : styles.lossText
+                            ]}>
+                              총 수익금: {portfolioSummary.totalProfitAmountKrwConverted >= 0 ? '+' : ''}{formatCurrency(portfolioSummary.totalProfitAmountKrwConverted, Currency.KRW)}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.summaryHeaderText}>
+                        {isSummaryExpanded ? '접기' : '자세히'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* 상세 정보 (펼침 상태일 때만 표시) */}
+                    {isSummaryExpanded && (
+                      <View style={styles.summaryExpandedContent}>
+                        {portfolioSummary.totalInvestmentKrw > 0 && (
+                          <View style={styles.summarySection}>
+                            <Text style={styles.summarySectionTitle}>원화 (KRW)</Text>
                         <View style={styles.summaryRow}>
                           <Text style={styles.summaryLabel}>투자금액:</Text>
                           <Text style={styles.summaryValue}>
@@ -692,7 +726,9 @@ export default function PortfolioDetailScreen() {
                         </View>
                       </View>
                     )}
-                  </>
+                      </View>
+                    )}
+                  </View>
                 )}
               </View>
             )}
@@ -1209,6 +1245,50 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     borderTopWidth: 1,
     borderTopColor: 'rgba(66, 165, 245, 0.2)',
+  },
+  summaryWrapper: {
+    backgroundColor: 'rgba(27, 38, 59, 0.6)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.2)',
+    overflow: 'hidden',
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  summaryExpandedContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(66, 165, 245, 0.1)',
+  },
+  summaryHeaderContent: {
+    flex: 1,
+  },
+  summaryHeaderTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  summaryHeaderSummary: {
+    marginTop: 4,
+  },
+  summaryHeaderSummaryText: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  summaryHeaderText: {
+    fontSize: 13,
+    color: '#42A5F5',
+    fontWeight: '600',
+    marginLeft: 12,
   },
   summarySection: {
     marginBottom: 16,
