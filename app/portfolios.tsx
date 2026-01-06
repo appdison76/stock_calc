@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { AdmobBanner } from '../src/components/AdmobBanner';
+import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
 import { getAllAccounts, createAccount, deleteAccount, updateAccount, getStocksByAccountId } from '../src/services/DatabaseService';
 import { Account } from '../src/models/Account';
 import { Currency } from '../src/models/Currency';
@@ -241,6 +243,9 @@ export default function PortfoliosScreen() {
             </Text>
           </View>
 
+          {/* 상단 배너 광고 */}
+          <AdmobBanner />
+
           {portfolios.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyIcon}>📊</Text>
@@ -251,13 +256,17 @@ export default function PortfoliosScreen() {
             </View>
           ) : (
             <View style={styles.portfoliosContainer}>
-              {portfolios.map((portfolio) => (
-                <TouchableOpacity
-                  key={portfolio.id}
-                  onPress={() => router.push(`/portfolio-detail?id=${portfolio.id}`)}
-                  activeOpacity={0.8}
-                  style={styles.portfolioCard}
-                >
+              {portfolios.map((portfolio, index) => (
+                <React.Fragment key={portfolio.id}>
+                  {/* 네이티브 광고: 3개마다 삽입 (첫 번째는 제외) */}
+                  {index > 0 && index % 3 === 0 && (
+                    <AdmobNativeAd key={`native-ad-${index}`} />
+                  )}
+                  <TouchableOpacity
+                    onPress={() => router.push(`/portfolio-detail?id=${portfolio.id}`)}
+                    activeOpacity={0.8}
+                    style={styles.portfolioCard}
+                  >
                   <LinearGradient
                     colors={['rgba(13, 27, 42, 0.8)', 'rgba(27, 38, 59, 0.6)']}
                     start={{ x: 0, y: 0 }}
@@ -514,6 +523,7 @@ export default function PortfoliosScreen() {
                     </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
+                </React.Fragment>
               ))}
             </View>
           )}

@@ -16,6 +16,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { AdmobBanner } from '../src/components/AdmobBanner';
+import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
 import { 
   initDatabase, 
   getAllAccounts, 
@@ -1125,11 +1126,8 @@ export default function MainScreen() {
 
           </View>
 
-          <View style={styles.adSpacer} />
-
-          <View style={styles.adContainer}>
-            <AdmobBanner />
-          </View>
+          {/* 네이티브 광고: 첫 번째 카드 그룹 아래 */}
+          <AdmobNativeAd />
 
           <View style={styles.adSpacer} />
 
@@ -1268,6 +1266,17 @@ export default function MainScreen() {
             </View>
           )}
 
+          {/* 배너 광고: 관련 뉴스와 최신 뉴스 사이 */}
+          {(showRelatedNews && relatedNewsStocks.length > 0) || (showLatestNews && (latestNewsKo.length > 0 || latestNewsEn.length > 0)) ? (
+            <>
+              <View style={styles.adSpacer} />
+              <View style={styles.adContainer}>
+                <AdmobBanner />
+              </View>
+              <View style={styles.adSpacer} />
+            </>
+          ) : null}
+
           {/* 최신 뉴스 섹션 */}
           {showLatestNews && (latestNewsKo.length > 0 || latestNewsEn.length > 0) && (
             <View style={styles.dashboardSection}>
@@ -1403,7 +1412,8 @@ export default function MainScreen() {
             />
           </View>
 
-          <View style={styles.adSpacer} />
+          {/* 네이티브 광고: 두 번째 카드 그룹 아래 */}
+          <AdmobNativeAd />
 
           <View style={styles.cardsContainer}>
             <CalculatorCard
@@ -1414,8 +1424,6 @@ export default function MainScreen() {
               onPress={() => router.push('/market-indicators')}
             />
           </View>
-
-          <View style={styles.adSpacer} />
 
           <View style={styles.cardsContainer}>
             <CalculatorCard

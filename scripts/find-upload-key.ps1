@@ -101,3 +101,4 @@ Write-Host "🔐 다른 비밀번호로 보호된 keystore도 확인하려면," 
 Write-Host "   수동으로 다음 명령어를 실행하세요:" -ForegroundColor Gray
 Write-Host "   keytool -list -v -keystore [keystore파일경로]" -ForegroundColor Gray
 
+

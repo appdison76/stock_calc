@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { AdmobBanner } from '../src/components/AdmobBanner';
+import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
 import { getAccountById, getStocksByAccountId, deleteStock, createStock, updateStock, initDatabase, getTradingRecordsByStockId, updateStockCurrentPrice, updatePortfolioCurrentPrices } from '../src/services/DatabaseService';
 import { Account } from '../src/models/Account';
 import { Stock } from '../src/models/Stock';
@@ -734,6 +736,9 @@ export default function PortfolioDetailScreen() {
             )}
           </View>
 
+          {/* 합계 아래 배너 광고 */}
+          {stocks.length > 0 && <AdmobBanner />}
+
           {stocks.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyIcon}>📈</Text>
@@ -744,13 +749,17 @@ export default function PortfolioDetailScreen() {
             </View>
           ) : (
             <View style={styles.stocksContainer}>
-              {filteredAndSortedStocks.map((stock) => (
-                <TouchableOpacity
-                  key={stock.id}
-                  activeOpacity={0.8}
-                  style={styles.stockCard}
-                  onPress={() => router.push(`/stock-detail?id=${stock.id}`)}
-                >
+              {filteredAndSortedStocks.map((stock, index) => (
+                <React.Fragment key={stock.id}>
+                  {/* 네이티브 광고: 5개마다 삽입 (첫 번째는 제외) */}
+                  {index > 0 && index % 5 === 0 && (
+                    <AdmobNativeAd key={`native-ad-${index}`} />
+                  )}
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={styles.stockCard}
+                    onPress={() => router.push(`/stock-detail?id=${stock.id}`)}
+                  >
                   <LinearGradient
                     colors={['rgba(13, 27, 42, 0.8)', 'rgba(27, 38, 59, 0.6)']}
                     start={{ x: 0, y: 0 }}
@@ -909,6 +918,7 @@ export default function PortfolioDetailScreen() {
                     </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
+                </React.Fragment>
               ))}
             </View>
           )}

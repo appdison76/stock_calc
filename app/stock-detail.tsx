@@ -33,7 +33,10 @@ import { getStockQuote } from '../src/services/YahooFinanceService';
 import { fetchStockNews, fetchGoogleNewsRSS } from '../src/services/NewsService';
 import { NewsItem } from '../src/models/NewsItem';
 import NewsList from '../src/components/NewsList';
+import NewsCard from '../src/components/NewsCard';
 import { US_ETF_TO_UNDERLYING_MAP } from '../src/data/us_etf_underlying_map';
+import { AdmobBanner } from '../src/components/AdmobBanner';
+import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
 
 export default function StockDetailScreen() {
   const router = useRouter();
@@ -854,6 +857,11 @@ export default function StockDetailScreen() {
             </View>
           </View>
 
+          {/* 배너 광고: 종목 정보 아래 */}
+          <View style={styles.adContainer}>
+            <AdmobBanner />
+          </View>
+
           {/* 거래 추가 버튼들 */}
           <View style={styles.addButtonContainer}>
             <TouchableOpacity
@@ -1175,16 +1183,25 @@ export default function StockDetailScreen() {
                   <ActivityIndicator size="small" color="#42A5F5" />
                   <Text style={styles.emptyText}>뉴스를 불러오는 중...</Text>
                 </View>
+              ) : relatedNews.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>{`${stock.officialName || stock.name || stock.ticker} 관련 뉴스가 없습니다.`}</Text>
+                </View>
               ) : (
-                <NewsList
-                  news={relatedNews}
-                  onRefresh={undefined}
-                  refreshing={false}
-                  onNewsPress={handleNewsPress}
-                  emptyMessage={`${stock.officialName || stock.name || stock.ticker} 관련 뉴스가 없습니다.`}
-                  nestedScrollEnabled={false}
-                  loadingMore={newsLoadingMore}
-                />
+                <View style={styles.newsListContainer}>
+                  {relatedNews.map((item, index) => (
+                    <React.Fragment key={item.id}>
+                      {/* 네이티브 광고: 첫 번째 뉴스 아래에 한 번만 표시 */}
+                      {index === 1 && (
+                        <AdmobNativeAd key={`native-ad-${index}`} />
+                      )}
+                      <NewsCard
+                        news={item}
+                        onPress={() => handleNewsPress(item)}
+                      />
+                    </React.Fragment>
+                  ))}
+                </View>
               )}
               {newsLoadingMore && (
                 <View style={styles.loadingMoreContainer}>
@@ -1494,6 +1511,11 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
     marginTop: 24,
   },
+  newsListContainer: {
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 16,
+  },
   loadingMoreContainer: {
     paddingVertical: 20,
     alignItems: 'center',
@@ -1722,6 +1744,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#42A5F5',
+  },
+  adContainer: {
+    width: '100%',
+    marginTop: 16,
+    marginBottom: 16,
+    alignItems: 'center',
   },
 });
 
