@@ -93,3 +93,5 @@ powershell -ExecutionPolicy Bypass -File scripts/extract-upload-certificate.ps1
 생성된 `upload_certificate.pem` 파일을 Google Play Console에 업로드하세요.
 
 
+
+
