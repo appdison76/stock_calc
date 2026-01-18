@@ -321,7 +321,7 @@ export default function DividendCalculatorView() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
       <LinearGradient
-        colors={['#0D1B2A', '#1B263B', '#0F1419']}
+        colors={['#000000', '#121212', '#0D0D0D']}
         style={styles.gradient}
       >
         <ScrollView
@@ -562,7 +562,7 @@ const styles = StyleSheet.create({
     color: '#42A5F5',
   },
   card: {
-    backgroundColor: 'rgba(13, 27, 42, 0.8)',
+    backgroundColor: 'rgba(45, 45, 45, 0.8)',
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(66, 165, 245, 0.1)',
@@ -576,7 +576,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   input: {
-    backgroundColor: 'rgba(27, 38, 59, 0.6)',
+    backgroundColor: 'rgba(51, 51, 51, 0.6)',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(66, 165, 245, 0.2)',

@@ -489,7 +489,7 @@ export default function PortfolioDetailScreen() {
     return (
       <View style={styles.container}>
         <LinearGradient
-          colors={['#0D1B2A', '#1B263B', '#0F1419']}
+          colors={['#000000', '#121212', '#0D0D0D']}
           style={styles.gradient}
         >
           <View style={styles.loadingContainer}>
@@ -508,7 +508,7 @@ export default function PortfolioDetailScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#0D1B2A', '#1B263B', '#0F1419']}
+        colors={['#000000', '#121212', '#0D0D0D']}
         style={styles.gradient}
       >
         <ScrollView
@@ -751,17 +751,13 @@ export default function PortfolioDetailScreen() {
             <View style={styles.stocksContainer}>
               {filteredAndSortedStocks.map((stock, index) => (
                 <React.Fragment key={stock.id}>
-                  {/* 네이티브 광고: 5개마다 삽입 (첫 번째는 제외) */}
-                  {index > 0 && index % 5 === 0 && (
-                    <AdmobNativeAd key={`native-ad-${index}`} />
-                  )}
                   <TouchableOpacity
                     activeOpacity={0.8}
                     style={styles.stockCard}
                     onPress={() => router.push(`/stock-detail?id=${stock.id}`)}
                   >
                   <LinearGradient
-                    colors={['rgba(13, 27, 42, 0.8)', 'rgba(27, 38, 59, 0.6)']}
+                    colors={['rgba(45, 45, 45, 0.8)', 'rgba(51, 51, 51, 0.6)']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.cardGradient}
@@ -918,6 +914,10 @@ export default function PortfolioDetailScreen() {
                     </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
+                  {/* 네이티브 광고: 첫 번째 뒤, 그 다음 3개마다 */}
+                  {(index === 0 || index % 3 === 0) && (
+                    <AdmobNativeAd key={`native-ad-${index}`} />
+                  )}
                 </React.Fragment>
               ))}
             </View>
@@ -1150,7 +1150,7 @@ export default function PortfolioDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D1B2A',
+    backgroundColor: '#121212',
   },
   gradient: {
     flex: 1,
@@ -1231,9 +1231,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: 'rgba(66, 165, 245, 0.2)',
+    backgroundColor: 'rgba(128, 128, 128, 0.2)',
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.4)',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   sortFilterButtonText: {
     color: '#42A5F5',
@@ -1254,13 +1254,13 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 8,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(66, 165, 245, 0.2)',
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   summaryWrapper: {
-    backgroundColor: 'rgba(27, 38, 59, 0.6)',
+    backgroundColor: 'rgba(51, 51, 51, 0.6)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     overflow: 'hidden',
   },
   summaryHeader: {
@@ -1275,13 +1275,13 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(66, 165, 245, 0.1)',
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   summaryHeaderContent: {
     flex: 1,
   },
   summaryHeaderTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 4,
@@ -1290,7 +1290,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   summaryHeaderSummaryText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
     marginTop: 2,
   },
@@ -1304,7 +1304,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(66, 165, 245, 0.1)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   summarySectionTitle: {
     fontSize: 15,
@@ -1397,9 +1397,13 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   cardGradient: {
-    borderRadius: 12,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomWidth: 0,
   },
   stockCardContent: {
     flexDirection: 'row',
@@ -1440,17 +1444,17 @@ const styles = StyleSheet.create({
   },
   stockActionButtons: {
     flexDirection: 'row',
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
     overflow: 'hidden',
   },
   editStockButtonBottom: {
     flex: 1,
-    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    backgroundColor: 'rgba(128, 128, 128, 0.15)',
     paddingVertical: 10,
     alignItems: 'center',
     borderRightWidth: 1,
-    borderRightColor: 'rgba(66, 165, 245, 0.2)',
+    borderRightColor: 'rgba(255, 255, 255, 0.1)',
   },
   editStockButtonTextBottom: {
     color: '#42A5F5',
@@ -1491,7 +1495,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   currencyBadge: {
-    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    backgroundColor: 'rgba(128, 128, 128, 0.15)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -1601,10 +1605,10 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContent: {
-    backgroundColor: 'rgba(13, 27, 42, 0.95)',
+    backgroundColor: 'rgba(45, 45, 45, 0.95)',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
     padding: 24,
     width: '100%',
     maxWidth: 400,
@@ -1628,10 +1632,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   modalInput: {
-    backgroundColor: 'rgba(27, 38, 59, 0.6)',
+    backgroundColor: 'rgba(51, 51, 51, 0.6)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     padding: 16,
     color: '#FFFFFF',
     fontSize: 16,
@@ -1651,7 +1655,7 @@ const styles = StyleSheet.create({
   modalButtonCancel: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   modalButtonConfirm: {
     backgroundColor: '#42A5F5',
@@ -1683,8 +1687,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   modalOptionSelected: {
-    backgroundColor: 'rgba(66, 165, 245, 0.2)',
-    borderColor: 'rgba(66, 165, 245, 0.4)',
+    backgroundColor: 'rgba(128, 128, 128, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   modalOptionText: {
     color: '#CCCCCC',

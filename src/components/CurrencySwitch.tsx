@@ -57,7 +57,7 @@ const CurrencyButton: React.FC<CurrencyButtonProps> = ({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(27, 38, 59, 0.6)',
+    backgroundColor: 'rgba(51, 51, 51, 0.6)',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(66, 165, 245, 0.2)',

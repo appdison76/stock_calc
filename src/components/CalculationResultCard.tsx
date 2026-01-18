@@ -142,7 +142,7 @@ export const CalculationResultCard: React.FC<CalculationResultCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: 'rgba(13, 27, 42, 0.95)',
+    backgroundColor: 'rgba(45, 45, 45, 0.95)',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(66, 165, 245, 0.15)',

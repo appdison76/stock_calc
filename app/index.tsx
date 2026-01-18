@@ -58,7 +58,7 @@ const CalculatorCard: React.FC<CalculatorCardProps> = ({
       style={styles.card}
     >
       <LinearGradient
-        colors={['rgba(13, 27, 42, 0.8)', 'rgba(27, 38, 59, 0.6)']}
+        colors={['rgba(18, 18, 18, 0.8)', 'rgba(30, 30, 30, 0.6)']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.cardGradient}
@@ -701,7 +701,7 @@ export default function MainScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#0A1628', '#1B263B', '#2D3748', '#1A2332']}
+        colors={['#000000', '#121212', '#1A1A1A', '#0D0D0D']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
@@ -780,7 +780,7 @@ export default function MainScreen() {
                       activeOpacity={0.8}
                     >
                       <LinearGradient
-                        colors={['rgba(27, 38, 59, 0.8)', 'rgba(13, 27, 42, 0.6)']}
+                        colors={['rgba(30, 30, 30, 0.8)', 'rgba(18, 18, 18, 0.6)']}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.topIndicatorGradient}
@@ -1518,11 +1518,11 @@ export default function MainScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D1B2A',
+    backgroundColor: '#121212',
   },
   gradient: {
     flex: 1,
-    backgroundColor: '#0D1B2A',
+    backgroundColor: '#121212',
   },
   scrollContent: {
     padding: 24,
@@ -1609,7 +1609,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(66, 165, 245, 0.1)',
-    backgroundColor: 'rgba(13, 27, 42, 0.6)',
+    backgroundColor: 'rgba(45, 45, 45, 0.6)',
   },
   cardContent: {
     flexDirection: 'row',
@@ -1625,7 +1625,7 @@ const styles = StyleSheet.create({
     marginRight: 24,
     alignSelf: 'center',
     borderWidth: 1.5,
-    backgroundColor: 'rgba(13, 27, 42, 0.4)',
+    backgroundColor: 'rgba(45, 45, 45, 0.4)',
   },
   icon: {
     fontSize: 32,
@@ -1776,10 +1776,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingVertical: 3,
     paddingHorizontal: 20,
-    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    backgroundColor: 'rgba(45, 45, 45, 0.8)',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     alignSelf: 'stretch',
     marginHorizontal: 12,
   },
@@ -1795,7 +1795,7 @@ const styles = StyleSheet.create({
   },
   timeValue: {
     fontSize: 14,
-    color: '#42A5F5',
+    color: '#FFFFFF',
     fontWeight: '600',
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
@@ -1809,10 +1809,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingVertical: 3,
     paddingHorizontal: 16,
-    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    backgroundColor: 'rgba(45, 45, 45, 0.8)',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     alignSelf: 'stretch',
     marginHorizontal: 12,
   },
@@ -1829,7 +1829,7 @@ const styles = StyleSheet.create({
   },
   interestRateValue: {
     fontSize: 14,
-    color: '#42A5F5',
+    color: '#FFFFFF',
     fontWeight: '600',
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
@@ -1857,7 +1857,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 85,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 12,
   },
   topIndicatorName: {
@@ -1907,7 +1907,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 4,
     borderWidth: 1.5,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 18,
   },
   menuBannerCardEmpty: {
@@ -2077,11 +2077,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   stockCard: {
-    backgroundColor: 'rgba(13, 27, 42, 0.6)',
+    backgroundColor: 'rgba(45, 45, 45, 0.6)',
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   stockCardHeader: {
     flexDirection: 'row',
@@ -2159,11 +2159,11 @@ const styles = StyleSheet.create({
   indicatorCard: {
     flex: 1,
     minWidth: '47%',
-    backgroundColor: 'rgba(13, 27, 42, 0.6)',
+    backgroundColor: 'rgba(45, 45, 45, 0.6)',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   indicatorName: {
     fontSize: 14,
@@ -2181,12 +2181,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   newsCard: {
-    backgroundColor: 'rgba(13, 27, 42, 0.6)',
+    backgroundColor: 'rgba(45, 45, 45, 0.6)',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   newsTitle: {
     fontSize: 15,
@@ -2212,7 +2212,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: 'rgba(66, 165, 245, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     marginRight: 8,
   },
   stockTabActive: {
@@ -2238,7 +2238,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: 'rgba(66, 165, 245, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   languageTabActive: {
     backgroundColor: '#42A5F5',

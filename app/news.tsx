@@ -590,26 +590,26 @@ export default function NewsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D1B2A',
+    backgroundColor: '#121212',
   },
   searchContainer: {
     flexDirection: 'row',
     padding: 16,
-    backgroundColor: '#1E293B',
+    backgroundColor: 'rgba(45, 45, 45, 0.95)',
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
   },
   searchInput: {
     flex: 1,
-    backgroundColor: '#0D1B2A',
+    backgroundColor: '#121212',
     color: '#FFFFFF',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     marginRight: 8,
   },
   clearButton: {
@@ -639,7 +639,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0D1B2A',
+    backgroundColor: '#121212',
   },
   loadingText: {
     marginTop: 16,
@@ -665,7 +665,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: 'rgba(66, 165, 245, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     marginRight: 8,
     marginLeft: 0,
   },
@@ -693,7 +693,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: 'rgba(66, 165, 245, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   languageTabActive: {
     backgroundColor: '#42A5F5',

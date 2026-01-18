@@ -214,7 +214,7 @@ export default function PortfoliosScreen() {
     return (
       <View style={styles.container}>
         <LinearGradient
-          colors={['#0D1B2A', '#1B263B', '#0F1419']}
+          colors={['#000000', '#121212', '#0D0D0D']}
           style={styles.gradient}
         >
           <View style={styles.loadingContainer}>
@@ -229,7 +229,7 @@ export default function PortfoliosScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#0D1B2A', '#1B263B', '#0F1419']}
+        colors={['#000000', '#121212', '#0D0D0D']}
         style={styles.gradient}
       >
         <ScrollView
@@ -258,17 +258,13 @@ export default function PortfoliosScreen() {
             <View style={styles.portfoliosContainer}>
               {portfolios.map((portfolio, index) => (
                 <React.Fragment key={portfolio.id}>
-                  {/* 네이티브 광고: 3개마다 삽입 (첫 번째는 제외) */}
-                  {index > 0 && index % 3 === 0 && (
-                    <AdmobNativeAd key={`native-ad-${index}`} />
-                  )}
                   <TouchableOpacity
                     onPress={() => router.push(`/portfolio-detail?id=${portfolio.id}`)}
                     activeOpacity={0.8}
                     style={styles.portfolioCard}
                   >
                   <LinearGradient
-                    colors={['rgba(13, 27, 42, 0.8)', 'rgba(27, 38, 59, 0.6)']}
+                    colors={['rgba(45, 45, 45, 0.8)', 'rgba(51, 51, 51, 0.6)']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.cardGradient}
@@ -523,6 +519,10 @@ export default function PortfoliosScreen() {
                     </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
+                  {/* 네이티브 광고: 첫 번째 뒤, 그 다음 3개마다 */}
+                  {(index === 0 || index % 3 === 0) && (
+                    <AdmobNativeAd key={`native-ad-${index}`} />
+                  )}
                 </React.Fragment>
               ))}
             </View>
@@ -644,7 +644,7 @@ export default function PortfoliosScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D1B2A',
+    backgroundColor: '#121212',
   },
   gradient: {
     flex: 1,
@@ -715,7 +715,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.08)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     borderBottomWidth: 0,
   },
   cardContent: {
@@ -777,13 +777,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(66, 165, 245, 0.1)',
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   summaryWrapper: {
-    backgroundColor: 'rgba(27, 38, 59, 0.6)',
+    backgroundColor: 'rgba(51, 51, 51, 0.6)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     overflow: 'hidden',
   },
   summaryHeader: {
@@ -798,13 +798,13 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(66, 165, 245, 0.1)',
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   summaryHeaderContent: {
     flex: 1,
   },
   summaryHeaderTitle: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 4,
@@ -813,7 +813,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   summaryHeaderSummaryText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     marginTop: 2,
   },
@@ -827,7 +827,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(66, 165, 245, 0.05)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
   summarySectionTitle: {
     fontSize: 13,
@@ -843,14 +843,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   summaryLabel: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#94A3B8',
     fontWeight: '500',
     flex: 1,
     minWidth: 80,
   },
   summaryValue: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#FFFFFF',
     fontWeight: '600',
     marginLeft: 'auto',
@@ -863,7 +863,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   summaryValueInContainer: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#FFFFFF',
     fontWeight: '600',
     textAlign: 'right',
@@ -899,11 +899,11 @@ const styles = StyleSheet.create({
   },
   editPortfolioButtonBottom: {
     flex: 1,
-    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    backgroundColor: 'rgba(128, 128, 128, 0.15)',
     paddingVertical: 10,
     alignItems: 'center',
     borderRightWidth: 1,
-    borderRightColor: 'rgba(66, 165, 245, 0.2)',
+    borderRightColor: 'rgba(255, 255, 255, 0.1)',
   },
   editPortfolioButtonTextBottom: {
     color: '#42A5F5',
@@ -957,10 +957,10 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContent: {
-    backgroundColor: 'rgba(13, 27, 42, 0.95)',
+    backgroundColor: 'rgba(45, 45, 45, 0.95)',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
     padding: 24,
     width: '100%',
     maxWidth: 400,
@@ -979,10 +979,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   modalInput: {
-    backgroundColor: 'rgba(27, 38, 59, 0.6)',
+    backgroundColor: 'rgba(51, 51, 51, 0.6)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     padding: 16,
     color: '#FFFFFF',
     fontSize: 16,
@@ -993,16 +993,16 @@ const styles = StyleSheet.create({
   },
   currencyButton: {
     flex: 1,
-    backgroundColor: 'rgba(27, 38, 59, 0.6)',
+    backgroundColor: 'rgba(51, 51, 51, 0.6)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   currencyButtonSelected: {
-    backgroundColor: 'rgba(66, 165, 245, 0.2)',
+    backgroundColor: 'rgba(128, 128, 128, 0.2)',
     borderColor: '#42A5F5',
   },
   currencyButtonText: {
@@ -1028,7 +1028,7 @@ const styles = StyleSheet.create({
   modalButtonCancel: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   modalButtonConfirm: {
     backgroundColor: '#FF9800',

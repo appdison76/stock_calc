@@ -337,11 +337,11 @@ export default function BottomNavigationBar() {
 
 const styles = StyleSheet.create({
   safeArea: {
-    backgroundColor: '#1B263B',
+    backgroundColor: '#1A1A1A',
   },
   container: {
     flexDirection: 'row',
-    backgroundColor: '#1B263B',
+    backgroundColor: '#1A1A1A',
     borderTopWidth: 1,
     borderTopColor: 'rgba(66, 165, 245, 0.2)',
     paddingTop: 8,
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#1B263B',
+    backgroundColor: '#1A1A1A',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '80%',

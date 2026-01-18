@@ -133,7 +133,7 @@ export default function MarketIndicatorsScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#0D1B2A', '#1B263B', '#0F1419']}
+        colors={['#000000', '#121212', '#0D0D0D']}
         style={styles.gradient}
       >
         <ScrollView
@@ -229,12 +229,12 @@ const styles = StyleSheet.create({
     paddingBottom: 80,
   },
   indicatorCard: {
-    backgroundColor: 'rgba(66, 165, 245, 0.1)',
+    backgroundColor: 'rgba(45, 45, 45, 0.8)',
     borderRadius: 12,
     padding: 20,
     marginBottom: 15,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   indicatorHeader: {
     flexDirection: 'row',

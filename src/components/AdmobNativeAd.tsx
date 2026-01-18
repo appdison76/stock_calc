@@ -67,7 +67,7 @@ export const AdmobNativeAd: React.FC<AdmobNativeAdProps> = ({ style }) => {
     <View style={[styles.container, style]}>
       <NativeAdView nativeAd={nativeAd} style={styles.nativeAdView}>
         <LinearGradient
-          colors={['rgba(13, 27, 42, 0.8)', 'rgba(27, 38, 59, 0.6)']}
+          colors={['rgba(18, 18, 18, 0.8)', 'rgba(30, 30, 30, 0.6)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.adCard}

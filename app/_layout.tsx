@@ -147,14 +147,14 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#0D1B2A',
+            backgroundColor: '#121212',
           } as any,
           headerTintColor: '#FFFFFF',
           headerTitleStyle: {
             fontWeight: 'bold',
           },
           contentStyle: {
-            backgroundColor: '#0D1B2A',
+            backgroundColor: '#121212',
           },
           headerRight: () => <HomeButton />,
         }}

@@ -659,7 +659,7 @@ export default function StockChartScreen() {
     return (
       <View style={styles.container}>
         <LinearGradient
-          colors={['#0D1B2A', '#1B263B', '#0F1419']}
+          colors={['#000000', '#121212', '#0D0D0D']}
           style={styles.gradient}
         >
           <View style={styles.loadingContainer}>
@@ -675,7 +675,7 @@ export default function StockChartScreen() {
     return (
       <View style={styles.container}>
         <LinearGradient
-          colors={['#0D1B2A', '#1B263B', '#0F1419']}
+          colors={['#000000', '#121212', '#0D0D0D']}
           style={styles.gradient}
         >
           <View style={styles.header}>
@@ -704,7 +704,7 @@ export default function StockChartScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#0D1B2A', '#1B263B', '#0F1419']}
+        colors={['#000000', '#121212', '#0D0D0D']}
         style={styles.gradient}
       >
         <View style={styles.header}>
@@ -1117,7 +1117,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   chartContainer: {
-    backgroundColor: 'rgba(27, 38, 59, 0.5)',
+    backgroundColor: 'rgba(51, 51, 51, 0.5)',
     borderRadius: 12,
     paddingVertical: 10,
     paddingRight: 10,
@@ -1128,7 +1128,7 @@ const styles = StyleSheet.create({
     minHeight: 250,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(27, 38, 59, 0.5)',
+    backgroundColor: 'rgba(51, 51, 51, 0.5)',
     borderRadius: 12,
     marginBottom: 20,
   },
@@ -1136,7 +1136,7 @@ const styles = StyleSheet.create({
     minHeight: 250,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(27, 38, 59, 0.5)',
+    backgroundColor: 'rgba(51, 51, 51, 0.5)',
     borderRadius: 12,
     marginBottom: 20,
   },
@@ -1165,7 +1165,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: 'rgba(27, 38, 59, 0.5)',
+    backgroundColor: 'rgba(51, 51, 51, 0.5)',
     borderRadius: 12,
   },
   averageInfoRow: {
@@ -1188,7 +1188,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#4DD0E1', // 밝은 시안 (평균단가)
     fontWeight: '600',
-    backgroundColor: 'rgba(13, 27, 42, 0.9)',
+    backgroundColor: 'rgba(18, 18, 18, 0.9)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -1198,7 +1198,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#FFC107', // 밝은 노란색/골드 (현재가)
     fontWeight: '600',
-    backgroundColor: 'rgba(13, 27, 42, 0.9)',
+    backgroundColor: 'rgba(18, 18, 18, 0.9)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,

@@ -704,7 +704,7 @@ export default function StockDetailScreen() {
     return (
       <View style={styles.container}>
         <LinearGradient
-          colors={['#0D1B2A', '#1B263B', '#0F1419']}
+          colors={['#000000', '#121212', '#0D0D0D']}
           style={styles.gradient}
         >
           <View style={styles.loadingContainer}>
@@ -723,7 +723,7 @@ export default function StockDetailScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#0D1B2A', '#1B263B', '#0F1419']}
+        colors={['#000000', '#121212', '#0D0D0D']}
         style={styles.gradient}
       >
         {/* 상단 고정 영역 (종목 정보, 버튼, 거래 기록) */}
@@ -1291,7 +1291,7 @@ export default function StockDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D1B2A',
+    backgroundColor: '#121212',
   },
   gradient: {
     flex: 1,
@@ -1316,12 +1316,12 @@ const styles = StyleSheet.create({
     color: '#B0BEC5',
   },
   stockInfoCard: {
-    backgroundColor: 'rgba(13, 27, 42, 0.8)',
+    backgroundColor: 'rgba(45, 45, 45, 0.8)',
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   stockNameContainer: {
     flexDirection: 'row',
@@ -1344,7 +1344,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   currencyBadge: {
-    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    backgroundColor: 'rgba(128, 128, 128, 0.15)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -1555,7 +1555,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 8,
-    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    backgroundColor: 'rgba(128, 128, 128, 0.15)',
   },
   refreshButtonText: {
     color: '#42A5F5',
@@ -1571,9 +1571,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
-    backgroundColor: 'rgba(66, 165, 245, 0.1)',
+    backgroundColor: 'rgba(128, 128, 128, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   languageTabActive: {
     backgroundColor: '#42A5F5',
@@ -1601,7 +1601,7 @@ const styles = StyleSheet.create({
     color: '#757575',
   },
   recordCard: {
-    backgroundColor: 'rgba(13, 27, 42, 0.8)',
+    backgroundColor: 'rgba(45, 45, 45, 0.8)',
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
@@ -1695,7 +1695,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#1B263B',
+    backgroundColor: '#1A1A1A',
     borderRadius: 20,
     padding: 24,
     width: '85%',
@@ -1715,13 +1715,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   modalInput: {
-    backgroundColor: 'rgba(13, 27, 42, 0.6)',
+    backgroundColor: 'rgba(45, 45, 45, 0.6)',
     borderRadius: 12,
     padding: 14,
     fontSize: 16,
     color: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   modalButtonRow: {
     flexDirection: 'row',
