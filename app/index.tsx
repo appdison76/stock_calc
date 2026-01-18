@@ -818,7 +818,7 @@ export default function MainScreen() {
                 <View style={styles.iconGridRow}>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(92, 124, 250, 0.85)' }]}
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(76, 175, 80, 0.85)' }]}
                       onPress={() => router.push('/profit')}
                       activeOpacity={0.8}
                     >
@@ -828,7 +828,7 @@ export default function MainScreen() {
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(102, 187, 106, 0.85)' }]}
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(33, 150, 243, 0.85)' }]}
                       onPress={() => router.push('/averaging')}
                       activeOpacity={0.8}
                     >
@@ -838,13 +838,13 @@ export default function MainScreen() {
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(255, 107, 107, 0.85)' }]}
-                      onPress={handleAddStock}
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(0, 188, 212, 0.85)' }]}
+                      onPress={() => router.push('/target-price')}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.circularIconText}>+</Text>
+                      <Text style={styles.circularIconText}>🎯</Text>
                     </TouchableOpacity>
-                    <Text style={styles.circularIconLabel}>종목 추가</Text>
+                    <Text style={styles.circularIconLabel}>목표가 계산기</Text>
                   </View>
                 </View>
                 {/* 두 번째 줄 */}
@@ -871,13 +871,13 @@ export default function MainScreen() {
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(236, 64, 122, 0.85)' }]}
-                      onPress={() => router.push('/visualization')}
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(255, 107, 107, 0.85)' }]}
+                      onPress={handleAddStock}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.circularIconText}>📉</Text>
+                      <Text style={styles.circularIconText}>+</Text>
                     </TouchableOpacity>
-                    <Text style={styles.circularIconLabel}>매매 기록</Text>
+                    <Text style={styles.circularIconLabel}>종목 추가</Text>
                   </View>
                 </View>
                 {/* 세 번째 줄 */}
@@ -894,6 +894,16 @@ export default function MainScreen() {
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(236, 64, 122, 0.85)' }]}
+                      onPress={() => router.push('/visualization')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.circularIconText}>📉</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.circularIconLabel}>매매 기록</Text>
+                  </View>
+                  <View style={styles.iconItemContainer}>
+                    <TouchableOpacity
                       style={[styles.circularIconCard, { backgroundColor: 'rgba(84, 110, 122, 0.85)' }]}
                       onPress={() => router.push('/heatmap')}
                       activeOpacity={0.8}
@@ -906,16 +916,6 @@ export default function MainScreen() {
                       </View>
                     </TouchableOpacity>
                     <Text style={styles.circularIconLabel}>히트맵</Text>
-                  </View>
-                  <View style={styles.iconItemContainer}>
-                    <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(120, 144, 156, 0.85)' }]}
-                      onPress={() => router.push('/settings')}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.circularIconText}>⚙️</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.circularIconLabel}>환경 설정</Text>
                   </View>
                 </View>
               </View>
