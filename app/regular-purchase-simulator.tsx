@@ -21,7 +21,7 @@ import { ExchangeRateService } from '../src/services/ExchangeRateService';
 import { CurrencySwitch } from '../src/components/CurrencySwitch';
 import { CalculationResultCard } from '../src/components/CalculationResultCard';
 import { SharedResultSection } from '../src/components/SharedResultSection';
-import { CoupangBannerSection, CoupangBannerSectionRef } from '../src/components/CoupangBannerSection';
+import { CoupangDynamicBanner } from '../src/components/CoupangDynamicBanner';
 import { formatCurrency, formatNumber, getKrwEquivalent, addCommas } from '../src/utils/formatUtils';
 import { Share } from 'react-native';
 
@@ -69,7 +69,6 @@ export default function RegularPurchaseSimulatorView() {
   const [isLoadingExchangeRate, setIsLoadingExchangeRate] = useState(false);
   const [isExchangeRateLoaded, setIsExchangeRateLoaded] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
-  const coupangBannerRef = useRef<CoupangBannerSectionRef>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const resultOpacity = useRef(new Animated.Value(0)).current;
   const resultContainerY = useRef<number>(0);
@@ -313,7 +312,6 @@ export default function RegularPurchaseSimulatorView() {
     setSimulation(newSimulation);
     setIsCalculating(false);
     
-    coupangBannerRef.current?.refreshRandomProducts();
 
     // 4. 결과 애니메이션
     Animated.timing(resultOpacity, {
@@ -652,7 +650,7 @@ export default function RegularPurchaseSimulatorView() {
           </Animated.View>
         )}
 
-        {simulation && <CoupangBannerSection ref={coupangBannerRef} />}
+        {simulation && <CoupangDynamicBanner width={320} height={140} />}
         </ScrollView>
       </LinearGradient>
     </KeyboardAvoidingView>

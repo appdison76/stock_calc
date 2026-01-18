@@ -24,7 +24,7 @@ import { ExchangeRateService } from '../src/services/ExchangeRateService';
 import { CurrencySwitch } from '../src/components/CurrencySwitch';
 import { CalculationResultCard } from '../src/components/CalculationResultCard';
 import { SharedResultSection } from '../src/components/SharedResultSection';
-import { CoupangBannerSection, CoupangBannerSectionRef } from '../src/components/CoupangBannerSection';
+import { CoupangDynamicBanner } from '../src/components/CoupangDynamicBanner';
 import { formatCurrency, formatNumber, getKrwEquivalent, addCommas } from '../src/utils/formatUtils';
 import { getCurrencyFromTicker } from '../src/utils/stockUtils';
 import { Share } from 'react-native';
@@ -60,7 +60,6 @@ export default function AveragingCalculatorView() {
   const [showStockNameInput, setShowStockNameInput] = useState(false);
   const [stockNameInput, setStockNameInput] = useState('');
   const [selectedAccount, setSelectedAccount] = useState<{ id: string; name: string; currency: Currency } | null>(null);
-  const coupangBannerRef = useRef<CoupangBannerSectionRef>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const resultOpacity = useRef(new Animated.Value(0)).current;
   const lastResultContainerRef = useRef<View>(null);
@@ -268,8 +267,6 @@ export default function AveragingCalculatorView() {
       setUsdAdditionalBuyPrice('');
       setUsdAdditionalQuantity('');
     }
-    
-    coupangBannerRef.current?.refreshRandomProducts();
 
     // 4. 결과 애니메이션
     Animated.timing(resultOpacity, {
@@ -891,7 +888,7 @@ export default function AveragingCalculatorView() {
               );
             })}
 
-            <CoupangBannerSection ref={coupangBannerRef} />
+            <CoupangDynamicBanner width={320} height={140} />
           </>
         )}
         </ScrollView>

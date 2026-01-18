@@ -9,7 +9,7 @@ Flutter로 작성된 주식 계산기 앱을 React Native (Expo)로 변환한 �
 - **환경설정**: 원화/달러별 거래세와 수수료를 설정할 수 있습니다.
 - **통화 지원**: 원화(KRW)와 달러(USD)를 지원하며, 실시간 환율을 가져옵니다.
 - **결과 공유**: 계산 결과를 텍스트 또는 이미지로 공유할 수 있습니다.
-- **쿠팡 배너**: 쿠팡 파트너스 상품을 표시합니다.
+- **쿠팡 배너**: 쿠팡 다이나믹 배너를 표시합니다.
 
 ## 기술 스택
 
@@ -57,9 +57,9 @@ stock_calculator_rn/
 
 ## 주요 파일
 
-- `src/models/`: ProfitCalculation, AveragingCalculation, Currency, ProductItem
-- `src/services/`: SettingsService, ExchangeRateService, CoupangApiService
-- `src/components/`: CurrencySwitch, CalculationResultCard, SharedResultSection, CoupangBannerSection
+- `src/models/`: ProfitCalculation, AveragingCalculation, Currency
+- `src/services/`: SettingsService, ExchangeRateService
+- `src/components/`: CurrencySwitch, CalculationResultCard, SharedResultSection, CoupangDynamicBanner
 
 ## 라이선스
 
