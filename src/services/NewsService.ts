@@ -445,7 +445,7 @@ export async function fetchGeneralNews(forceRefresh: boolean = false, searchQuer
         }
         
         // 구글 뉴스 RSS 항목을 NewsItem으로 변환
-        return items.map((item: any, index: number) => {
+        const newsItems = items.map((item: any, index: number) => {
           let title = '';
           let description = '';
           let link = '';
@@ -521,6 +521,14 @@ export async function fetchGeneralNews(forceRefresh: boolean = false, searchQuer
             imageUrl: undefined,
           };
         });
+        
+        // 메모리 부족 방지를 위해 키워드당 최대 30개로 제한 (최신순)
+        const MAX_NEWS_PER_KEYWORD = 30;
+        const limitedNews = newsItems
+          .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime()) // 최신순 정렬
+          .slice(0, MAX_NEWS_PER_KEYWORD); // 최신 30개만
+        
+        return limitedNews;
       } catch (error) {
         console.warn(`키워드 "${keyword}" 검색 실패:`, error);
         return [];
