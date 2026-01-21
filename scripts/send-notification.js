@@ -98,14 +98,29 @@ async function sendNotificationToAll(title, body, data = {}, imageUrl = null) {
 
     console.log(`✅ 유효한 Expo Push Token: ${validTokens.length}개`);
 
+    // 고유 알림 ID 생성 (모든 사용자에게 동일한 ID)
+    const notificationId = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    console.log('🆔 생성된 알림 ID:', notificationId);
+
     // Expo Push 알림 메시지 생성
+    console.log('📦 메시지 생성 시작:', { title, body, imageUrl, data, notificationId });
+    
     const messages = validTokens.map(token => {
+      // data 객체에 이미지 URL과 알림 ID 포함
+      const messageData = {
+        ...data,
+        notificationId: notificationId, // 고유 ID 추가
+        ...(imageUrl ? { imageUrl, image: imageUrl } : {})
+      };
+      
+      console.log('📦 생성된 messageData:', JSON.stringify(messageData, null, 2));
+      
       const message = {
         to: token,
         sound: 'default',
         title,
         body,
-        data: data || {},
+        data: messageData,
       };
       
       // 이미지가 있으면 추가
@@ -128,8 +143,9 @@ async function sendNotificationToAll(title, body, data = {}, imageUrl = null) {
         };
         // iOS에서도 이미지 표시를 위한 image 필드
         message.image = imageUrl;
-        console.log('📝 메시지 형식:', JSON.stringify(message, null, 2));
       }
+      
+      console.log('📝 최종 메시지 형식 (data 필드만):', JSON.stringify({ data: message.data }, null, 2));
       
       return message;
     });
@@ -175,8 +191,9 @@ async function sendNotificationToAll(title, body, data = {}, imageUrl = null) {
       });
     }
 
-    // 발송 이력 저장
-    await db.collection('notificationHistory').add({
+    // 발송 이력 저장 (고유 ID를 문서 ID로 사용)
+    await db.collection('notificationHistory').doc(notificationId).set({
+      id: notificationId, // 명시적으로 ID 저장
       title,
       body,
       data,

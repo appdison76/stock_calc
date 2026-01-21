@@ -15,8 +15,10 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AdmobBanner } from '../src/components/AdmobBanner';
 import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
+import { getUnreadCount } from '../src/services/NotificationService';
 import { 
   initDatabase, 
   getAllAccounts, 
@@ -117,6 +119,7 @@ interface MarketIndicator {
 
 export default function MainScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [isPrivacyModalVisible, setIsPrivacyModalVisible] = useState(false);
   const [portfolioStocks, setPortfolioStocks] = useState<PortfolioStock[]>([]);
   const [marketIndicators, setMarketIndicators] = useState<MarketIndicator[]>([]);
@@ -153,6 +156,7 @@ export default function MainScreen() {
   
   // 포트폴리오 표시 개수 (기본 5개)
   const [displayedPortfolioCount, setDisplayedPortfolioCount] = useState(5);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   
   const UPDATE_INTERVAL = 1 * 60 * 1000; // 1분
 
@@ -299,6 +303,16 @@ export default function MainScreen() {
     return () => clearInterval(interval);
   }, []);
 
+  // 읽지 않은 알림 수 업데이트
+  const updateUnreadNotificationCount = async () => {
+    try {
+      const count = await getUnreadCount();
+      setUnreadNotificationCount(count);
+    } catch (error) {
+      console.error('읽지 않은 알림 수 업데이트 오류:', error);
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
       loadDisplaySettings();
@@ -306,8 +320,15 @@ export default function MainScreen() {
       loadDashboardData(true);
       // 화면 포커스 시 시장 지표도 갱신 (1분마다 자동 갱신도 계속됨)
       loadMarketIndicators();
+      // 읽지 않은 알림 수 업데이트
+      updateUnreadNotificationCount();
     }, [])
   );
+
+  // 초기 로드 시 읽지 않은 알림 수 가져오기
+  useEffect(() => {
+    updateUnreadNotificationCount();
+  }, []);
 
   const loadDisplaySettings = async () => {
     try {
@@ -706,6 +727,45 @@ export default function MainScreen() {
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
+        {/* 최상단 헤더 */}
+        <View style={[styles.topHeader, { paddingTop: insets.top + 10 }]}>
+          <View style={styles.topHeaderLeft}>
+            <View style={styles.logoContainer}>
+              <Image 
+                source={require('../assets/icon.png')} 
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.topHeaderTitle}>스마트 물타기 계산기</Text>
+          </View>
+          <View style={styles.topHeaderRight}>
+            <TouchableOpacity 
+              style={styles.addStockButton}
+              onPress={handleAddStock}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.addStockButtonText}>+</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.notificationButtonWrapper}
+              onPress={() => router.push('/notifications')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.notificationButton}>
+                <Text style={styles.notificationIcon}>🔔</Text>
+              </View>
+              {unreadNotificationCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>
+                    {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -1526,11 +1586,101 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 24,
-    paddingTop: 60,
+    paddingTop: 20,
     paddingBottom: 100,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: '100%',
+  },
+  topHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#42A5F5',
+  },
+  topHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  logoContainer: {
+    width: 50,
+    height: 50,
+    marginRight: 10,
+    borderRadius: 25,
+    backgroundColor: '#121212',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logo: {
+    width: 60,
+    height: 60,
+  },
+  topHeaderTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  addStockButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  addStockButtonText: {
+    fontSize: 24,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    lineHeight: 28,
+  },
+  topHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  notificationButtonWrapper: {
+    position: 'relative',
+  },
+  notificationButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationIcon: {
+    fontSize: 20,
+    color: '#E0E0E0',
+    opacity: 0.9,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#EF5350',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#42A5F5',
+  },
+  notificationBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: 'bold',
   },
   header: {
     alignItems: 'center',

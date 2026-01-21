@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, Text } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 interface CoupangDynamicBannerProps {
@@ -46,26 +46,44 @@ export const CoupangDynamicBanner: React.FC<CoupangDynamicBannerProps> = ({
   `;
 
   return (
-    <View style={[styles.container, { width, height }]}>
-      <WebView
-        source={{ html: htmlContent }}
-        style={styles.webview}
-        scrollEnabled={false}
-        showsHorizontalScrollIndicator={false}
-        showsVerticalScrollIndicator={false}
-        javaScriptEnabled={true}
-        domStorageEnabled={true}
-        startInLoadingState={true}
-        scalesPageToFit={Platform.OS === 'android'}
-        originWhitelist={['*']}
-      />
+    <View style={styles.wrapper}>
+      {/* 쿠팡 파트너스 고지 문구 */}
+      <Text style={styles.disclosureText}>
+        이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
+      </Text>
+      
+      <View style={[styles.container, { width, height }]}>
+        <WebView
+          source={{ html: htmlContent }}
+          style={styles.webview}
+          scrollEnabled={false}
+          showsHorizontalScrollIndicator={false}
+          showsVerticalScrollIndicator={false}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+          startInLoadingState={true}
+          scalesPageToFit={Platform.OS === 'android'}
+          originWhitelist={['*']}
+        />
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  wrapper: {
     marginVertical: 16,
+    alignSelf: 'center',
+  },
+  disclosureText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginBottom: 8,
+    paddingHorizontal: 16,
+    lineHeight: 16,
+  },
+  container: {
     alignSelf: 'center',
     overflow: 'hidden',
     borderRadius: 8,

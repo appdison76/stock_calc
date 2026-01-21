@@ -3,20 +3,41 @@ import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirestoreInstance } from './FirebaseService';
-import { collection, doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, query, where, orderBy, limit, getDocs, Timestamp } from 'firebase/firestore';
 import * as Application from 'expo-application';
 
 const DEVICE_ID_KEY = '@device_id';
 
 const NOTIFICATION_TOKEN_KEY = '@notification_token';
+const NOTIFICATIONS_LIST_KEY = '@notifications_list';
+const UNREAD_COUNT_KEY = '@unread_notifications_count';
+const DELETED_NOTIFICATION_IDS_KEY = '@deleted_notification_ids';
+const DELETED_NOTIFICATION_SIGNATURES_KEY = '@deleted_notification_signatures';
+
+export interface SavedNotification {
+  id: string;
+  title: string;
+  body: string;
+  imageUrl?: string;
+  route?: string;
+  receivedAt: string;
+  read: boolean;
+  data?: any;
+}
 
 // 알림 핸들러 설정
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async (notification) => {
+    // 백그라운드에서도 알림을 저장하기 위해 여기서 처리
+    // 하지만 이 핸들러는 포그라운드에서만 호출됩니다
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    };
+  },
 });
 
 /**
@@ -168,9 +189,10 @@ async function registerTokenToFirestore(token: string): Promise<void> {
     } else {
       // 새 deviceId 생성
       try {
-        // expo-application의 getInstallationIdAsync 사용 시도
-        if (Application.getInstallationIdAsync && typeof Application.getInstallationIdAsync === 'function') {
-          deviceId = await Application.getInstallationIdAsync();
+        // expo-application의 getInstallationIdAsync 사용 시도 (타입 체크 우회)
+        const app = Application as any;
+        if (app.getInstallationIdAsync && typeof app.getInstallationIdAsync === 'function') {
+          deviceId = await app.getInstallationIdAsync();
           console.log('📱 Installation ID 사용:', deviceId);
         } else {
           // 함수가 없으면 Device 정보 사용
@@ -307,3 +329,356 @@ export async function sendLocalNotification(
   }
 }
 
+/**
+ * 알림을 로컬에 저장
+ */
+export async function saveNotificationToLocal(
+  notification: Notifications.Notification
+): Promise<void> {
+  try {
+    const content = notification.request.content;
+    const savedNotification: SavedNotification = {
+      // 서버에서 보낸 notificationId 우선 사용
+      id: (content.data?.notificationId as string) || 
+          notification.request.identifier || 
+          `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      title: content.title || '',
+      body: content.body || '',
+      imageUrl: (content.data?.imageUrl as string | undefined) || (content.data?.image as string | undefined),
+      route: content.data?.route as string | undefined,
+      receivedAt: new Date().toISOString(),
+      read: false,
+      data: content.data || {},
+    };
+
+    console.log('📥 알림 저장 시작:', savedNotification.title);
+    
+    // 기존 알림 목록 가져오기
+    const existingNotifications = await getSavedNotifications();
+    console.log('📋 기존 알림 개수:', existingNotifications.length);
+    
+    // 새 알림을 맨 앞에 추가 (최신순)
+    const updatedNotifications = [savedNotification, ...existingNotifications];
+    
+    // 최대 100개까지만 저장 (메모리 관리)
+    const trimmedNotifications = updatedNotifications.slice(0, 100);
+    console.log('💾 저장할 알림 개수:', trimmedNotifications.length);
+    
+    // AsyncStorage에 저장
+    await AsyncStorage.setItem(NOTIFICATIONS_LIST_KEY, JSON.stringify(trimmedNotifications));
+    console.log('✅ AsyncStorage 저장 완료');
+    
+    // 읽지 않은 알림 수 업데이트
+    await updateUnreadCount();
+    
+    console.log('✅ 알림 로컬 저장 완료:', savedNotification.title);
+  } catch (error) {
+    console.error('❌ 알림 로컬 저장 오류:', error);
+  }
+}
+
+/**
+ * 저장된 알림 목록 가져오기
+ */
+export async function getSavedNotifications(): Promise<SavedNotification[]> {
+  try {
+    const data = await AsyncStorage.getItem(NOTIFICATIONS_LIST_KEY);
+    if (!data) {
+      return [];
+    }
+    
+    const notifications: SavedNotification[] = JSON.parse(data);
+    
+    // 삭제된 알림 ID 목록 가져오기 (로컬 AsyncStorage에서)
+    const deletedIdsStr = await AsyncStorage.getItem(DELETED_NOTIFICATION_IDS_KEY);
+    const deletedIds: string[] = deletedIdsStr ? JSON.parse(deletedIdsStr) : [];
+    
+    // 삭제된 알림 필터링 (로컬에서만 비교)
+    const filteredNotifications = notifications.filter(n => !deletedIds.includes(n.id));
+    
+    // 필터링된 결과가 다르면 저장소 업데이트 (가비지 데이터 정리)
+    if (filteredNotifications.length !== notifications.length) {
+      console.log(`🧹 삭제된 알림 ${notifications.length - filteredNotifications.length}개 정리`);
+      await AsyncStorage.setItem(NOTIFICATIONS_LIST_KEY, JSON.stringify(filteredNotifications));
+    }
+    
+    return filteredNotifications;
+  } catch (error) {
+    console.error('저장된 알림 목록 가져오기 오류:', error);
+    return [];
+  }
+}/**
+ * 읽지 않은 알림 수 가져오기
+ */
+export async function getUnreadCount(): Promise<number> {
+  try {
+    const notifications = await getSavedNotifications();
+    return notifications.filter(n => !n.read).length;
+  } catch (error) {
+    console.error('읽지 않은 알림 수 가져오기 오류:', error);
+    return 0;
+  }
+}
+
+/**
+ * 읽지 않은 알림 수 업데이트 (캐시 및 배지)
+ */
+export async function updateUnreadCount(): Promise<void> {
+  try {
+    const count = await getUnreadCount();
+    await AsyncStorage.setItem(UNREAD_COUNT_KEY, count.toString());
+    
+    // 앱 아이콘 배지 숫자 업데이트
+    await Notifications.setBadgeCountAsync(count);
+    console.log('📱 배지 숫자 업데이트:', count);
+  } catch (error) {
+    console.error('읽지 않은 알림 수 업데이트 오류:', error);
+  }
+}/**
+ * 알림을 읽음 처리
+ */
+export async function markNotificationAsRead(notificationId: string): Promise<void> {
+  try {
+    const notifications = await getSavedNotifications();
+    const updatedNotifications = notifications.map(n => 
+      n.id === notificationId ? { ...n, read: true } : n
+    );
+    
+    await AsyncStorage.setItem(NOTIFICATIONS_LIST_KEY, JSON.stringify(updatedNotifications));
+    await updateUnreadCount();
+    
+    console.log('✅ 알림 읽음 처리 완료:', notificationId);
+  } catch (error) {
+    console.error('❌ 알림 읽음 처리 오류:', error);
+  }
+}
+
+/**
+ * 모든 알림을 읽음 처리
+ */
+export async function markAllNotificationsAsRead(): Promise<void> {
+  try {
+    const notifications = await getSavedNotifications();
+    const updatedNotifications = notifications.map(n => ({ ...n, read: true }));
+    
+    await AsyncStorage.setItem(NOTIFICATIONS_LIST_KEY, JSON.stringify(updatedNotifications));
+    await updateUnreadCount();
+    
+    console.log('✅ 모든 알림 읽음 처리 완료');
+  } catch (error) {
+    console.error('❌ 모든 알림 읽음 처리 오류:', error);
+  }
+}
+
+/**
+ * 알림 시그니처 생성 (제목+본문+시간 - 초 단위로 반올림)
+ */
+function createNotificationSignature(title: string, body: string, sentAt: Date): string {
+  // 시간을 초 단위로 반올림 (밀리초 제거) - 로컬 시간과 서버 시간 차이 해결
+  const roundedTime = new Date(Math.floor(sentAt.getTime() / 1000) * 1000);
+  return `${title}|${body}|${roundedTime.toISOString()}`;
+}
+
+/**
+ * 알림 삭제
+ */
+export async function deleteNotification(notificationId: string): Promise<void> {
+  try {
+    const notifications = await getSavedNotifications();
+    const notificationToDelete = notifications.find(n => n.id === notificationId);
+    const updatedNotifications = notifications.filter(n => n.id !== notificationId);
+    
+    // 삭제된 알림 ID 목록에 추가
+    const deletedIdsStr = await AsyncStorage.getItem(DELETED_NOTIFICATION_IDS_KEY);
+    const deletedIds: string[] = deletedIdsStr ? JSON.parse(deletedIdsStr) : [];
+    
+    if (!deletedIds.includes(notificationId)) {
+      deletedIds.push(notificationId);
+      // 최대 1000개까지만 저장 (메모리 관리)
+      const trimmedDeletedIds = deletedIds.slice(-1000);
+      await AsyncStorage.setItem(DELETED_NOTIFICATION_IDS_KEY, JSON.stringify(trimmedDeletedIds));
+      console.log('🗑️ 삭제된 알림 ID 추가:', notificationId);
+    }
+    
+    // ID만 사용하므로 시그니처는 더 이상 필요 없음 (하위 호환성을 위해 유지)
+    
+    await AsyncStorage.setItem(NOTIFICATIONS_LIST_KEY, JSON.stringify(updatedNotifications));
+    await updateUnreadCount();
+    
+    console.log('✅ 알림 삭제 완료:', notificationId);
+  } catch (error) {
+    console.error('❌ 알림 삭제 오류:', error);
+  }
+}
+
+/**
+ * 모든 알림 삭제
+ */
+export async function deleteAllNotifications(): Promise<void> {
+  try {
+    console.log('🗑️ 모든 알림 삭제 시작...');
+    
+    // 현재 저장된 알림들의 ID와 시그니처를 삭제된 목록에 추가
+    const notifications = await getSavedNotifications();
+    const notificationIds = notifications.map(n => n.id);
+    
+    const deletedIdsStr = await AsyncStorage.getItem(DELETED_NOTIFICATION_IDS_KEY);
+    const deletedIds: string[] = deletedIdsStr ? JSON.parse(deletedIdsStr) : [];
+    
+    // 중복 제거하면서 ID 추가
+    notificationIds.forEach(id => {
+      if (!deletedIds.includes(id)) {
+        deletedIds.push(id);
+      }
+    });
+    
+    // 최대 1000개까지만 저장
+    const trimmedDeletedIds = deletedIds.slice(-1000);
+    await AsyncStorage.setItem(DELETED_NOTIFICATION_IDS_KEY, JSON.stringify(trimmedDeletedIds));
+    console.log('🗑️ 삭제된 알림 ID 목록 업데이트:', trimmedDeletedIds.length, '개');
+    
+    await AsyncStorage.removeItem(NOTIFICATIONS_LIST_KEY);
+    await AsyncStorage.removeItem(UNREAD_COUNT_KEY);
+    
+    // 확인: 실제로 삭제되었는지 체크
+    const checkDeleted = await AsyncStorage.getItem(NOTIFICATIONS_LIST_KEY);
+    console.log('🔍 삭제 후 확인:', checkDeleted ? '여전히 존재함 ❌' : '삭제됨 ✅');
+    
+    // 앱 아이콘 배지 숫자 0으로 설정
+    await Notifications.setBadgeCountAsync(0);
+    
+    console.log('✅ 모든 알림 삭제 완료');
+  } catch (error) {
+    console.error('❌ 모든 알림 삭제 오류:', error);
+  }
+}
+
+/**
+ * Firestore에서 최근 알림 가져오기
+ */
+export async function fetchRecentNotificationsFromFirestore(): Promise<void> {
+  try {
+    console.log('📡 Firestore에서 최근 알림 가져오기 시작...');
+    
+    const db = getFirestoreInstance();
+    if (!db) {
+      console.log('⚠️ Firestore 초기화되지 않음, 알림 가져오기 건너뜀');
+      return; // 에러 없이 조용히 종료
+    }
+
+    // 삭제된 알림 ID 목록 가져오기
+    const deletedIdsStr = await AsyncStorage.getItem(DELETED_NOTIFICATION_IDS_KEY);
+    const deletedIds: string[] = deletedIdsStr ? JSON.parse(deletedIdsStr) : [];
+    console.log('🗑️ 삭제된 알림 ID 개수:', deletedIds.length);
+    
+    // ID만 사용하므로 시그니처는 더 이상 필요 없음
+
+    // 최근 24시간 이내의 알림 가져오기 (최대 50개)
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    
+    const notificationsRef = collection(db, 'notificationHistory');
+    const q = query(
+      notificationsRef,
+      orderBy('sentAt', 'desc'),
+      limit(50)
+    );
+    
+    const snapshot = await getDocs(q);
+    const savedNotifications = await getSavedNotifications();
+    
+    let newNotificationsCount = 0;
+    
+    snapshot.forEach((docSnapshot) => {
+      try {
+        const notificationId = docSnapshot.id;
+        
+        // 삭제된 알림이면 건너뛰기
+        if (deletedIds.includes(notificationId)) {
+          console.log('⏭️ 삭제된 알림 건너뛰기:', notificationId);
+          return;
+        }
+        
+        const notificationData = docSnapshot.data();
+        
+        // sentAt 필드 처리 (Timestamp 또는 Date)
+        let sentAt: Date;
+        if (notificationData.sentAt?.toDate) {
+          sentAt = notificationData.sentAt.toDate();
+        } else if (notificationData.sentAt instanceof Date) {
+          sentAt = notificationData.sentAt;
+        } else if (notificationData.sentAt) {
+          sentAt = new Date(notificationData.sentAt);
+        } else {
+          // sentAt이 없으면 현재 시간 사용
+          sentAt = new Date();
+        }
+        
+        // 24시간 이내의 알림만 처리
+        if (sentAt < yesterday) {
+          return;
+        }
+        
+        // 서버에서 보낸 고유 ID 확인
+        const serverNotificationId = notificationData.id || notificationData.data?.notificationId || notificationId;
+        
+        // 삭제된 알림 ID인지 확인
+        if (deletedIds.includes(serverNotificationId)) {
+          console.log('⏭️ 삭제된 알림 ID 건너뛰기:', serverNotificationId);
+          return;
+        }
+        
+        // 이미 저장된 알림인지 확인 (ID로 비교)
+        const existingNotification = savedNotifications.find(
+          n => n.id === serverNotificationId
+        );
+        
+        if (!existingNotification) {
+          // 새 알림 저장
+          const newNotification: SavedNotification = {
+            // Firestore 문서의 id 필드 또는 notificationId 우선 사용
+            id: notificationData.id || notificationData.data?.notificationId || notificationId,
+            title: notificationData.title || '',
+            body: notificationData.body || '',
+            imageUrl: notificationData.imageUrl || undefined,
+            route: notificationData.data?.route || undefined,
+            receivedAt: sentAt.toISOString(),
+            read: false,
+            data: notificationData.data || {},
+          };
+          
+          savedNotifications.unshift(newNotification); // 최신순으로 앞에 추가
+          newNotificationsCount++;
+        }
+      } catch (docError) {
+        console.error('❌ 알림 문서 처리 오류:', docError);
+        // 개별 문서 오류는 무시하고 계속 진행
+      }
+    });
+    
+    if (newNotificationsCount > 0) {
+      // 최대 100개까지만 저장
+      const trimmedNotifications = savedNotifications.slice(0, 100);
+      await AsyncStorage.setItem(NOTIFICATIONS_LIST_KEY, JSON.stringify(trimmedNotifications));
+      await updateUnreadCount(); // 배지 업데이트
+      console.log(`✅ Firestore에서 ${newNotificationsCount}개의 새 알림 저장 완료`);
+    } else {
+      console.log('ℹ️ Firestore에서 새 알림 없음');
+    }
+  } catch (error: any) {
+    // 모든 오류를 조용히 처리 (앱은 정상 동작)
+    console.error('❌ Firestore 알림 가져오기 오류:', error);
+    console.error('오류 상세:', error.message);
+    
+    // 네트워크 오류인지 확인
+    if (error?.code === 'unavailable' || error?.message?.includes('network')) {
+      console.log('⚠️ 네트워크 연결 문제로 알림 가져오기 실패 (정상 동작 계속)');
+    } else if (error?.code === 'permission-denied') {
+      console.log('⚠️ Firestore 권한 문제로 알림 가져오기 실패 (정상 동작 계속)');
+    } else {
+      console.log('⚠️ 알림 가져오기 실패, 기존 로컬 알림 사용 (정상 동작 계속)');
+    }
+    
+    // 에러를 throw하지 않음 - 앱은 계속 정상 동작
+  }
+}

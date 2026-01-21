@@ -1,14 +1,15 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, useRef } from 'react';
-import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, AppState } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import * as Application from 'expo-application';
 import mobileAds from 'react-native-google-mobile-ads';
 import { checkAppVersion } from '../src/services/versionCheck';
 import ForceUpdateModal from '../src/components/ForceUpdateModal';
-import { getNotificationToken, setupNotificationListeners } from '../src/services/NotificationService';
+import * as Notifications from 'expo-notifications';
+import { getNotificationToken, setupNotificationListeners, saveNotificationToLocal, markNotificationAsRead, getSavedNotifications, updateUnreadCount, fetchRecentNotificationsFromFirestore } from '../src/services/NotificationService';
 import { initializeFirebase } from '../src/services/FirebaseService';
 
 const headerButtonStyles = StyleSheet.create({
@@ -108,6 +109,24 @@ export default function RootLayout() {
         // Firebase 초기화 확인
         console.log('🔵 알림 초기화 시작...');
         
+        // Firestore에서 최근 알림 가져오기 (백그라운드에서 받은 알림 포함)
+        await fetchRecentNotificationsFromFirestore();
+        
+        // 앱이 종료된 상태에서 받은 알림 처리 (앱 시작 시)
+        const lastNotificationResponse = await Notifications.getLastNotificationResponseAsync();
+        if (lastNotificationResponse) {
+          console.log('📱 앱 종료 중 받은 알림 발견:', lastNotificationResponse);
+          const notification = lastNotificationResponse.notification;
+          const content = notification.request.content;
+          
+          // 알림을 로컬에 저장
+          await saveNotificationToLocal(notification);
+          console.log('✅ 종료 중 받은 알림 저장 완료');
+        }
+        
+        // 읽지 않은 알림 수를 기반으로 배지 업데이트 (정확한 숫자로)
+        await updateUnreadCount();
+        
         // 알림 토큰 생성 (권한 요청 포함)
         const token = await getNotificationToken();
         if (token) {
@@ -129,14 +148,61 @@ export default function RootLayout() {
 
     // 알림 리스너 설정
     const notificationSubscription = setupNotificationListeners(
-      (notification) => {
+      async (notification) => {
         // 포그라운드에서 알림 수신 시 처리
         console.log('알림 수신:', notification);
+        // 알림 데이터 상세 로그
+        const content = notification.request.content;
+        console.log('📦 알림 content.data 상세:', JSON.stringify(content.data, null, 2));
+        console.log('📦 알림 content 전체 구조:', {
+          title: content.title,
+          body: content.body,
+          'data.imageUrl': content.data?.imageUrl,
+          'data.image': content.data?.image,
+          'data.route': content.data?.route,
+          'data 전체': content.data,
+        });
+        // 알림을 로컬에 저장
+        await saveNotificationToLocal(notification);
       },
-      (response) => {
+      async (response) => {
         // 알림 탭 시 처리
         console.log('알림 탭:', response);
-        const data = response.notification.request.content.data;
+        const notification = response.notification;
+        const content = notification.request.content;
+        const data = content.data;
+        
+        // 백그라운드/종료 상태에서 받은 알림이면 먼저 저장
+        const savedNotifications = await getSavedNotifications();
+        const existingNotification = savedNotifications.find(
+          n => n.title === content.title && n.body === content.body
+        );
+        
+        if (!existingNotification) {
+          // 저장되지 않은 알림이면 저장
+          console.log('📥 백그라운드에서 받은 알림 저장:', content.title);
+          await saveNotificationToLocal(notification);
+        }
+        
+        // 저장된 알림 목록에서 같은 알림 찾기
+        // 먼저 identifier로 찾고, 없으면 제목과 본문으로 찾기
+        let notificationId = notification.request.identifier;
+        const updatedNotifications = await getSavedNotifications();
+        
+        if (!notificationId || !updatedNotifications.find(n => n.id === notificationId)) {
+          // identifier가 없거나 저장된 알림과 매칭되지 않으면 제목과 본문으로 찾기
+          const matchingNotification = updatedNotifications.find(
+            n => n.title === content.title && n.body === content.body
+          );
+          if (matchingNotification) {
+            notificationId = matchingNotification.id;
+          }
+        }
+        
+        // 알림을 읽음 처리
+        if (notificationId) {
+          await markNotificationAsRead(notificationId);
+        }
         
         // route 정보가 있으면 해당 화면으로 이동
         if (data && data.route) {
@@ -150,9 +216,64 @@ export default function RootLayout() {
       }
     );
 
+    // AppState 리스너: 앱이 포그라운드로 돌아올 때 백그라운드에서 받은 알림 확인
+    const handleAppStateChange = async (nextAppState: string) => {
+      console.log('📱 AppState 변경:', nextAppState);
+      if (nextAppState === 'active') {
+        console.log('📱 앱이 포그라운드로 돌아옴, 백그라운드 알림 확인 중...');
+        try {
+          // Firestore에서 최근 알림 가져오기
+          await fetchRecentNotificationsFromFirestore();
+          
+          // 약간의 지연을 두고 확인 (앱이 완전히 활성화된 후)
+          setTimeout(async () => {
+            try {
+              const lastNotificationResponse = await Notifications.getLastNotificationResponseAsync();
+              console.log('🔍 마지막 알림 응답:', lastNotificationResponse ? '있음' : '없음');
+              
+              if (lastNotificationResponse) {
+                const notification = lastNotificationResponse.notification;
+                const content = notification.request.content;
+                console.log('📱 백그라운드 알림 발견:', {
+                  title: content.title,
+                  body: content.body,
+                  identifier: notification.request.identifier,
+                });
+                
+                // 이미 저장된 알림인지 확인
+                const savedNotifications = await getSavedNotifications();
+                const existingNotification = savedNotifications.find(
+                  n => n.title === content.title && n.body === content.body
+                );
+                
+                if (!existingNotification) {
+                  // 저장되지 않은 알림이면 저장
+                  console.log('📥 백그라운드에서 받은 알림 저장:', content.title);
+                  await saveNotificationToLocal(notification);
+                  await updateUnreadCount();
+                  console.log('✅ 백그라운드 알림 저장 완료');
+                } else {
+                  console.log('ℹ️ 이미 저장된 알림:', content.title);
+                }
+              } else {
+                console.log('ℹ️ 백그라운드에서 받은 알림 없음');
+              }
+            } catch (error) {
+              console.error('❌ 백그라운드 알림 확인 오류:', error);
+            }
+          }, 500);
+        } catch (error) {
+          console.error('❌ 백그라운드 알림 확인 오류:', error);
+        }
+      }
+    };
+
+    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+
     // 정리 함수
     return () => {
       notificationSubscription.remove();
+      appStateSubscription.remove();
     };
   }, []);
 
@@ -287,6 +408,12 @@ export default function RootLayout() {
           name="heatmap"
           options={{
             title: '히트맵',
+          }}
+        />
+        <Stack.Screen
+          name="notifications"
+          options={{
+            headerShown: false,
           }}
         />
       </Stack>
