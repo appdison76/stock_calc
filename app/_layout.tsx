@@ -9,6 +9,7 @@ import mobileAds from 'react-native-google-mobile-ads';
 import { checkAppVersion } from '../src/services/versionCheck';
 import ForceUpdateModal from '../src/components/ForceUpdateModal';
 import { getNotificationToken, setupNotificationListeners } from '../src/services/NotificationService';
+import { initializeFirebase } from '../src/services/FirebaseService';
 
 const headerButtonStyles = StyleSheet.create({
   homeButton: {
@@ -36,6 +37,7 @@ function HomeButton() {
 }
 
 export default function RootLayout() {
+  const router = useRouter();
   const [forceUpdateVisible, setForceUpdateVisible] = useState(false);
   const [versionInfo, setVersionInfo] = useState<{
     currentVersion: string;
@@ -81,6 +83,15 @@ export default function RootLayout() {
     
     checkVersion();
 
+    // Firebase 초기화 (먼저 실행)
+    console.log('🔵 Firebase 초기화 시작...');
+    const firebaseApp = initializeFirebase();
+    if (firebaseApp) {
+      console.log('✅ Firebase 초기화 성공!');
+    } else {
+      console.error('❌ Firebase 초기화 실패!');
+    }
+
     // Google Mobile Ads 초기화
     mobileAds()
       .initialize()
@@ -91,28 +102,30 @@ export default function RootLayout() {
         console.error('Google Mobile Ads initialization error:', error);
       });
 
-    // 알림 초기화 (Firebase 설정 전까지는 비활성화)
+    // 알림 초기화 (Firebase 초기화 후 실행)
     const initializeNotifications = async () => {
       try {
+        // Firebase 초기화 확인
+        console.log('🔵 알림 초기화 시작...');
+        
         // 알림 토큰 생성 (권한 요청 포함)
-        // Firebase 설정 전까지는 오류를 조용히 무시
         const token = await getNotificationToken();
         if (token) {
-          console.log('알림 토큰 생성 완료:', token);
-          // TODO: 나중에 서버/Firebase 연동 시 토큰을 서버에 등록
-          // await registerTokenToServer(token);
+          console.log('✅ 알림 토큰 생성 완료:', token);
+        } else {
+          console.log('⚠️ 알림 토큰 생성 실패 (권한 거부 또는 오류)');
         }
       } catch (error: any) {
-        // Firebase 미설정 시 발생하는 오류는 무시
-        if (error?.message?.includes('FirebaseApp') || error?.message?.includes('Firebase')) {
-          console.log('알림 기능: Firebase 설정 필요 (현재 비활성화)');
-        } else {
-          console.error('알림 초기화 오류:', error);
-        }
+        console.error('❌ 알림 초기화 오류:', error);
+        console.error('오류 상세:', error.message);
+        console.error('오류 스택:', error.stack);
       }
     };
 
-    initializeNotifications();
+    // Firebase 초기화 후 약간의 지연을 두고 알림 초기화
+    setTimeout(() => {
+      initializeNotifications();
+    }, 1000);
 
     // 알림 리스너 설정
     const notificationSubscription = setupNotificationListeners(
@@ -123,8 +136,17 @@ export default function RootLayout() {
       (response) => {
         // 알림 탭 시 처리
         console.log('알림 탭:', response);
-        // TODO: 나중에 알림 데이터에 따라 특정 화면으로 이동
-        // const data = response.notification.request.content.data;
+        const data = response.notification.request.content.data;
+        
+        // route 정보가 있으면 해당 화면으로 이동
+        if (data && data.route) {
+          console.log('알림 route로 이동:', data.route);
+          router.push(data.route as any);
+        } else {
+          // route가 없으면 메인 화면으로 이동
+          console.log('알림 route 없음, 메인 화면으로 이동');
+          router.push('/');
+        }
       }
     );
 

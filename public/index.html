@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>알림 발송 관리자</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+      color: #333;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      opacity: 0.9;
+      font-size: 14px;
+    }
+
+    .content {
+      padding: 30px;
+    }
+
+    .form-group {
+      margin-bottom: 25px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #555;
+      font-size: 14px;
+    }
+
+    input[type="text"],
+    textarea {
+      width: 100%;
+      padding: 12px 15px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 14px;
+      transition: all 0.3s;
+      font-family: inherit;
+    }
+
+    input[type="text"]:focus,
+    textarea:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    .image-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-top: 10px;
+    }
+
+    .image-option {
+      border: 2px dashed #e0e0e0;
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .image-option:hover {
+      border-color: #667eea;
+      background: #f8f9ff;
+    }
+
+    .image-option input[type="file"] {
+      display: none;
+    }
+
+    .image-option label {
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .image-preview {
+      margin-top: 15px;
+      display: none;
+    }
+
+    .image-preview img {
+      max-width: 100%;
+      max-height: 300px;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .image-preview.show {
+      display: block;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: all 0.3s;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .status {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 10px;
+      display: none;
+    }
+
+    .status.show {
+      display: block;
+    }
+
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .status.info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+
+    .token-info {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 25px;
+      text-align: center;
+      font-size: 14px;
+      color: #666;
+    }
+
+    .token-info strong {
+      color: #667eea;
+      font-size: 18px;
+    }
+
+    .icon {
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📱 알림 발송 관리자</h1>
+      <p>모든 사용자에게 푸시 알림을 발송합니다</p>
+    </div>
+
+    <div class="content">
+      <div class="token-info">
+        등록된 기기: <strong id="tokenCount">-</strong>개
+      </div>
+
+      <form id="notificationForm">
+        <div class="form-group">
+          <label for="title">알림 제목 *</label>
+          <input type="text" id="title" name="title" placeholder="예: 새로운 업데이트가 있습니다" required>
+        </div>
+
+        <div class="form-group">
+          <label for="body">알림 내용 *</label>
+          <textarea id="body" name="body" placeholder="예: 앱을 업데이트하여 새로운 기능을 확인해보세요!" required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="imageUrl">이미지 URL (선택사항)</label>
+          <input type="text" id="imageUrl" name="imageUrl" placeholder="https://example.com/image.jpg">
+          <small style="display: block; margin-top: 5px; color: #666; font-size: 12px;">
+            ⚠️ 공개적으로 접근 가능한 HTTPS URL만 사용 가능합니다. (예: Imgur, Firebase Storage 등)
+          </small>
+          <div class="image-preview" id="imagePreview">
+            <img id="previewImg" src="" alt="미리보기">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="targetRoute">알림 클릭 시 이동할 화면 (선택사항)</label>
+          <select id="targetRoute" name="targetRoute" style="width: 100%; padding: 12px 15px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 14px; background: white; cursor: pointer;">
+            <option value="">메인 화면 (기본)</option>
+            <option value="/portfolios">포트폴리오</option>
+            <option value="/news">주식 뉴스</option>
+            <option value="/heatmap">히트맵</option>
+            <option value="/stock-chart">종목 차트</option>
+            <option value="/visualization">매매 기록</option>
+            <option value="/market-indicators">주요 지표</option>
+            <option value="/profit">수익률 계산기</option>
+            <option value="/averaging">물타기 계산기</option>
+            <option value="/target-price">목표가 계산기</option>
+            <option value="/capital-gains-tax">양도소득세 계산기</option>
+            <option value="/dividend">배당금 계산기</option>
+            <option value="/stop-loss-take-profit">손절/익절 계산기</option>
+            <option value="/regular-purchase-simulator">정기매수 시뮬레이터</option>
+            <option value="/fee-comparison">수수료 비교</option>
+            <option value="/settings">환경 설정</option>
+          </select>
+          <small style="display: block; margin-top: 5px; color: #666; font-size: 12px;">
+            알림을 클릭하면 선택한 화면으로 이동합니다. 선택하지 않으면 메인 화면으로 이동합니다.
+          </small>
+        </div>
+
+        <button type="submit" class="btn" id="sendBtn">
+          📤 알림 발송
+        </button>
+      </form>
+
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+
+  <script>
+    // 토큰 수 조회
+    async function loadTokenCount() {
+      try {
+        const response = await fetch('/api/token-count');
+        const data = await response.json();
+        if (data.success) {
+          document.getElementById('tokenCount').textContent = data.count;
+        }
+      } catch (error) {
+        console.error('토큰 수 조회 오류:', error);
+      }
+    }
+
+    // 이미지 URL 미리보기
+    document.getElementById('imageUrl').addEventListener('input', function(e) {
+      const url = e.target.value.trim();
+      const preview = document.getElementById('imagePreview');
+      const img = document.getElementById('previewImg');
+      
+      if (url && url.startsWith('https://')) {
+        img.src = url;
+        preview.classList.add('show');
+        img.onerror = function() {
+          preview.classList.remove('show');
+        };
+      } else {
+        preview.classList.remove('show');
+      }
+    });
+
+    // 폼 제출
+    document.getElementById('notificationForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const title = document.getElementById('title').value;
+      const body = document.getElementById('body').value;
+      const imageUrl = document.getElementById('imageUrl').value.trim();
+      const targetRoute = document.getElementById('targetRoute').value;
+      const sendBtn = document.getElementById('sendBtn');
+      const status = document.getElementById('status');
+
+      // 이미지 URL 검증
+      if (imageUrl && !imageUrl.startsWith('https://')) {
+        status.className = 'status error show';
+        status.textContent = '❌ 이미지 URL은 HTTPS로 시작해야 합니다.';
+        return;
+      }
+
+      // 버튼 비활성화
+      sendBtn.disabled = true;
+      sendBtn.textContent = '📤 발송 중...';
+      status.classList.remove('show');
+
+      try {
+        // data 필드에 route 정보 포함
+        const notificationData = {};
+        if (targetRoute) {
+          notificationData.route = targetRoute;
+        }
+
+        const response = await fetch('/api/send-notification', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title,
+            body,
+            imageUrl: imageUrl || null,
+            data: notificationData
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          status.className = 'status success show';
+          status.textContent = '✅ ' + data.message;
+          
+          // 폼 초기화
+          document.getElementById('notificationForm').reset();
+          document.getElementById('imagePreview').classList.remove('show');
+          document.getElementById('previewImg').src = '';
+          
+          // 토큰 수 새로고침
+          loadTokenCount();
+        } else {
+          status.className = 'status error show';
+          status.textContent = '❌ ' + (data.error || '알림 발송에 실패했습니다.');
+        }
+      } catch (error) {
+        status.className = 'status error show';
+        status.textContent = '❌ 오류: ' + error.message;
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = '📤 알림 발송';
+      }
+    });
+
+    // 페이지 로드 시 토큰 수 조회
+    loadTokenCount();
+    setInterval(loadTokenCount, 30000); // 30초마다 새로고침
+  </script>
+</body>
+</html>

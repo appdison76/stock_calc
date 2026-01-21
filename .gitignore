@@ -33,6 +33,10 @@ yarn-error.*
 # local env files
 .env*.local
 
+# Firebase Admin SDK 비밀 키
+**/firebase비밀키/**
+*-firebase-adminsdk-*.json
+
 # typescript
 *.tsbuildinfo
 
