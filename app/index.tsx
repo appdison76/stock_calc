@@ -18,6 +18,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AdmobBanner } from '../src/components/AdmobBanner';
 import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
+import { CoupangDynamicBanner } from '../src/components/CoupangDynamicBanner';
 import { getUnreadCount } from '../src/services/NotificationService';
 import { 
   initDatabase, 
@@ -1110,6 +1111,11 @@ export default function MainScreen() {
             </View>
           )}
 
+          {/* 쿠팡 배너: 내 포트폴리오 아래 */}
+          {showPortfolio && portfolioStocks.length > 0 && (
+            <CoupangDynamicBanner width={320} height={140} />
+          )}
+
           {/* 계산기 카드들 */}
           <View style={styles.cardsContainer}>
             <CalculatorCard
@@ -1185,9 +1191,6 @@ export default function MainScreen() {
             <View style={styles.cardSpacer} />
 
           </View>
-
-          {/* 네이티브 광고: 첫 번째 카드 그룹 아래 */}
-          <AdmobNativeAd />
 
           <View style={styles.adSpacer} />
 
@@ -1432,6 +1435,11 @@ export default function MainScreen() {
             </View>
           )}
 
+          {/* 네이티브 광고: 최신 뉴스 아래 */}
+          {showLatestNews && (latestNewsKo.length > 0 || latestNewsEn.length > 0) && (
+            <AdmobNativeAd />
+          )}
+
           <View style={styles.cardsContainer}>
             <CalculatorCard
               title="포트폴리오"
@@ -1471,9 +1479,6 @@ export default function MainScreen() {
               onPress={() => router.push('/heatmap')}
             />
           </View>
-
-          {/* 네이티브 광고: 두 번째 카드 그룹 아래 */}
-          <AdmobNativeAd />
 
           <View style={styles.cardsContainer}>
             <CalculatorCard

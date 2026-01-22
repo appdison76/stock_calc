@@ -37,6 +37,7 @@ import NewsCard from '../src/components/NewsCard';
 import { US_ETF_TO_UNDERLYING_MAP } from '../src/data/us_etf_underlying_map';
 import { AdmobBanner } from '../src/components/AdmobBanner';
 import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
+import { CoupangDynamicBanner } from '../src/components/CoupangDynamicBanner';
 
 export default function StockDetailScreen() {
   const router = useRouter();
@@ -1191,14 +1192,17 @@ export default function StockDetailScreen() {
                 <View style={styles.newsListContainer}>
                   {relatedNews.map((item, index) => (
                     <React.Fragment key={item.id}>
-                      {/* 네이티브 광고: 첫 번째 뉴스 아래에 한 번만 표시 */}
-                      {index === 1 && (
-                        <AdmobNativeAd key={`native-ad-${index}`} />
-                      )}
                       <NewsCard
                         news={item}
                         onPress={() => handleNewsPress(item)}
                       />
+                      {/* 광고: 첫 번째 뒤는 쿠팡 배너, 그 다음 5개마다 AdMob 네이티브 광고 */}
+                      {index === 0 && (
+                        <CoupangDynamicBanner width={320} height={140} key={`coupang-ad-${index}`} />
+                      )}
+                      {(index > 0 && (index - 1) % 5 === 0) && (
+                        <AdmobNativeAd key={`native-ad-${index}`} />
+                      )}
                     </React.Fragment>
                   ))}
                 </View>

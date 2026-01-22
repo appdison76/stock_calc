@@ -34,7 +34,7 @@ export const AdmobNativeAd: React.FC<AdmobNativeAdProps> = ({ style }) => {
   useEffect(() => {
     // NativeAd 객체 생성
     NativeAd.createForAdRequest(adUnitId, {
-      requestNonPersonalizedAdsOnly: true,
+      requestNonPersonalizedAdsOnly: false,
     })
       .then((ad) => {
         setNativeAd(ad);

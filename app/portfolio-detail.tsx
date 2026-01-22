@@ -15,6 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { AdmobBanner } from '../src/components/AdmobBanner';
 import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
+import { CoupangDynamicBanner } from '../src/components/CoupangDynamicBanner';
 import { getAccountById, getStocksByAccountId, deleteStock, createStock, updateStock, initDatabase, getTradingRecordsByStockId, updateStockCurrentPrice, updatePortfolioCurrentPrices } from '../src/services/DatabaseService';
 import { Account } from '../src/models/Account';
 import { Stock } from '../src/models/Stock';
@@ -914,8 +915,11 @@ export default function PortfolioDetailScreen() {
                     </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
-                  {/* 네이티브 광고: 첫 번째 뒤, 그 다음 3개마다 */}
-                  {(index === 0 || index % 3 === 0) && (
+                  {/* 광고: 첫 번째 뒤는 쿠팡 배너, 그 다음 5개마다 AdMob 네이티브 광고 */}
+                  {index === 0 && (
+                    <CoupangDynamicBanner width={320} height={140} key={`coupang-ad-${index}`} />
+                  )}
+                  {(index > 0 && (index - 1) % 5 === 0) && (
                     <AdmobNativeAd key={`native-ad-${index}`} />
                   )}
                 </React.Fragment>

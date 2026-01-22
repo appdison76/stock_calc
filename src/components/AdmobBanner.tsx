@@ -31,7 +31,7 @@ export const AdmobBanner: React.FC = () => {
         unitId={adUnitId}
         size={BannerAdSize.BANNER}
         requestOptions={{
-          requestNonPersonalizedAdsOnly: true,
+          requestNonPersonalizedAdsOnly: false,
         }}
         onAdLoaded={() => {
           console.log(`[${Platform.OS}] AdMob 배너 광고 로드 완료: ${adUnitId}`);
