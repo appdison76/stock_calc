@@ -19,6 +19,10 @@ const KEY_SHOW_INTEREST_RATES = 'show_interest_rates';
 const KEY_PORTFOLIO_SORT_OPTION = 'portfolio_sort_option';
 const KEY_PORTFOLIO_FILTER_OPTION = 'portfolio_filter_option';
 
+// 알림 설정 키
+const KEY_ENABLE_NEWS_NOTIFICATIONS = 'enable_news_notifications';
+const KEY_ENABLE_STOCK_NOTIFICATIONS = 'enable_stock_notifications';
+
 // 기본값
 const DEFAULT_KRW_TAX_RATE = 0.15;
 const DEFAULT_KRW_FEE_RATE = 0.015;
@@ -37,6 +41,10 @@ const DEFAULT_SHOW_INTEREST_RATES = true;
 // 종목 목록 정렬/필터 기본값
 const DEFAULT_PORTFOLIO_SORT_OPTION = 'name'; // 이름순
 const DEFAULT_PORTFOLIO_FILTER_OPTION = 'all'; // 전체
+
+// 알림 설정 기본값 (기본적으로 모두 활성화)
+const DEFAULT_ENABLE_NEWS_NOTIFICATIONS = true;
+const DEFAULT_ENABLE_STOCK_NOTIFICATIONS = true;
 
 export class SettingsService {
   /// 원화 거래세율 가져오기
@@ -258,6 +266,38 @@ export class SettingsService {
   /// 기준금리 표시 여부 저장하기
   static async setShowInterestRates(value: boolean): Promise<void> {
     await AsyncStorage.setItem(KEY_SHOW_INTEREST_RATES, value ? 'true' : 'false');
+  }
+
+  // ===== 알림 설정 =====
+
+  /// 뉴스 알림 활성화 여부 가져오기
+  static async getEnableNewsNotifications(): Promise<boolean> {
+    try {
+      const value = await AsyncStorage.getItem(KEY_ENABLE_NEWS_NOTIFICATIONS);
+      return value !== null ? value === 'true' : DEFAULT_ENABLE_NEWS_NOTIFICATIONS;
+    } catch (e) {
+      return DEFAULT_ENABLE_NEWS_NOTIFICATIONS;
+    }
+  }
+
+  /// 뉴스 알림 활성화 여부 저장하기
+  static async setEnableNewsNotifications(value: boolean): Promise<void> {
+    await AsyncStorage.setItem(KEY_ENABLE_NEWS_NOTIFICATIONS, value ? 'true' : 'false');
+  }
+
+  /// 종목 알림 활성화 여부 가져오기
+  static async getEnableStockNotifications(): Promise<boolean> {
+    try {
+      const value = await AsyncStorage.getItem(KEY_ENABLE_STOCK_NOTIFICATIONS);
+      return value !== null ? value === 'true' : DEFAULT_ENABLE_STOCK_NOTIFICATIONS;
+    } catch (e) {
+      return DEFAULT_ENABLE_STOCK_NOTIFICATIONS;
+    }
+  }
+
+  /// 종목 알림 활성화 여부 저장하기
+  static async setEnableStockNotifications(value: boolean): Promise<void> {
+    await AsyncStorage.setItem(KEY_ENABLE_STOCK_NOTIFICATIONS, value ? 'true' : 'false');
   }
 }
 

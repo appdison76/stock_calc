@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, useRef } from 'react';
-import { TouchableOpacity, Text, StyleSheet, AppState } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, AppState, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import * as Application from 'expo-application';
@@ -11,6 +11,8 @@ import ForceUpdateModal from '../src/components/ForceUpdateModal';
 import * as Notifications from 'expo-notifications';
 import { getNotificationToken, setupNotificationListeners, saveNotificationToLocal, markNotificationAsRead, getSavedNotifications, updateUnreadCount, fetchRecentNotificationsFromFirestore } from '../src/services/NotificationService';
 import { initializeFirebase } from '../src/services/FirebaseService';
+import { checkAllNotifications } from '../src/services/NotificationCheckService';
+import { initDatabase } from '../src/services/DatabaseService';
 
 const headerButtonStyles = StyleSheet.create({
   homeButton: {
@@ -146,6 +148,44 @@ export default function RootLayout() {
       initializeNotifications();
     }, 1000);
 
+    // 알림 체크 초기화
+    const initializeNotificationChecks = async () => {
+      try {
+        await initDatabase();
+        
+        // 앱 시작 시 즉시 체크
+        console.log('🔔 알림 체크 시작...');
+        await checkAllNotifications();
+      } catch (error) {
+        console.error('❌ 알림 체크 초기화 오류:', error);
+      }
+    };
+
+    // 주기적 알림 체크 (5분마다)
+    let checkInterval: NodeJS.Timeout | null = null;
+    const startPeriodicChecks = () => {
+      if (checkInterval) {
+        clearInterval(checkInterval);
+      }
+      
+      checkInterval = setInterval(async () => {
+        if (AppState.currentState === 'active') {
+          console.log('🔔 주기적 알림 체크...');
+          try {
+            await checkAllNotifications();
+          } catch (error) {
+            console.error('❌ 주기적 알림 체크 오류:', error);
+          }
+        }
+      }, 5 * 60 * 1000); // 5분
+    };
+
+    // Firebase 초기화 후 약간의 지연을 두고 알림 체크 초기화
+    setTimeout(() => {
+      initializeNotificationChecks();
+      startPeriodicChecks();
+    }, 2000);
+
     // 알림 리스너 설정
     const notificationSubscription = setupNotificationListeners(
       async (notification) => {
@@ -204,8 +244,16 @@ export default function RootLayout() {
           await markNotificationAsRead(notificationId);
         }
         
-        // route 정보가 있으면 해당 화면으로 이동
-        if (data && data.route) {
+        // link 정보가 있으면 외부 브라우저로 열기 (뉴스 알림)
+        if (data && data.link) {
+          console.log('알림 link로 이동:', data.link);
+          try {
+            await Linking.openURL(data.link);
+          } catch (error) {
+            console.error('링크 열기 실패:', error);
+          }
+        } else if (data && data.route) {
+          // route 정보가 있으면 해당 화면으로 이동
           console.log('알림 route로 이동:', data.route);
           router.push(data.route as any);
         } else {
@@ -216,7 +264,7 @@ export default function RootLayout() {
       }
     );
 
-    // AppState 리스너: 앱이 포그라운드로 돌아올 때 백그라운드에서 받은 알림 확인
+    // AppState 리스너: 앱이 포그라운드로 돌아올 때 백그라운드에서 받은 알림 확인 및 알림 체크
     const handleAppStateChange = async (nextAppState: string) => {
       console.log('📱 AppState 변경:', nextAppState);
       if (nextAppState === 'active') {
@@ -224,6 +272,14 @@ export default function RootLayout() {
         try {
           // Firestore에서 최근 알림 가져오기
           await fetchRecentNotificationsFromFirestore();
+          
+          // 알림 체크도 실행
+          try {
+            console.log('🔔 포그라운드 복귀 시 알림 체크...');
+            await checkAllNotifications();
+          } catch (error) {
+            console.error('❌ 포그라운드 복귀 시 알림 체크 오류:', error);
+          }
           
           // 약간의 지연을 두고 확인 (앱이 완전히 활성화된 후)
           setTimeout(async () => {
@@ -274,6 +330,9 @@ export default function RootLayout() {
     return () => {
       notificationSubscription.remove();
       appStateSubscription.remove();
+      if (checkInterval) {
+        clearInterval(checkInterval);
+      }
     };
   }, []);
 

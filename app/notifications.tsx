@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Alert,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -23,12 +24,30 @@ import {
   getUnreadCount,
 } from '../src/services/NotificationService';
 
+type NotificationType = 'all' | 'news' | 'profit' | 'loss' | 'announcement';
+
+// 알림 타입 구분 함수
+const getNotificationType = (notification: SavedNotification): 'news' | 'profit' | 'loss' | 'announcement' => {
+  const title = notification.title;
+  
+  if (title.startsWith('📰')) {
+    return 'news';
+  } else if (title.startsWith('⬆️')) {
+    return 'profit';
+  } else if (title.startsWith('🔻') || title.includes('손실 발생') || title.includes('손실 확대') || title.includes('손실 축소')) {
+    return 'loss';
+  } else {
+    return 'announcement';
+  }
+};
+
 export default function NotificationsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [notifications, setNotifications] = useState<SavedNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [filterType, setFilterType] = useState<NotificationType>('all');
 
   const loadNotifications = async () => {
     try {
@@ -70,6 +89,17 @@ export default function NotificationsScreen() {
         n.id === notification.id ? { ...n, read: true } : n
       );
       setNotifications(updatedNotifications);
+    }
+
+    // link가 있으면 외부 브라우저로 열기 (뉴스 알림)
+    const link = notification.data?.link;
+    if (link) {
+      try {
+        await Linking.openURL(link);
+        return;
+      } catch (error) {
+        console.error('링크 열기 실패:', error);
+      }
     }
 
     // route가 있으면 해당 화면으로 이동
@@ -142,6 +172,11 @@ export default function NotificationsScreen() {
     }
   };
 
+  // 필터링된 알림 목록
+  const filteredNotifications = filterType === 'all'
+    ? notifications
+    : notifications.filter(n => getNotificationType(n) === filterType);
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -205,6 +240,52 @@ export default function NotificationsScreen() {
           </View>
         </View>
 
+        {/* 필터 버튼 */}
+        <View style={styles.filterContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
+            <TouchableOpacity
+              style={[styles.filterButton, filterType === 'all' && styles.filterButtonActive]}
+              onPress={() => setFilterType('all')}
+            >
+              <Text style={[styles.filterButtonText, filterType === 'all' && styles.filterButtonTextActive]}>
+                전체
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterButton, filterType === 'news' && styles.filterButtonActive]}
+              onPress={() => setFilterType('news')}
+            >
+              <Text style={[styles.filterButtonText, filterType === 'news' && styles.filterButtonTextActive]}>
+                종목뉴스
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterButton, filterType === 'profit' && styles.filterButtonActive]}
+              onPress={() => setFilterType('profit')}
+            >
+              <Text style={[styles.filterButtonText, filterType === 'profit' && styles.filterButtonTextActive]}>
+                수익 알림
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterButton, filterType === 'loss' && styles.filterButtonActive]}
+              onPress={() => setFilterType('loss')}
+            >
+              <Text style={[styles.filterButtonText, filterType === 'loss' && styles.filterButtonTextActive]}>
+                손실 알림
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterButton, filterType === 'announcement' && styles.filterButtonActive]}
+              onPress={() => setFilterType('announcement')}
+            >
+              <Text style={[styles.filterButtonText, filterType === 'announcement' && styles.filterButtonTextActive]}>
+                공지
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -217,16 +298,20 @@ export default function NotificationsScreen() {
             />
           }
         >
-          {notifications.length === 0 ? (
+          {filteredNotifications.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyIcon}>🔔</Text>
-              <Text style={styles.emptyText}>알림이 없습니다</Text>
+              <Text style={styles.emptyText}>
+                {filterType === 'all' ? '알림이 없습니다' : `${filterType === 'news' ? '종목뉴스' : filterType === 'profit' ? '수익 알림' : filterType === 'loss' ? '손실 알림' : '공지'} 알림이 없습니다`}
+              </Text>
               <Text style={styles.emptySubtext}>
-                새로운 알림이 도착하면 여기에 표시됩니다.
+                {filterType === 'all' 
+                  ? '새로운 알림이 도착하면 여기에 표시됩니다.'
+                  : '필터를 변경하거나 새로운 알림을 기다려주세요.'}
               </Text>
             </View>
           ) : (
-            notifications.map((notification) => (
+            filteredNotifications.map((notification) => (
               <TouchableOpacity
                 key={notification.id}
                 style={[
@@ -336,6 +421,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#42A5F5',
     fontWeight: '600',
+  },
+  filterContainer: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(18, 18, 18, 0.8)',
+  },
+  filterScrollContent: {
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  filterButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginRight: 8,
+  },
+  filterButtonActive: {
+    backgroundColor: '#42A5F5',
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: '#B0BEC5',
+    fontWeight: '600',
+  },
+  filterButtonTextActive: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
   },
   scrollView: {
     flex: 1,

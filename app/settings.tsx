@@ -15,7 +15,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { SettingsService } from '../src/services/SettingsService';
 
-type SettingsTab = 'main' | 'fee';
+type SettingsTab = 'main' | 'notification' | 'fee';
 
 export default function SettingsView() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('main');
@@ -34,6 +34,10 @@ export default function SettingsView() {
   const [showLatestNews, setShowLatestNews] = useState(true);
   const [showWorldTime, setShowWorldTime] = useState(true);
   const [showInterestRates, setShowInterestRates] = useState(true);
+  
+  // 알림 설정
+  const [enableNewsNotifications, setEnableNewsNotifications] = useState(true);
+  const [enableStockNotifications, setEnableStockNotifications] = useState(true);
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -67,6 +71,8 @@ export default function SettingsView() {
         latestNews,
         worldTime,
         interestRates,
+        newsNotifications,
+        stockNotifications,
       ] = await Promise.all([
         SettingsService.getShowMarketIndicators(),
         SettingsService.getShowMiniBanners(),
@@ -75,6 +81,8 @@ export default function SettingsView() {
         SettingsService.getShowLatestNews(),
         SettingsService.getShowWorldTime(),
         SettingsService.getShowInterestRates(),
+        SettingsService.getEnableNewsNotifications(),
+        SettingsService.getEnableStockNotifications(),
       ]);
 
       setShowMarketIndicators(marketIndicators);
@@ -84,6 +92,8 @@ export default function SettingsView() {
       setShowLatestNews(latestNews);
       setShowWorldTime(worldTime);
       setShowInterestRates(interestRates);
+      setEnableNewsNotifications(newsNotifications);
+      setEnableStockNotifications(stockNotifications);
     } catch (e) {
       Alert.alert('오류', '설정을 불러오는 중 오류가 발생했습니다.');
     } finally {
@@ -92,7 +102,42 @@ export default function SettingsView() {
   };
 
   const saveSettings = async () => {
-    if (activeTab === 'fee') {
+    if (activeTab === 'main') {
+      // 메인화면 표시 설정 저장
+      setIsSaving(true);
+      try {
+        await Promise.all([
+          SettingsService.setShowMarketIndicators(showMarketIndicators),
+          SettingsService.setShowMiniBanners(showMiniBanners),
+          SettingsService.setShowPortfolio(showPortfolio),
+          SettingsService.setShowRelatedNews(showRelatedNews),
+          SettingsService.setShowLatestNews(showLatestNews),
+          SettingsService.setShowWorldTime(showWorldTime),
+          SettingsService.setShowInterestRates(showInterestRates),
+        ]);
+
+        Alert.alert('성공', '설정이 저장되었습니다.');
+      } catch (e) {
+        Alert.alert('오류', '설정 저장 중 오류가 발생했습니다.');
+      } finally {
+        setIsSaving(false);
+      }
+    } else if (activeTab === 'notification') {
+      // 알림 설정 저장
+      setIsSaving(true);
+      try {
+        await Promise.all([
+          SettingsService.setEnableNewsNotifications(enableNewsNotifications),
+          SettingsService.setEnableStockNotifications(enableStockNotifications),
+        ]);
+
+        Alert.alert('성공', '설정이 저장되었습니다.');
+      } catch (e) {
+        Alert.alert('오류', '설정 저장 중 오류가 발생했습니다.');
+      } finally {
+        setIsSaving(false);
+      }
+    } else if (activeTab === 'fee') {
       // 수수료 설정 저장
       if (!krwTaxRate || !krwFeeRate || !usdTaxRate || !usdFeeRate) {
         Alert.alert('입력 오류', '모든 필드를 입력해주세요.');
@@ -139,26 +184,6 @@ export default function SettingsView() {
       } finally {
         setIsSaving(false);
       }
-    } else {
-      // 메인화면 표시 설정 저장
-      setIsSaving(true);
-      try {
-        await Promise.all([
-          SettingsService.setShowMarketIndicators(showMarketIndicators),
-          SettingsService.setShowMiniBanners(showMiniBanners),
-          SettingsService.setShowPortfolio(showPortfolio),
-          SettingsService.setShowRelatedNews(showRelatedNews),
-          SettingsService.setShowLatestNews(showLatestNews),
-          SettingsService.setShowWorldTime(showWorldTime),
-          SettingsService.setShowInterestRates(showInterestRates),
-        ]);
-
-        Alert.alert('성공', '설정이 저장되었습니다.');
-      } catch (e) {
-        Alert.alert('오류', '설정 저장 중 오류가 발생했습니다.');
-      } finally {
-        setIsSaving(false);
-      }
     }
   };
 
@@ -191,7 +216,16 @@ export default function SettingsView() {
             activeOpacity={0.7}
           >
             <Text style={[styles.tabText, activeTab === 'main' && styles.tabTextActive]}>
-              메인화면 설정
+              메인화면
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'notification' && styles.tabActive]}
+            onPress={() => setActiveTab('notification')}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.tabText, activeTab === 'notification' && styles.tabTextActive]}>
+              알림설정
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -200,7 +234,7 @@ export default function SettingsView() {
             activeOpacity={0.7}
           >
             <Text style={[styles.tabText, activeTab === 'fee' && styles.tabTextActive]}>
-              수수료 설정
+              수수료설정
             </Text>
           </TouchableOpacity>
         </View>
@@ -325,7 +359,58 @@ export default function SettingsView() {
                 )}
               </TouchableOpacity>
             </>
+          ) : activeTab === 'notification' ? (
+            /* 알림 설정 */
+            <>
+              <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconContainer, { backgroundColor: 'rgba(255, 193, 7, 0.2)' }]}>
+                    <Text style={styles.iconText}>🔔</Text>
+                  </View>
+                  <Text style={styles.cardTitle}>알림 설정</Text>
+                </View>
+
+                <View style={styles.settingRow}>
+                  <View style={styles.settingLabelContainer}>
+                    <Text style={styles.settingLabel}>뉴스 알림</Text>
+                    <Text style={styles.settingDescription}>종목 관련 뉴스 알림 받기</Text>
+                  </View>
+                  <Switch
+                    value={enableNewsNotifications}
+                    onValueChange={setEnableNewsNotifications}
+                    trackColor={{ false: '#757575', true: '#42A5F5' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+
+                <View style={styles.settingRow}>
+                  <View style={styles.settingLabelContainer}>
+                    <Text style={styles.settingLabel}>종목 알림</Text>
+                    <Text style={styles.settingDescription}>수익/손실 알림 받기</Text>
+                  </View>
+                  <Switch
+                    value={enableStockNotifications}
+                    onValueChange={setEnableStockNotifications}
+                    trackColor={{ false: '#757575', true: '#42A5F5' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
+                onPress={saveSettings}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.saveButtonText}>저장</Text>
+                )}
+              </TouchableOpacity>
+            </>
           ) : (
+
             /* 수수료 설정 */
             <>
               <View style={styles.card}>

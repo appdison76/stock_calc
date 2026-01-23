@@ -21,7 +21,9 @@ import {
   deleteTradingRecord,
   updateStock,
   initDatabase,
-  updateStockCurrentPrice
+  updateStockCurrentPrice,
+  getAllAccounts,
+  getStocksByAccountId
 } from '../src/services/DatabaseService';
 import { Stock } from '../src/models/Stock';
 import { TradingRecord } from '../src/models/TradingRecord';
@@ -41,7 +43,7 @@ import { CoupangDynamicBanner } from '../src/components/CoupangDynamicBanner';
 
 export default function StockDetailScreen() {
   const router = useRouter();
-  const { id, lang, scrollToNews, action } = useLocalSearchParams<{ id: string; lang?: string; scrollToNews?: string; action?: string }>();
+  const { id, ticker, lang, scrollToNews, action } = useLocalSearchParams<{ id?: string; ticker?: string; lang?: string; scrollToNews?: string; action?: string }>();
   const scrollViewRef = useRef<ScrollView>(null);
   const [newsContainerY, setNewsContainerY] = useState<number | null>(null);
   const [stock, setStock] = useState<Stock | null>(null);
@@ -132,7 +134,7 @@ export default function StockDetailScreen() {
 
   useEffect(() => {
     loadStockDetail();
-  }, [id]);
+  }, [id, ticker]);
 
   // 종목 현재가 자동 갱신 (1분마다)
   useEffect(() => {
@@ -258,11 +260,38 @@ export default function StockDetailScreen() {
   }, [showAddRecordModal]);
 
   const loadStockDetail = async () => {
-    if (!id) return;
+    if (!id && !ticker) return;
     
     try {
       setIsLoading(true);
       await initDatabase();
+      
+      let stockId = id;
+      
+      // ticker가 제공된 경우, 모든 계좌에서 해당 ticker를 가진 종목 찾기
+      if (!stockId && ticker) {
+        const accounts = await getAllAccounts();
+        for (const account of accounts) {
+          const stocks = await getStocksByAccountId(account.id);
+          const foundStock = stocks.find(s => s.ticker.toUpperCase() === ticker.toUpperCase());
+          if (foundStock) {
+            stockId = foundStock.id;
+            break;
+          }
+        }
+        
+        if (!stockId) {
+          Alert.alert('오류', '해당 종목을 찾을 수 없습니다.');
+          setIsLoading(false);
+          router.back();
+          return;
+        }
+      }
+      
+      if (!stockId) {
+        setIsLoading(false);
+        return;
+      }
       
       // 환율 로드 (USD 종목인 경우)
       try {
@@ -281,16 +310,16 @@ export default function StockDetailScreen() {
       
       // 현재가 갱신 (백그라운드에서 실행, 실패해도 계속 진행)
       try {
-        await updateStockCurrentPrice(id);
+        await updateStockCurrentPrice(stockId);
       } catch (priceError) {
         console.warn('현재가 갱신 실패:', priceError);
         // 현재가 갱신 실패해도 계속 진행
       }
       
-      const stockData = await getStockById(id);
+      const stockData = await getStockById(stockId);
       if (stockData) {
         setStock(stockData);
-        const recordsData = await getTradingRecordsByStockId(id);
+        const recordsData = await getTradingRecordsByStockId(stockId);
         setRecords(recordsData);
       }
     } catch (error: any) {
