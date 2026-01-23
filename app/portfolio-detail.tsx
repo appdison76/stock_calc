@@ -162,33 +162,35 @@ export default function PortfolioDetailScreen() {
       // 데이터베이스 초기화 먼저 수행
       await initDatabase();
       
-      // 환율 로드 (USD 종목이 있는 경우)
-      try {
-        const usdkrwQuote = await getStockQuote('USDKRW=X');
-        if (usdkrwQuote) {
-          setExchangeRate(usdkrwQuote.price);
-        } else {
-          const rate = await ExchangeRateService.getUsdToKrwRate();
-          setExchangeRate(rate);
-        }
-      } catch (rateError) {
-        console.warn('환율 로드 실패:', rateError);
-        const rate = await ExchangeRateService.getUsdToKrwRate();
-        setExchangeRate(rate);
-      }
+      // 환율 로드와 포트폴리오 데이터 로드를 병렬 처리
+      const [exchangeRateResult, account, portfolioStocks] = await Promise.all([
+        // 환율 로드
+        (async () => {
+          try {
+            const usdkrwQuote = await getStockQuote('USDKRW=X');
+            return usdkrwQuote ? usdkrwQuote.price : await ExchangeRateService.getUsdToKrwRate();
+          } catch (rateError) {
+            console.warn('환율 로드 실패:', rateError);
+            return await ExchangeRateService.getUsdToKrwRate();
+          }
+        })(),
+        // 포트폴리오 정보 로드
+        getAccountById(id),
+        // 종목 목록 로드
+        getStocksByAccountId(id),
+      ]);
       
-      const account = await getAccountById(id);
       if (!account) {
         Alert.alert('오류', '포트폴리오를 찾을 수 없습니다.');
         router.back();
         return;
       }
 
+      setExchangeRate(exchangeRateResult);
       setPortfolio(account);
-      const portfolioStocks = await getStocksByAccountId(id);
       setStocks(portfolioStocks);
       
-      // 각 종목의 매매기록 개수 확인 (현재가 업데이트 전에 먼저 처리하여 화면을 빠르게 표시)
+      // 각 종목의 매매기록 개수 확인 (병렬 처리)
       const stocksWithCount = await Promise.all(
         portfolioStocks.map(async (stock) => {
           const records = await getTradingRecordsByStockId(stock.id);

@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   StyleSheet,
   Image,
@@ -52,14 +53,6 @@ export default function NotificationsScreen() {
   const loadNotifications = async () => {
     try {
       const savedNotifications = await getSavedNotifications();
-      console.log('📋 알림 목록 로드:', savedNotifications.length, '개');
-      savedNotifications.forEach((notif, index) => {
-        console.log(`알림 ${index + 1}:`, {
-          title: notif.title,
-          imageUrl: notif.imageUrl,
-          hasImage: !!notif.imageUrl,
-        });
-      });
       setNotifications(savedNotifications);
     } catch (error) {
       console.error('알림 목록 로드 오류:', error);
@@ -150,7 +143,8 @@ export default function NotificationsScreen() {
     setNotifications(updatedNotifications);
   };
 
-  const formatDate = (dateString: string) => {
+  // formatDate를 useCallback으로 최적화
+  const formatDate = useCallback((dateString: string) => {
     try {
       const date = new Date(dateString);
       const now = new Date();
@@ -170,12 +164,15 @@ export default function NotificationsScreen() {
     } catch (error) {
       return '';
     }
-  };
+  }, []);
 
-  // 필터링된 알림 목록
-  const filteredNotifications = filterType === 'all'
-    ? notifications
-    : notifications.filter(n => getNotificationType(n) === filterType);
+  // 필터링된 알림 목록을 useMemo로 최적화
+  const filteredNotifications = useMemo(() => {
+    if (filterType === 'all') {
+      return notifications;
+    }
+    return notifications.filter(n => getNotificationType(n) === filterType);
+  }, [notifications, filterType]);
 
   if (loading) {
     return (
@@ -286,19 +283,65 @@ export default function NotificationsScreen() {
           </ScrollView>
         </View>
 
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor="#FFFFFF"
-              colors={['#FFFFFF']}
-            />
-          }
-        >
-          {filteredNotifications.length === 0 ? (
+        <FlatList
+          data={filteredNotifications}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item: notification }) => (
+            <TouchableOpacity
+              style={[
+                styles.notificationCard,
+                !notification.read && styles.notificationCardUnread,
+              ]}
+              onPress={() => handleNotificationPress(notification)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.notificationContent}>
+                <View style={styles.notificationTextContainer}>
+                  <View style={styles.notificationHeader}>
+                    <Text
+                      style={[
+                        styles.notificationTitle,
+                        !notification.read && styles.notificationTitleUnread,
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {notification.title}
+                    </Text>
+                    {!notification.read && <View style={styles.unreadDot} />}
+                  </View>
+                  <Text
+                    style={styles.notificationBody}
+                  >
+                    {notification.body}
+                  </Text>
+                  <Text style={styles.notificationDate}>
+                    {formatDate(notification.receivedAt)}
+                  </Text>
+                </View>
+                {notification.imageUrl ? (
+                  <Image
+                    source={{ uri: notification.imageUrl }}
+                    style={styles.notificationImage}
+                    resizeMode="cover"
+                    onError={(error) => {
+                      console.log('이미지 로딩 실패:', notification.imageUrl, error);
+                    }}
+                    onLoad={() => {
+                      console.log('이미지 로딩 성공:', notification.imageUrl);
+                    }}
+                  />
+                ) : null}
+              </View>
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDeleteNotification(notification.id)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.deleteButtonText}>×</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          )}
+          ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyIcon}>🔔</Text>
               <Text style={styles.emptyText}>
@@ -310,65 +353,25 @@ export default function NotificationsScreen() {
                   : '필터를 변경하거나 새로운 알림을 기다려주세요.'}
               </Text>
             </View>
-          ) : (
-            filteredNotifications.map((notification) => (
-              <TouchableOpacity
-                key={notification.id}
-                style={[
-                  styles.notificationCard,
-                  !notification.read && styles.notificationCardUnread,
-                ]}
-                onPress={() => handleNotificationPress(notification)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.notificationContent}>
-                  <View style={styles.notificationTextContainer}>
-                    <View style={styles.notificationHeader}>
-                      <Text
-                        style={[
-                          styles.notificationTitle,
-                          !notification.read && styles.notificationTitleUnread,
-                        ]}
-                        numberOfLines={2}
-                      >
-                        {notification.title}
-                      </Text>
-                      {!notification.read && <View style={styles.unreadDot} />}
-                    </View>
-                    <Text
-                      style={styles.notificationBody}
-                    >
-                      {notification.body}
-                    </Text>
-                    <Text style={styles.notificationDate}>
-                      {formatDate(notification.receivedAt)}
-                    </Text>
-                  </View>
-                  {notification.imageUrl ? (
-                    <Image
-                      source={{ uri: notification.imageUrl }}
-                      style={styles.notificationImage}
-                      resizeMode="cover"
-                      onError={(error) => {
-                        console.log('이미지 로딩 실패:', notification.imageUrl, error);
-                      }}
-                      onLoad={() => {
-                        console.log('이미지 로딩 성공:', notification.imageUrl);
-                      }}
-                    />
-                  ) : null}
-                </View>
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={() => handleDeleteNotification(notification.id)}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Text style={styles.deleteButtonText}>×</Text>
-                </TouchableOpacity>
-              </TouchableOpacity>
-            ))
-          )}
-        </ScrollView>
+          }
+          contentContainerStyle={[
+            styles.scrollContent,
+            filteredNotifications.length === 0 && { flexGrow: 1 }
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor="#FFFFFF"
+              colors={['#FFFFFF']}
+            />
+          }
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          windowSize={10}
+          initialNumToRender={15}
+          style={styles.scrollView}
+        />
       </LinearGradient>
     </View>
   );

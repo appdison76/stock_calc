@@ -65,15 +65,13 @@ export default function PortfoliosScreen() {
         accounts = await getAllAccounts();
       }
       
-      // 환율 로드 (USD 종목이 있는 경우)
-      let exchangeRate = 1350; // 기본값
-      try {
-        exchangeRate = await ExchangeRateService.getUsdToKrwRate();
-      } catch (error) {
-        console.warn('환율 로드 실패:', error);
-      }
+      // 환율 로드와 포트폴리오 종목 로드를 병렬 처리
+      const [exchangeRateResult] = await Promise.allSettled([
+        ExchangeRateService.getUsdToKrwRate().catch(() => 1350), // 기본값
+      ]);
+      const exchangeRate = exchangeRateResult.status === 'fulfilled' ? exchangeRateResult.value : 1350;
       
-      // 각 포트폴리오의 종목 수 및 합산 정보 조회
+      // 각 포트폴리오의 종목 수 및 합산 정보 조회 (병렬 처리)
       const portfoliosWithStockCount: PortfolioWithStockCount[] = await Promise.all(
         accounts.map(async (account) => {
           const stocks = await getStocksByAccountId(account.id);

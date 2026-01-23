@@ -261,17 +261,17 @@ export default function HeatmapScreen() {
       
       await initDatabase();
       
-      // 환율 가져오기 (USD 종목이 있을 수 있으므로)
-      let usdToKrwRate = 1350; // 기본값
-      try {
-        usdToKrwRate = await ExchangeRateService.getUsdToKrwRate();
-        setExchangeRate(usdToKrwRate);
-      } catch (error) {
-        console.warn('[Heatmap] 환율 조회 실패, 기본값 사용:', error);
-      }
+      // 환율 로드와 포트폴리오 데이터 로드를 병렬 처리
+      const [usdToKrwRate, accounts] = await Promise.all([
+        // 환율 가져오기 (USD 종목이 있을 수 있으므로)
+        ExchangeRateService.getUsdToKrwRate().catch(() => 1350), // 기본값
+        // 모든 계좌 가져오기
+        getAllAccounts(),
+      ]);
       
-      // 포트폴리오 히트맵: 모든 계좌의 종목 가져오기
-      const accounts = await getAllAccounts();
+      setExchangeRate(usdToKrwRate);
+      
+      // 포트폴리오 히트맵: 모든 계좌의 종목 가져오기 (병렬 처리)
       const stocksArrays = await Promise.all(
         accounts.map(async (account) => {
           const accountStocks = await getStocksByAccountId(account.id);
@@ -364,17 +364,17 @@ export default function HeatmapScreen() {
         // 포트폴리오 데이터 로드 (부분 로딩 함수를 직접 호출하지 않고 내부 로직 사용)
         await initDatabase();
         
-        // 환율 가져오기 (USD 종목이 있을 수 있으므로)
-        let usdToKrwRate = 1350; // 기본값
-        try {
-          usdToKrwRate = await ExchangeRateService.getUsdToKrwRate();
-          setExchangeRate(usdToKrwRate);
-        } catch (error) {
-          console.warn('[Heatmap] 환율 조회 실패, 기본값 사용:', error);
-        }
+        // 환율 로드와 포트폴리오 데이터 로드를 병렬 처리
+        const [usdToKrwRate, accounts] = await Promise.all([
+          // 환율 가져오기 (USD 종목이 있을 수 있으므로)
+          ExchangeRateService.getUsdToKrwRate().catch(() => 1350), // 기본값
+          // 모든 계좌 가져오기
+          getAllAccounts(),
+        ]);
         
-        // 포트폴리오 히트맵: 모든 계좌의 종목 가져오기
-        const accounts = await getAllAccounts();
+        setExchangeRate(usdToKrwRate);
+        
+        // 포트폴리오 히트맵: 모든 계좌의 종목 가져오기 (병렬 처리)
         const stocksArrays = await Promise.all(
           accounts.map(async (account) => {
             const accountStocks = await getStocksByAccountId(account.id);

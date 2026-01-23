@@ -63,21 +63,6 @@ export default function VisualizationScreen() {
     try {
       setLoading(true);
       
-      // 환율 로드
-      try {
-        const usdkrwQuote = await getStockQuote('USDKRW=X');
-        if (usdkrwQuote) {
-          setExchangeRate(usdkrwQuote.price);
-        } else {
-          const rate = await ExchangeRateService.getUsdToKrwRate();
-          setExchangeRate(rate);
-        }
-      } catch (rateError) {
-        console.warn('환율 로드 실패:', rateError);
-        const rate = await ExchangeRateService.getUsdToKrwRate();
-        setExchangeRate(rate);
-      }
-      
       // 이전에 선택했던 종목 ID 저장 (데이터 로드 전에)
       const previousSelectedStockId = previousSelectedStockIdRef.current;
       
@@ -87,8 +72,23 @@ export default function VisualizationScreen() {
       // 데이터베이스 초기화
       await initDatabase();
       
-      // 모든 포트폴리오 가져오기
-      const accounts = await getAllAccounts();
+      // 환율 로드와 포트폴리오 데이터 로드를 병렬 처리
+      const [exchangeRateResult, accounts] = await Promise.all([
+        // 환율 로드
+        (async () => {
+          try {
+            const usdkrwQuote = await getStockQuote('USDKRW=X');
+            return usdkrwQuote ? usdkrwQuote.price : await ExchangeRateService.getUsdToKrwRate();
+          } catch (rateError) {
+            console.warn('환율 로드 실패:', rateError);
+            return await ExchangeRateService.getUsdToKrwRate();
+          }
+        })(),
+        // 모든 포트폴리오 가져오기
+        getAllAccounts(),
+      ]);
+      
+      setExchangeRate(exchangeRateResult);
       
       // 모든 종목 가져오기 (병렬 처리로 속도 개선)
       const stocksPromises = accounts.map(async (account) => {

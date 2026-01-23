@@ -268,19 +268,21 @@ export default function StockDetailScreen() {
       
       let stockId = id;
       
-      // ticker가 제공된 경우, 모든 계좌에서 해당 ticker를 가진 종목 찾기
-      if (!stockId && ticker) {
+      let foundStockId = stockId;
+      
+      // ticker가 제공된 경우, 모든 계좌에서 해당 ticker를 가진 종목 찾기 (병렬 처리)
+      if (!foundStockId && ticker) {
         const accounts = await getAllAccounts();
-        for (const account of accounts) {
-          const stocks = await getStocksByAccountId(account.id);
-          const foundStock = stocks.find(s => s.ticker.toUpperCase() === ticker.toUpperCase());
-          if (foundStock) {
-            stockId = foundStock.id;
-            break;
-          }
-        }
         
-        if (!stockId) {
+        // 모든 계좌의 종목을 병렬로 가져오기
+        const stocksPromises = accounts.map(account => getStocksByAccountId(account.id));
+        const stocksArrays = await Promise.all(stocksPromises);
+        const allStocks = stocksArrays.flat();
+        
+        const foundStock = allStocks.find(s => s.ticker.toUpperCase() === ticker.toUpperCase());
+        if (foundStock) {
+          foundStockId = foundStock.id;
+        } else {
           Alert.alert('오류', '해당 종목을 찾을 수 없습니다.');
           setIsLoading(false);
           router.back();
@@ -288,38 +290,38 @@ export default function StockDetailScreen() {
         }
       }
       
-      if (!stockId) {
+      if (!foundStockId) {
         setIsLoading(false);
         return;
       }
       
-      // 환율 로드 (USD 종목인 경우)
-      try {
-        const usdkrwQuote = await getStockQuote('USDKRW=X');
-        if (usdkrwQuote) {
-          setExchangeRate(usdkrwQuote.price);
-        } else {
-          const rate = await ExchangeRateService.getUsdToKrwRate();
-          setExchangeRate(rate);
-        }
-      } catch (rateError) {
-        console.warn('환율 로드 실패:', rateError);
-        const rate = await ExchangeRateService.getUsdToKrwRate();
-        setExchangeRate(rate);
-      }
+      // 환율 로드, 현재가 갱신, 종목 데이터 로드를 병렬 처리
+      const [exchangeRateResult, stockData] = await Promise.all([
+        // 환율 로드
+        (async () => {
+          try {
+            const usdkrwQuote = await getStockQuote('USDKRW=X');
+            return usdkrwQuote ? usdkrwQuote.price : await ExchangeRateService.getUsdToKrwRate();
+          } catch (rateError) {
+            console.warn('환율 로드 실패:', rateError);
+            return await ExchangeRateService.getUsdToKrwRate();
+          }
+        })(),
+        // 종목 데이터 로드
+        getStockById(foundStockId),
+      ]);
       
-      // 현재가 갱신 (백그라운드에서 실행, 실패해도 계속 진행)
-      try {
-        await updateStockCurrentPrice(stockId);
-      } catch (priceError) {
+      setExchangeRate(exchangeRateResult);
+      
+      // 현재가 갱신은 백그라운드에서 비동기로 실행 (화면 표시를 막지 않음)
+      updateStockCurrentPrice(foundStockId).catch((priceError) => {
         console.warn('현재가 갱신 실패:', priceError);
-        // 현재가 갱신 실패해도 계속 진행
-      }
+      });
       
-      const stockData = await getStockById(stockId);
       if (stockData) {
         setStock(stockData);
-        const recordsData = await getTradingRecordsByStockId(stockId);
+        // 매매기록 로드
+        const recordsData = await getTradingRecordsByStockId(foundStockId);
         setRecords(recordsData);
       }
     } catch (error: any) {

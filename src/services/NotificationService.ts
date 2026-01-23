@@ -382,24 +382,37 @@ export async function saveNotificationToLocal(
  */
 export async function getSavedNotifications(): Promise<SavedNotification[]> {
   try {
-    const data = await AsyncStorage.getItem(NOTIFICATIONS_LIST_KEY);
+    // 병렬로 AsyncStorage 읽기 (성능 개선)
+    const [data, deletedIdsStr] = await Promise.all([
+      AsyncStorage.getItem(NOTIFICATIONS_LIST_KEY),
+      AsyncStorage.getItem(DELETED_NOTIFICATION_IDS_KEY),
+    ]);
+    
     if (!data) {
       return [];
     }
     
     const notifications: SavedNotification[] = JSON.parse(data);
     
-    // 삭제된 알림 ID 목록 가져오기 (로컬 AsyncStorage에서)
-    const deletedIdsStr = await AsyncStorage.getItem(DELETED_NOTIFICATION_IDS_KEY);
-    const deletedIds: string[] = deletedIdsStr ? JSON.parse(deletedIdsStr) : [];
+    // 삭제된 알림이 없으면 바로 반환
+    if (!deletedIdsStr) {
+      return notifications;
+    }
     
-    // 삭제된 알림 필터링 (로컬에서만 비교)
-    const filteredNotifications = notifications.filter(n => !deletedIds.includes(n.id));
+    // 삭제된 알림 ID를 Set으로 변환하여 필터링 속도 개선 (O(n) → O(1) 조회)
+    const deletedIds: string[] = JSON.parse(deletedIdsStr);
+    const deletedIdsSet = new Set(deletedIds);
+    
+    // 삭제된 알림 필터링
+    const filteredNotifications = notifications.filter(n => !deletedIdsSet.has(n.id));
     
     // 필터링된 결과가 다르면 저장소 업데이트 (가비지 데이터 정리)
+    // 단, 이 작업은 백그라운드에서 처리하여 초기 로딩을 막지 않음
     if (filteredNotifications.length !== notifications.length) {
-      console.log(`🧹 삭제된 알림 ${notifications.length - filteredNotifications.length}개 정리`);
-      await AsyncStorage.setItem(NOTIFICATIONS_LIST_KEY, JSON.stringify(filteredNotifications));
+      // 비동기로 저장 (await 제거하여 블로킹 방지)
+      AsyncStorage.setItem(NOTIFICATIONS_LIST_KEY, JSON.stringify(filteredNotifications)).catch(
+        (err) => console.error('알림 목록 정리 저장 오류:', err)
+      );
     }
     
     return filteredNotifications;
