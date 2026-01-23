@@ -252,7 +252,6 @@ export default function NotificationsScreen() {
                     </View>
                     <Text
                       style={styles.notificationBody}
-                      numberOfLines={2}
                     >
                       {notification.body}
                     </Text>
