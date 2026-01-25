@@ -983,7 +983,7 @@ export default function MainScreen() {
               )}
 
               {/* 하단 그라데이션 카드 */}
-              <TouchableOpacity
+              {/* <TouchableOpacity
                 style={styles.mainGradientCard}
                 onPress={() => router.push('/averaging')}
                 activeOpacity={0.9}
@@ -1006,7 +1006,7 @@ export default function MainScreen() {
                   <Text style={styles.mainGradientFeature}>한국·미국 주식 지원</Text>
                   <Text style={styles.mainGradientFeature}>반복 물타기 계산</Text>
                 </LinearGradient>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
 
           {/* 포트폴리오 종목 섹션 */}
           {showPortfolio && portfolioStocks.length > 0 && (
@@ -1111,8 +1111,8 @@ export default function MainScreen() {
             </View>
           )}
 
-          {/* 쿠팡 배너: 내 포트폴리오 아래 */}
-          {showPortfolio && portfolioStocks.length > 0 && (
+          {/* 쿠팡 배너: 내 포트폴리오 아래 (포트폴리오 영역 표시 설정과 독립적으로 표시) */}
+          {portfolioStocks.length > 0 && (
             <CoupangDynamicBanner width={320} height={140} />
           )}
 
