@@ -13,6 +13,7 @@
     "build:debug": "cd android && gradlew.bat assembleDebug",
     "build:debug:install": "powershell -ExecutionPolicy Bypass -File scripts/build-and-install.ps1 debug",
     "build:release": "cd android && gradlew.bat assembleRelease",
+    "build:bundle": "cd android && gradlew.bat bundleRelease",
     "build:release:install": "powershell -ExecutionPolicy Bypass -File scripts/build-and-install.ps1 release",
     "version:patch": "powershell -ExecutionPolicy Bypass -File scripts/increment-version.ps1 patch",
     "version:minor": "powershell -ExecutionPolicy Bypass -File scripts/increment-version.ps1 minor",
