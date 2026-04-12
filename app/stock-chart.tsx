@@ -24,6 +24,10 @@ import { Stock } from '../src/models/Stock';
 import { Currency } from '../src/models/Currency';
 import { formatCurrency, addCommas } from '../src/utils/formatUtils';
 import { ExchangeRateService } from '../src/services/ExchangeRateService';
+import ChartSelectionModal, {
+  ChartSelectionMarketStock,
+  ChartSelectionPortfolioStock,
+} from '../src/components/ChartSelectionModal';
 
 type RangeConfig = {
   range: string;
@@ -320,6 +324,7 @@ export default function StockChartScreen() {
   };
   const isLandscape = screenData.width > screenData.height;
   const [hasTradingRecords, setHasTradingRecords] = useState<boolean>(false);
+  const [showChartSelectionModal, setShowChartSelectionModal] = useState(false);
   const stockTabsScrollRef = useRef<ScrollView>(null);
 
   // 화면 회전 감지
@@ -655,6 +660,45 @@ export default function StockChartScreen() {
     }
   };
 
+  const getChartSelectionTargets = (): {
+    portfolio: ChartSelectionPortfolioStock | null;
+    market: ChartSelectionMarketStock | null;
+  } => {
+    if (!stock) {
+      return { portfolio: null, market: null };
+    }
+    if ('id' in stock && stock.id) {
+      return {
+        portfolio: {
+          id: String(stock.id),
+          ticker: stock.ticker,
+          name: stock.name,
+          officialName: stock.officialName,
+          currency: stock.currency,
+        },
+        market: null,
+      };
+    }
+    if ('isMarketIndicator' in stock && stock.isMarketIndicator) {
+      return {
+        portfolio: null,
+        market: {
+          ticker: stock.ticker,
+          name: stock.name,
+          currency: stock.currency,
+        },
+      };
+    }
+    return {
+      portfolio: null,
+      market: {
+        ticker: stock.ticker,
+        name: stock.name,
+        currency: stock.currency,
+      },
+    };
+  };
+
   if (loading && !stock) {
     return (
       <View style={styles.container}>
@@ -682,7 +726,9 @@ export default function StockChartScreen() {
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
               <Text style={styles.backButtonText}>←</Text>
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>종목차트</Text>
+            <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
+              종목차트
+            </Text>
             <View style={styles.headerRightContainer}>
               <TouchableOpacity
                 onPress={() => router.push('/')}
@@ -711,7 +757,9 @@ export default function StockChartScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Text style={styles.backButtonText}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>종목차트</Text>
+          <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
+            종목차트
+          </Text>
           <View style={styles.headerRightContainer}>
             {hasTradingRecords && stock && 'id' in stock && (
               <TouchableOpacity
@@ -723,6 +771,13 @@ export default function StockChartScreen() {
                 <Text style={styles.headerIconLabel}>매매기록</Text>
               </TouchableOpacity>
             )}
+            <TouchableOpacity
+              style={styles.headerOverflowButton}
+              onPress={() => setShowChartSelectionModal(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.headerOverflowIcon}>⋮</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => router.push('/')}
               style={styles.homeButton}
@@ -909,6 +964,15 @@ export default function StockChartScreen() {
           )}
         </ScrollView>
       </LinearGradient>
+      <ChartSelectionModal
+        visible={showChartSelectionModal}
+        onCancel={() => setShowChartSelectionModal(false)}
+        onDismissAfterSelect={() => setShowChartSelectionModal(false)}
+        origin="stock-chart"
+        portfolioStock={getChartSelectionTargets().portfolio}
+        marketStock={getChartSelectionTargets().market}
+        hasTradingRecords={hasTradingRecords}
+      />
     </View>
   );
 }
@@ -941,26 +1005,40 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     flex: 1,
+    minWidth: 0,
   },
   headerRightContainer: {
     marginLeft: 'auto',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
+    flexShrink: 0,
+  },
+  headerOverflowButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerOverflowIcon: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 22,
   },
   headerIconButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
     paddingVertical: 4,
   },
   headerIcon: {
     fontSize: 18,
   },
   headerIconLabel: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#FFFFFF',
-    marginTop: 2,
+    marginTop: 1,
     fontWeight: '500',
   },
   homeButton: {

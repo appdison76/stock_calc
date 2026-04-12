@@ -6,9 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Modal,
   Dimensions,
-  Linking,
   Alert,
   Image,
 } from 'react-native';
@@ -39,6 +37,7 @@ import {
   Sector,
   MarketTabType as SectorMarketTabType,
 } from '../src/data/sectors';
+import ChartSelectionModal from '../src/components/ChartSelectionModal';
 
 interface PortfolioStock extends Stock {
   accountName: string;
@@ -681,99 +680,6 @@ export default function HeatmapScreen() {
     setSelectedStock(null);
     setHasTradingRecords(false); // 시장 종목은 매매기록 없음
     setShowChartModal(true);
-  };
-
-  const handleChartOption = async (option: 'internal' | 'naver' | 'yahoo' | 'trading' | 'detail') => {
-    const stock = selectedStock || selectedMarketStock;
-    if (!stock) return;
-
-    const ticker = 'ticker' in stock ? stock.ticker : stock.ticker;
-    const stockName = 'name' in stock ? stock.name : stock.name;
-    setShowChartModal(false);
-
-    try {
-      switch (option) {
-        case 'internal':
-          // 기존 차트 화면으로 이동
-          if (selectedStock) {
-            router.push(`/stock-chart?ticker=${ticker}&id=${selectedStock.id}`);
-          } else if (selectedMarketStock) {
-            router.push(`/stock-chart?ticker=${ticker}&name=${stockName}`);
-          }
-          break;
-
-        case 'naver':
-          // 네이버 금융 차트 (앱 우선, 없으면 웹) - 한국 주식만 지원
-          const stockCurrency = selectedStock?.currency || selectedMarketStock?.currency;
-          if (stockCurrency === Currency.USD) {
-            Alert.alert('알림', '네이버 금융은 한국 주식만 지원합니다. 야후 파이낸스를 이용해주세요.');
-            return;
-          }
-          const naverCode = ticker.replace('.KS', '').replace('.KQ', '');
-          
-          // 네이버 앱 딥링크 시도
-          try {
-            const naverAppDeepLink = `nfinance://item/main?code=${naverCode}`;
-            try {
-              await Linking.openURL(naverAppDeepLink);
-              return; // 앱이 있으면 성공
-            } catch {
-              // 앱이 없으면 웹으로 폴백
-            }
-            
-            // 웹 브라우저에서 열기
-            const naverUrl = `https://finance.naver.com/item/main.naver?code=${naverCode}`;
-            await Linking.openURL(naverUrl);
-          } catch (error) {
-            console.error('네이버 금융 열기 오류:', error);
-            Alert.alert('오류', '네이버 금융을 열 수 없습니다.');
-          }
-          break;
-
-        case 'yahoo':
-          // 야후 파이낸스 차트 (앱 우선, 없으면 웹)
-          // 야후 앱 딥링크 시도
-          try {
-            const yahooAppDeepLink = `yahoofinance://quote/${ticker}`;
-            try {
-              await Linking.openURL(yahooAppDeepLink);
-              return; // 앱이 있으면 성공
-            } catch {
-              // 앱이 없으면 웹으로 폴백
-            }
-            
-            // 웹 브라우저에서 열기
-            const yahooUrl = `https://finance.yahoo.com/quote/${ticker}`;
-            await Linking.openURL(yahooUrl);
-          } catch (error) {
-            console.error('야후 파이낸스 열기 오류:', error);
-            Alert.alert('오류', '야후 파이낸스를 열 수 없습니다.');
-          }
-          break;
-
-
-        case 'trading':
-          // 매매기록 차트 화면으로 이동 (포트폴리오 종목만)
-          if (selectedStock && selectedStock.id) {
-            router.push(`/visualization?stockId=${selectedStock.id}`);
-          } else {
-            Alert.alert('알림', '매매기록 차트는 포트폴리오에 등록된 종목만 볼 수 있습니다.');
-          }
-          break;
-
-        case 'detail':
-          // 종목상세 화면으로 이동 (포트폴리오 종목만)
-          if (selectedStock && selectedStock.id) {
-            router.push(`/stock-detail?id=${selectedStock.id}`);
-          } else {
-            Alert.alert('알림', '종목상세는 포트폴리오에 등록된 종목만 볼 수 있습니다.');
-          }
-          break;
-      }
-    } catch (error) {
-      console.error('차트 열기 오류:', error);
-      Alert.alert('오류', '차트를 열 수 없습니다.');
-    }
   };
 
   // 포트폴리오 히트맵용: 보유금액 기준 셀 크기 계산
@@ -1495,123 +1401,38 @@ export default function HeatmapScreen() {
         </ScrollView>
       </LinearGradient>
 
-      {/* 차트 선택 모달 */}
-      <Modal
+      <ChartSelectionModal
         visible={showChartModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => {
+        onCancel={() => {
           setShowChartModal(false);
           setSelectedStock(null);
+          setSelectedMarketStock(null);
+          setHasTradingRecords(false);
         }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {selectedStock?.name || selectedStock?.officialName || selectedStock?.ticker}
-            </Text>
-            <Text style={styles.modalSubtitle}>차트 보기 방법 선택</Text>
-
-            <TouchableOpacity
-              style={styles.chartOption}
-              onPress={() => handleChartOption('internal')}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.chartOptionIcon}>📈</Text>
-              <View style={styles.chartOptionTextContainer}>
-                <Text style={styles.chartOptionTitle}>종목 차트</Text>
-                <Text style={styles.chartOptionDescription}>앱 내 캔들스틱 차트</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* 매매기록 차트는 포트폴리오 종목이고 매매기록이 있을 때만 표시 */}
-            {selectedStock && selectedStock.id && hasTradingRecords && (
-              <TouchableOpacity
-                style={styles.chartOption}
-                onPress={() => handleChartOption('trading')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.chartOptionIcon}>📉</Text>
-                <View style={styles.chartOptionTextContainer}>
-                  <Text style={styles.chartOptionTitle}>매매기록 차트</Text>
-                  <Text style={styles.chartOptionDescription}>매수/매도 기록 도트 차트</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-
-            {/* 네이버 금융은 한국 주식만 지원 */}
-            {((selectedStock && selectedStock.currency === Currency.KRW) || 
-              (selectedMarketStock && selectedMarketStock.currency === Currency.KRW)) && (
-              <TouchableOpacity
-                style={styles.chartOption}
-                onPress={() => handleChartOption('naver')}
-                activeOpacity={0.7}
-              >
-                <View style={styles.chartOptionLogoContainer}>
-                  <View style={[styles.chartOptionLogo, styles.naverLogo]}>
-                    <Text style={styles.naverLogoText}>N</Text>
-                  </View>
-                </View>
-                <View style={styles.chartOptionTextContainer}>
-                  <Text style={styles.chartOptionTitle}>네이버 금융</Text>
-                  <Text style={styles.chartOptionDescription}>차트 및 종목 정보 보기</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              style={styles.chartOption}
-              onPress={() => handleChartOption('yahoo')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.chartOptionLogoContainer}>
-                <View style={[styles.chartOptionLogo, styles.yahooLogo]}>
-                  <Text style={styles.yahooLogoText}>Y!</Text>
-                </View>
-              </View>
-              <View style={styles.chartOptionTextContainer}>
-                <Text style={styles.chartOptionTitle}>야후 파이낸스</Text>
-                <Text style={styles.chartOptionDescription}>차트 및 종목 정보 보기</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* 종목상세는 포트폴리오 종목일 때만 표시 */}
-            {selectedStock && selectedStock.id && (
-              <TouchableOpacity
-                style={styles.chartOption}
-                onPress={() => handleChartOption('detail')}
-                activeOpacity={0.7}
-              >
-                <View style={styles.chartOptionIconContainer}>
-                  <View style={styles.chartOptionIconTop}>
-                    <Text style={styles.chartOptionIconText}>매수</Text>
-                  </View>
-                  <View style={styles.chartOptionIconBottom}>
-                    <Text style={styles.chartOptionIconText}>매도</Text>
-                  </View>
-                </View>
-                <View style={styles.chartOptionTextContainer}>
-                        <Text style={styles.chartOptionTitle}>매수/매도 기록 추가</Text>
-                  <Text style={styles.chartOptionDescription}>상세 정보 및 매수/매도 기록 추가</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              style={styles.modalCloseButton}
-              onPress={() => {
-                setShowChartModal(false);
-                setSelectedStock(null);
-                setSelectedMarketStock(null);
-                setHasTradingRecords(false);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.modalCloseButtonText}>취소</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        onDismissAfterSelect={() => setShowChartModal(false)}
+        origin="heatmap"
+        portfolioStock={
+          selectedStock
+            ? {
+                id: selectedStock.id,
+                ticker: selectedStock.ticker,
+                name: selectedStock.name,
+                officialName: selectedStock.officialName,
+                currency: selectedStock.currency,
+              }
+            : null
+        }
+        marketStock={
+          selectedMarketStock
+            ? {
+                ticker: selectedMarketStock.ticker,
+                name: selectedMarketStock.name,
+                currency: selectedMarketStock.currency,
+              }
+            : null
+        }
+        hasTradingRecords={hasTradingRecords}
+      />
     </View>
   );
 }
@@ -1781,134 +1602,6 @@ const styles = StyleSheet.create({
   legendText: {
     fontSize: 12,
     color: '#B0BEC5',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: 'rgba(45, 45, 45, 0.95)',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.3)',
-    padding: 24,
-    width: '100%',
-    maxWidth: 400,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: '#B0BEC5',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  chartOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(51, 51, 51, 0.6)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.2)',
-  },
-  chartOptionIcon: {
-    fontSize: 24,
-    marginRight: 12,
-    width: 36,
-    textAlign: 'center',
-  },
-  chartOptionLogoContainer: {
-    width: 36,
-    height: 36,
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  chartOptionLogo: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  naverLogo: {
-    backgroundColor: '#03C75A', // 네이버 그린
-  },
-  naverLogoText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  yahooLogo: {
-    backgroundColor: '#6001D2', // 야후 퍼플
-  },
-  yahooLogoText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  chartOptionIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    marginRight: 12,
-    overflow: 'hidden',
-  },
-  chartOptionIconTop: {
-    flex: 1,
-    backgroundColor: '#4CAF50',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  chartOptionIconBottom: {
-    flex: 1,
-    backgroundColor: '#EF5350',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  chartOptionIconText: {
-    fontSize: 9,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  chartOptionTextContainer: {
-    flex: 1,
-  },
-  chartOptionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  chartOptionDescription: {
-    fontSize: 12,
-    color: '#B0BEC5',
-  },
-  modalCloseButton: {
-    marginTop: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 12,
-    backgroundColor: 'rgba(244, 67, 54, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(244, 67, 54, 0.3)',
-  },
-  modalCloseButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#F44336',
   },
   marketTabContainer: {
     marginBottom: 16,

@@ -25,6 +25,7 @@ import { getStockQuote } from '../src/services/YahooFinanceService';
 import { addCommas, formatCurrency } from '../src/utils/formatUtils';
 import { getCurrencyFromTicker } from '../src/utils/stockUtils';
 import StockSearchModal from '../src/components/StockSearchModal';
+import ChartSelectionModal from '../src/components/ChartSelectionModal';
 import { SettingsService } from '../src/services/SettingsService';
 
 export default function PortfolioDetailScreen() {
@@ -54,6 +55,7 @@ export default function PortfolioDetailScreen() {
   const [filterOption, setFilterOption] = useState<FilterOption>('all'); // 기본값: 전체
   const [showSortFilterModal, setShowSortFilterModal] = useState(false);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false); // 합계 영역 접기/펼치기
+  const [chartMenuStock, setChartMenuStock] = useState<(Stock & { recordCount: number }) | null>(null);
 
   // USD 가격에 대한 원화 변환값 표시 (작은 글씨)
   const getKrwEquivalentForDisplay = (usdValue: number | undefined | null): string | null => {
@@ -770,9 +772,15 @@ export default function PortfolioDetailScreen() {
                         <View style={styles.stockNameRow}>
                           <View style={styles.stockNameContainer}>
                             <View style={styles.stockNameRowWithBadge}>
-                              <Text style={styles.stockTicker}>
-                                {stock.name || stock.officialName || stock.ticker}
-                              </Text>
+                              <View style={styles.stockNameTitleWrap}>
+                                <Text
+                                  style={styles.stockTicker}
+                                  numberOfLines={1}
+                                  ellipsizeMode="tail"
+                                >
+                                  {stock.name || stock.officialName || stock.ticker}
+                                </Text>
+                              </View>
                               {stock.currency === Currency.USD && (
                                 <View style={styles.currencyBadge}>
                                   <Text style={styles.currencyBadgeText}>USD</Text>
@@ -781,7 +789,11 @@ export default function PortfolioDetailScreen() {
                             </View>
                             {/* 매칭된 종목(officialName과 ticker가 모두 있는 경우)은 항상 표시 */}
                             {stock.officialName && stock.ticker && (
-                              <Text style={styles.stockOfficialName}>
+                              <Text
+                                style={styles.stockOfficialName}
+                                numberOfLines={2}
+                                ellipsizeMode="tail"
+                              >
                                 {stock.officialName} · {stock.ticker}
                               </Text>
                             )}
@@ -811,6 +823,16 @@ export default function PortfolioDetailScreen() {
                                 <Text style={styles.chartIconLabel}>매매기록</Text>
                               </TouchableOpacity>
                             )}
+                            <TouchableOpacity
+                              style={styles.chartOverflowButton}
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                setChartMenuStock(stock);
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={styles.chartOverflowIcon}>⋮</Text>
+                            </TouchableOpacity>
                           </View>
                         </View>
                         <View style={styles.stockDetails}>
@@ -1149,6 +1171,26 @@ export default function PortfolioDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      <ChartSelectionModal
+        visible={chartMenuStock !== null}
+        onCancel={() => setChartMenuStock(null)}
+        onDismissAfterSelect={() => setChartMenuStock(null)}
+        origin="portfolio-list"
+        portfolioStock={
+          chartMenuStock
+            ? {
+                id: chartMenuStock.id,
+                ticker: chartMenuStock.ticker,
+                name: chartMenuStock.name,
+                officialName: chartMenuStock.officialName,
+                currency: chartMenuStock.currency,
+              }
+            : null
+        }
+        marketStock={null}
+        hasTradingRecords={(chartMenuStock?.recordCount ?? 0) > 0}
+      />
     </View>
   );
 }
@@ -1425,22 +1467,35 @@ const styles = StyleSheet.create({
   },
   chartIconsContainer: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
     alignItems: 'center',
+    flexShrink: 0,
+  },
+  chartOverflowButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chartOverflowIcon: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 22,
   },
   chartIconButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
     paddingVertical: 4,
   },
   chartIcon: {
     fontSize: 18,
   },
   chartIconLabel: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#FFFFFF',
-    marginTop: 2,
+    marginTop: 1,
     fontWeight: '500',
   },
   arrow: {
@@ -1489,11 +1544,16 @@ const styles = StyleSheet.create({
   },
   stockNameContainer: {
     flex: 1,
+    minWidth: 0,
   },
   stockNameRowWithBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+  },
+  stockNameTitleWrap: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   stockTicker: {
     fontSize: 22,

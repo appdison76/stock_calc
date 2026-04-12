@@ -40,6 +40,7 @@ import { US_ETF_TO_UNDERLYING_MAP } from '../src/data/us_etf_underlying_map';
 import { AdmobBanner } from '../src/components/AdmobBanner';
 import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
 import { CoupangDynamicBanner } from '../src/components/CoupangDynamicBanner';
+import ChartSelectionModal from '../src/components/ChartSelectionModal';
 
 export default function StockDetailScreen() {
   const router = useRouter();
@@ -50,6 +51,7 @@ export default function StockDetailScreen() {
   const [records, setRecords] = useState<TradingRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddRecordModal, setShowAddRecordModal] = useState(false);
+  const [showChartSelectionModal, setShowChartSelectionModal] = useState(false);
   const [recordType, setRecordType] = useState<'BUY' | 'SELL'>('BUY'); // 매수/매도 선택
   
   // 실적 추가 입력값
@@ -771,7 +773,15 @@ export default function StockDetailScreen() {
             <View style={styles.stockNameContainer}>
               <View style={styles.stockNameTextContainer}>
                 <View style={styles.stockNameRowWithBadge}>
-                  <Text style={styles.stockName}>{stock.name || stock.officialName || stock.ticker}</Text>
+                  <View style={styles.stockNameTitleWrap}>
+                    <Text
+                      style={styles.stockName}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {stock.name || stock.officialName || stock.ticker}
+                    </Text>
+                  </View>
                   {stock.currency === Currency.USD && (
                     <View style={styles.currencyBadge}>
                       <Text style={styles.currencyBadgeText}>USD</Text>
@@ -780,7 +790,11 @@ export default function StockDetailScreen() {
                 </View>
                 {/* 매칭된 종목(officialName과 ticker가 모두 있는 경우)은 항상 표시 */}
                 {stock.officialName && stock.ticker && (
-                  <Text style={styles.stockOfficialName}>
+                  <Text
+                    style={styles.stockOfficialName}
+                    numberOfLines={2}
+                    ellipsizeMode="tail"
+                  >
                     {stock.officialName} · {stock.ticker}
                   </Text>
                 )}
@@ -804,6 +818,13 @@ export default function StockDetailScreen() {
                     <Text style={styles.chartIconLabel}>매매기록</Text>
                   </TouchableOpacity>
                 )}
+                <TouchableOpacity
+                  style={styles.chartOverflowButton}
+                  onPress={() => setShowChartSelectionModal(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.chartOverflowIcon}>⋮</Text>
+                </TouchableOpacity>
               </View>
             </View>
             <View style={styles.stockDetails}>
@@ -1247,6 +1268,22 @@ export default function StockDetailScreen() {
             </View>
           )}
         </ScrollView>
+
+        <ChartSelectionModal
+          visible={showChartSelectionModal}
+          onCancel={() => setShowChartSelectionModal(false)}
+          onDismissAfterSelect={() => setShowChartSelectionModal(false)}
+          origin="stock-detail"
+          portfolioStock={{
+            id: stock.id,
+            ticker: stock.ticker,
+            name: stock.name,
+            officialName: stock.officialName,
+            currency: stock.currency,
+          }}
+          marketStock={null}
+          hasTradingRecords={records.length > 0}
+        />
       </LinearGradient>
 
       {/* 실적 추가 모달 */}
@@ -1366,12 +1403,17 @@ const styles = StyleSheet.create({
   },
   stockNameTextContainer: {
     flex: 1,
+    minWidth: 0,
     flexDirection: 'column',
   },
   stockNameRowWithBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+  },
+  stockNameTitleWrap: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   stockName: {
     fontSize: 24,
@@ -1396,22 +1438,35 @@ const styles = StyleSheet.create({
   },
   chartIconsContainer: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
     alignItems: 'center',
+    flexShrink: 0,
+  },
+  chartOverflowButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chartOverflowIcon: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 22,
   },
   chartIconButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
     paddingVertical: 4,
   },
   chartIcon: {
     fontSize: 18,
   },
   chartIconLabel: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#FFFFFF',
-    marginTop: 2,
+    marginTop: 1,
     fontWeight: '500',
   },
   stockDetails: {

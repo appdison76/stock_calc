@@ -24,6 +24,7 @@ import { Currency } from '../src/models/Currency';
 import { formatCurrency, addCommas } from '../src/utils/formatUtils';
 import { getStockQuote } from '../src/services/YahooFinanceService';
 import { ExchangeRateService } from '../src/services/ExchangeRateService';
+import ChartSelectionModal from '../src/components/ChartSelectionModal';
 
 interface DotData {
   price: number;
@@ -48,6 +49,8 @@ export default function VisualizationScreen() {
   const [loading, setLoading] = useState(true);
   const [chartsData, setChartsData] = useState<ChartData[]>([]);
   const [selectedChartIndex, setSelectedChartIndex] = useState<number | null>(null);
+  const [showChartSelectionModal, setShowChartSelectionModal] = useState(false);
+  const [chartModalHasTradingRecords, setChartModalHasTradingRecords] = useState(false);
   const previousSelectedStockIdRef = useRef<string | null>(null);
   const stockTabsScrollRef = useRef<ScrollView>(null);
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
@@ -464,6 +467,20 @@ export default function VisualizationScreen() {
     }, 300); // 레이아웃 완료를 위해 지연 시간 증가
   };
 
+  const openChartSelectionMenu = async () => {
+    if (selectedChartIndex === null || chartsData.length === 0) return;
+    const chart = chartsData[selectedChartIndex];
+    if (!chart?.stock?.id) return;
+    try {
+      await initDatabase();
+      const rec = await getTradingRecordsByStockId(chart.stock.id);
+      setChartModalHasTradingRecords(rec.length > 0);
+    } catch {
+      setChartModalHasTradingRecords(false);
+    }
+    setShowChartSelectionModal(true);
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -494,7 +511,9 @@ export default function VisualizationScreen() {
             >
               <Text style={styles.backButtonText}>←</Text>
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>매매기록 차트</Text>
+            <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
+              매매기록 차트
+            </Text>
             <View style={styles.headerRightContainer}>
               <TouchableOpacity
                 onPress={() => router.push('/')}
@@ -529,7 +548,9 @@ export default function VisualizationScreen() {
           >
             <Text style={styles.backButtonText}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>매매기록 차트</Text>
+          <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
+            매매기록 차트
+          </Text>
           <View style={styles.headerRightContainer}>
             {selectedChart && (
               <TouchableOpacity
@@ -539,6 +560,15 @@ export default function VisualizationScreen() {
               >
                 <Text style={styles.headerIcon}>📈</Text>
                 <Text style={styles.headerIconLabel}>종목차트</Text>
+              </TouchableOpacity>
+            )}
+            {selectedChart && (
+              <TouchableOpacity
+                style={styles.headerOverflowButton}
+                onPress={() => void openChartSelectionMenu()}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.headerOverflowIcon}>⋮</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -679,6 +709,23 @@ export default function VisualizationScreen() {
           )}
         </ScrollView>
       </LinearGradient>
+      {selectedChart && (
+        <ChartSelectionModal
+          visible={showChartSelectionModal}
+          onCancel={() => setShowChartSelectionModal(false)}
+          onDismissAfterSelect={() => setShowChartSelectionModal(false)}
+          origin="visualization"
+          portfolioStock={{
+            id: selectedChart.stock.id,
+            ticker: selectedChart.stock.ticker,
+            name: selectedChart.stock.name,
+            officialName: selectedChart.stock.officialName,
+            currency: selectedChart.stock.currency,
+          }}
+          marketStock={null}
+          hasTradingRecords={chartModalHasTradingRecords}
+        />
+      )}
     </View>
   );
 }
@@ -938,26 +985,40 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
     flex: 1,
+    minWidth: 0,
   },
   headerRightContainer: {
     marginLeft: 'auto',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
+    flexShrink: 0,
+  },
+  headerOverflowButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerOverflowIcon: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 22,
   },
   headerIconButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
     paddingVertical: 4,
   },
   headerIcon: {
     fontSize: 18,
   },
   headerIconLabel: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#FFFFFF',
-    marginTop: 2,
+    marginTop: 1,
     fontWeight: '500',
   },
   homeButton: {
