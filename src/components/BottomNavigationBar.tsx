@@ -81,6 +81,7 @@ const moreMenuItems: MoreMenuItem[] = [
   { label: '매매기록', icon: '📉', route: '/visualization', description: '매매 기록 차트' },
   { label: '종목차트', icon: '📈', route: '/stock-chart', description: '종목 가격 차트' },
   { label: '주요지표', icon: '📌', route: '/market-indicators', description: '시장 주요 지표' },
+  { label: '바로가기 관리', icon: '🔗', route: '/shortcut-manager', description: '나만의 바로가기 추가·순서·삭제' },
   { label: '환경설정', icon: '⚙️', route: '/settings', description: '앱 설정 및 수수료 관리' },
   // 여기에 추가 메뉴들을 계속 추가할 수 있음
 ];
