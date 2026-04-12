@@ -475,6 +475,12 @@ export default function RootLayout() {
             headerShown: false,
           }}
         />
+        <Stack.Screen
+          name="shortcut-manager"
+          options={{
+            title: '바로가기 관리',
+          }}
+        />
       </Stack>
     </>
   );

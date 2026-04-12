@@ -37,6 +37,7 @@ export default function SettingsView() {
   const [showWorldTime, setShowWorldTime] = useState(true);
   const [showInterestRates, setShowInterestRates] = useState(true);
   const [showIssueKeywords, setShowIssueKeywords] = useState(true);
+  const [showMyShortcuts, setShowMyShortcuts] = useState(true);
   
   // 알림 설정
   const [enableNewsNotifications, setEnableNewsNotifications] = useState(true);
@@ -75,6 +76,7 @@ export default function SettingsView() {
         worldTime,
         interestRates,
         issueKeywords,
+        myShortcuts,
         newsNotifications,
         stockNotifications,
       ] = await Promise.all([
@@ -86,6 +88,7 @@ export default function SettingsView() {
         SettingsService.getShowWorldTime(),
         SettingsService.getShowInterestRates(),
         SettingsService.getShowIssueKeywords(),
+        SettingsService.getShowMyShortcuts(),
         SettingsService.getEnableNewsNotifications(),
         SettingsService.getEnableStockNotifications(),
       ]);
@@ -98,6 +101,7 @@ export default function SettingsView() {
       setShowWorldTime(worldTime);
       setShowInterestRates(interestRates);
       setShowIssueKeywords(issueKeywords);
+      setShowMyShortcuts(myShortcuts);
       setEnableNewsNotifications(newsNotifications);
       setEnableStockNotifications(stockNotifications);
     } catch (e) {
@@ -121,6 +125,7 @@ export default function SettingsView() {
           SettingsService.setShowWorldTime(showWorldTime),
           SettingsService.setShowInterestRates(showInterestRates),
           SettingsService.setShowIssueKeywords(showIssueKeywords),
+          SettingsService.setShowMyShortcuts(showMyShortcuts),
         ]);
 
         Alert.alert('성공', '설정이 저장되었습니다.');
@@ -330,6 +335,19 @@ export default function SettingsView() {
                   <Switch
                     value={showMiniBanners}
                     onValueChange={setShowMiniBanners}
+                    trackColor={{ false: '#757575', true: '#42A5F5' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+
+                <View style={styles.settingRow}>
+                  <View style={styles.settingLabelContainer}>
+                    <Text style={styles.settingLabel}>나만의 바로가기 영역</Text>
+                    <Text style={styles.settingDescription}>메인에서 자주 쓰는 링크 바로가기 표시</Text>
+                  </View>
+                  <Switch
+                    value={showMyShortcuts}
+                    onValueChange={setShowMyShortcuts}
                     trackColor={{ false: '#757575', true: '#42A5F5' }}
                     thumbColor="#FFFFFF"
                   />

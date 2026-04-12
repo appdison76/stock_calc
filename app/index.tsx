@@ -45,8 +45,23 @@ import {
   IssueKeywordItem,
   FALLBACK_ISSUE_KEYWORDS,
 } from '../src/services/IssueKeywordsService';
+import type { MyShortcut } from '../src/models/MyShortcut';
+import {
+  loadMyShortcuts,
+  shortcutsForMain,
+  displayEmoji,
+  reorderMainVisible,
+} from '../src/services/MyShortcutsService';
 
 const MAIN_ISSUE_SECTION_COLLAPSED_KEY = '@main_issue_section_collapsed';
+
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const rows: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    rows.push(arr.slice(i, i + size));
+  }
+  return rows;
+}
 
 interface CalculatorCardProps {
   title: string;
@@ -164,6 +179,9 @@ export default function MainScreen() {
   const [showWorldTime, setShowWorldTime] = useState(true);
   const [showInterestRates, setShowInterestRates] = useState(true);
   const [showIssueKeywords, setShowIssueKeywords] = useState(true);
+  const [showMyShortcuts, setShowMyShortcuts] = useState(true);
+  const [myShortcutsList, setMyShortcutsList] = useState<MyShortcut[]>([]);
+  const [myShortcutsEditMode, setMyShortcutsEditMode] = useState(false);
   
   // 포트폴리오 표시 개수 (기본 5개)
   const [displayedPortfolioCount, setDisplayedPortfolioCount] = useState(5);
@@ -378,6 +396,15 @@ export default function MainScreen() {
     }
   };
 
+  const reloadMyShortcuts = useCallback(async () => {
+    try {
+      const l = await loadMyShortcuts();
+      setMyShortcutsList(l);
+    } catch (error) {
+      console.error('바로가기 목록 로드 오류:', error);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       loadDisplaySettings();
@@ -387,7 +414,8 @@ export default function MainScreen() {
       loadMarketIndicators();
       // 읽지 않은 알림 수 업데이트
       updateUnreadNotificationCount();
-    }, [])
+      reloadMyShortcuts();
+    }, [reloadMyShortcuts])
   );
 
   // 초기 로드 시 읽지 않은 알림 수 가져오기
@@ -406,6 +434,7 @@ export default function MainScreen() {
         worldTime,
         interestRates,
         issueKeywords,
+        myShortcutsArea,
       ] = await Promise.all([
         SettingsService.getShowMarketIndicators(),
         SettingsService.getShowMiniBanners(),
@@ -415,6 +444,7 @@ export default function MainScreen() {
         SettingsService.getShowWorldTime(),
         SettingsService.getShowInterestRates(),
         SettingsService.getShowIssueKeywords(),
+        SettingsService.getShowMyShortcuts(),
       ]);
 
       setShowMarketIndicators(marketIndicators);
@@ -425,6 +455,7 @@ export default function MainScreen() {
       setShowWorldTime(worldTime);
       setShowInterestRates(interestRates);
       setShowIssueKeywords(issueKeywords);
+      setShowMyShortcuts(myShortcutsArea);
     } catch (error) {
       console.error('표시 설정 로드 오류:', error);
     }
@@ -1098,6 +1129,92 @@ export default function MainScreen() {
               </View>
               )}
 
+              {/* 나만의 바로가기 (기본 3×3 메뉴와 별도) */}
+              {showMyShortcuts && (
+                <View style={styles.myShortcutsSection}>
+                  <View style={styles.myShortcutsHeader}>
+                    <Text style={styles.sectionTitle}>나만의 바로가기</Text>
+                    <View style={styles.myShortcutsHeaderActions}>
+                      <TouchableOpacity
+                        onPress={() => setMyShortcutsEditMode((v) => !v)}
+                        style={styles.myShortcutsHeaderBtn}
+                      >
+                        <Text style={styles.myShortcutsHeaderBtnText}>
+                          {myShortcutsEditMode ? '완료' : '순서변경'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => router.push('/shortcut-manager')}
+                        style={styles.myShortcutsHeaderBtn}
+                      >
+                        <Text style={styles.myShortcutsHeaderBtnText}>관리</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  {shortcutsForMain(myShortcutsList).length === 0 ? (
+                    <Text style={styles.myShortcutsEmpty}>
+                      메인에 표시할 바로가기가 없습니다. 관리에서 추가하거나 메인 표시를 켜 주세요.
+                    </Text>
+                  ) : (
+                    chunkArray(shortcutsForMain(myShortcutsList), 3).map((row, ri) => (
+                      <View key={`shortcut-row-${ri}`} style={styles.iconGridRow}>
+                        {row.map((s) => (
+                          <View key={s.id} style={styles.iconItemContainer}>
+                            {myShortcutsEditMode && (
+                              <View style={styles.myShortcutsReorderRow}>
+                                <TouchableOpacity
+                                  onPress={async () => {
+                                    const next = await reorderMainVisible(s.id, -1);
+                                    setMyShortcutsList(next);
+                                  }}
+                                  style={styles.myShortcutsReorderTap}
+                                >
+                                  <Text style={styles.myShortcutsReorderTxt}>↑</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  onPress={async () => {
+                                    const next = await reorderMainVisible(s.id, 1);
+                                    setMyShortcutsList(next);
+                                  }}
+                                  style={styles.myShortcutsReorderTap}
+                                >
+                                  <Text style={styles.myShortcutsReorderTxt}>↓</Text>
+                                </TouchableOpacity>
+                              </View>
+                            )}
+                            <TouchableOpacity
+                              style={[
+                                styles.circularIconCard,
+                                { backgroundColor: 'rgba(100, 181, 246, 0.5)' },
+                              ]}
+                              onPress={() => {
+                                if (myShortcutsEditMode) return;
+                                Linking.openURL(s.url).catch(() =>
+                                  Alert.alert('오류', '링크를 열 수 없습니다.')
+                                );
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={styles.circularIconText}>{displayEmoji(s)}</Text>
+                            </TouchableOpacity>
+                            <Text style={styles.circularIconLabel} numberOfLines={2}>
+                              {s.title}
+                            </Text>
+                          </View>
+                        ))}
+                        {row.length < 3 &&
+                          Array.from({ length: 3 - row.length }).map((_, padIdx) => (
+                            <View
+                              key={`shortcut-pad-${ri}-${padIdx}`}
+                              style={styles.iconItemContainer}
+                            />
+                          ))}
+                      </View>
+                    ))
+                  )}
+                </View>
+              )}
+
               {/* 하단 그라데이션 카드 */}
               <TouchableOpacity
                 style={styles.mainGradientCard}
@@ -1613,6 +1730,15 @@ export default function MainScreen() {
               icon="📰"
               color="#FF5722"
               onPress={() => router.push('/news')}
+            />
+            <View style={styles.cardSpacer} />
+
+            <CalculatorCard
+              title="바로가기 관리"
+              description={['나만의 바로가기를', '추가·순서·삭제합니다']}
+              icon="🔗"
+              color="#7986CB"
+              onPress={() => router.push('/shortcut-manager')}
             />
             <View style={styles.cardSpacer} />
 
@@ -2194,6 +2320,55 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     lineHeight: 18,
+  },
+  myShortcutsSection: {
+    width: '100%',
+    marginBottom: 8,
+    alignSelf: 'stretch',
+  },
+  myShortcutsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingHorizontal: 2,
+  },
+  myShortcutsHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  myShortcutsHeaderBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginLeft: 4,
+  },
+  myShortcutsHeaderBtnText: {
+    color: '#42A5F5',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  myShortcutsEmpty: {
+    color: '#90A4AE',
+    fontSize: 13,
+    lineHeight: 20,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  myShortcutsReorderRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 6,
+  },
+  myShortcutsReorderTap: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  myShortcutsReorderTxt: {
+    color: '#ECEFF1',
+    fontSize: 14,
+    fontWeight: '700',
   },
   iconGridContainer: {
     width: '100%',
