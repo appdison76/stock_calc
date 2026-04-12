@@ -34,6 +34,7 @@ export default function SettingsView() {
   const [showLatestNews, setShowLatestNews] = useState(true);
   const [showWorldTime, setShowWorldTime] = useState(true);
   const [showInterestRates, setShowInterestRates] = useState(true);
+  const [showIssueKeywords, setShowIssueKeywords] = useState(true);
   
   // 알림 설정
   const [enableNewsNotifications, setEnableNewsNotifications] = useState(true);
@@ -71,6 +72,7 @@ export default function SettingsView() {
         latestNews,
         worldTime,
         interestRates,
+        issueKeywords,
         newsNotifications,
         stockNotifications,
       ] = await Promise.all([
@@ -81,6 +83,7 @@ export default function SettingsView() {
         SettingsService.getShowLatestNews(),
         SettingsService.getShowWorldTime(),
         SettingsService.getShowInterestRates(),
+        SettingsService.getShowIssueKeywords(),
         SettingsService.getEnableNewsNotifications(),
         SettingsService.getEnableStockNotifications(),
       ]);
@@ -92,6 +95,7 @@ export default function SettingsView() {
       setShowLatestNews(latestNews);
       setShowWorldTime(worldTime);
       setShowInterestRates(interestRates);
+      setShowIssueKeywords(issueKeywords);
       setEnableNewsNotifications(newsNotifications);
       setEnableStockNotifications(stockNotifications);
     } catch (e) {
@@ -114,6 +118,7 @@ export default function SettingsView() {
           SettingsService.setShowLatestNews(showLatestNews),
           SettingsService.setShowWorldTime(showWorldTime),
           SettingsService.setShowInterestRates(showInterestRates),
+          SettingsService.setShowIssueKeywords(showIssueKeywords),
         ]);
 
         Alert.alert('성공', '설정이 저장되었습니다.');
@@ -289,6 +294,19 @@ export default function SettingsView() {
                   <Switch
                     value={showMarketIndicators}
                     onValueChange={setShowMarketIndicators}
+                    trackColor={{ false: '#757575', true: '#42A5F5' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+
+                <View style={styles.settingRow}>
+                  <View style={styles.settingLabelContainer}>
+                    <Text style={styles.settingLabel}>실시간 이슈 영역</Text>
+                    <Text style={styles.settingDescription}>주요 지표 아래 인기 키워드 칩 표시</Text>
+                  </View>
+                  <Switch
+                    value={showIssueKeywords}
+                    onValueChange={setShowIssueKeywords}
                     trackColor={{ false: '#757575', true: '#42A5F5' }}
                     thumbColor="#FFFFFF"
                   />

@@ -1,5 +1,19 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, Text, ActivityIndicator, Linking, TextInput, TouchableOpacity, Keyboard, ScrollView } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Text,
+  ActivityIndicator,
+  Linking,
+  TextInput,
+  TouchableOpacity,
+  Keyboard,
+  ScrollView,
+  Pressable,
+  Dimensions,
+  LayoutChangeEvent,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import NewsList from '../src/components/NewsList';
 import { NewsItem } from '../src/models/NewsItem';
@@ -8,8 +22,15 @@ import { initDatabase, getAllAccounts, getStocksByAccountId } from '../src/servi
 import { Stock } from '../src/models/Stock';
 import { Currency } from '../src/models/Currency';
 import { US_ETF_TO_UNDERLYING_MAP } from '../src/data/us_etf_underlying_map';
+import { fetchIssueKeywords, IssueKeywordItem } from '../src/services/IssueKeywordsService';
+import {
+  getRecentSearches,
+  addRecentSearch,
+  removeRecentSearch,
+} from '../src/services/NewsSearchHistoryService';
 
 export default function NewsScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams();
   const lang = params?.lang as string | undefined;
@@ -30,6 +51,16 @@ export default function NewsScreen() {
   const [portfolioStocks, setPortfolioStocks] = useState<Stock[]>([]);
   const [selectedStockId, setSelectedStockId] = useState<number | null>(null); // null이면 "전체"
   const stockTabsScrollRef = useRef<ScrollView>(null);
+  const searchInputRef = useRef<TextInput>(null);
+  /** 동일 q로 initializeFromParams가 여러 번 돌 때 중복 검색 방지 */
+  const qSearchAppliedRef = useRef<string | null>(null);
+
+  const [searchOverlayOpen, setSearchOverlayOpen] = useState(false);
+  const [issueKeywords, setIssueKeywords] = useState<IssueKeywordItem[]>([]);
+  const [issueKeywordsLoading, setIssueKeywordsLoading] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  /** 검색 행 하단 Y (컨테이너 기준) — 오버레이가 검색창을 가리지 않도록 */
+  const [searchAreaBottom, setSearchAreaBottom] = useState(72);
 
   // 선택된 종목 탭으로 스크롤
   useEffect(() => {
@@ -240,6 +271,25 @@ export default function NewsScreen() {
       const targetLang = (lang === 'en' ? 'en' : 'ko') as 'ko' | 'en';
       setNewsLanguage(targetLang);
 
+      const rawQ = params?.q;
+      let qFromUrl = '';
+      if (typeof rawQ === 'string') {
+        try {
+          qFromUrl = decodeURIComponent(rawQ).trim();
+        } catch {
+          qFromUrl = rawQ.trim();
+        }
+      } else if (Array.isArray(rawQ) && rawQ[0]) {
+        try {
+          qFromUrl = decodeURIComponent(String(rawQ[0])).trim();
+        } catch {
+          qFromUrl = String(rawQ[0]).trim();
+        }
+      }
+      if (!qFromUrl) {
+        qSearchAppliedRef.current = null;
+      }
+
       // 포트폴리오 종목이 있고 URL 파라미터에서 종목 ID를 가져온 경우
       if (portfolioStocks.length > 0 && stockIdParam) {
         const stockId = parseInt(stockIdParam, 10);
@@ -318,7 +368,38 @@ export default function NewsScreen() {
           }
         }
       }
-      
+
+      // 검색어 딥링크: /news?q=키워드 (종목 ID 파라미터가 없을 때만)
+      if (qFromUrl && !stockIdParam) {
+        if (qSearchAppliedRef.current === qFromUrl) {
+          return;
+        }
+        qSearchAppliedRef.current = qFromUrl;
+
+        setSelectedStockId(null);
+        setSearchQuery(qFromUrl);
+        setSearchOverlayOpen(false);
+        setLoading(true);
+        setDaysBack(7);
+        setHasMore(true);
+        try {
+          const fetchedNews = await fetchGeneralNews(false, qFromUrl, 7, targetLang);
+          const initialLimit = 10;
+          setNews(fetchedNews.slice(0, initialLimit));
+          setHasMore(fetchedNews.length > initialLimit);
+          await addRecentSearch(qFromUrl).catch(() => {});
+          const recent = await getRecentSearches().catch(() => [] as string[]);
+          setRecentSearches(recent);
+        } catch (error) {
+          console.error('뉴스 검색(딥링크) 로드 오류:', error);
+          setNews([]);
+          setHasMore(false);
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+
       // 종목 ID가 없거나 유효하지 않거나 포트폴리오 종목이 없으면 전체 뉴스 로드
       setSelectedStockId(null);
       setLoading(true);
@@ -337,8 +418,58 @@ export default function NewsScreen() {
     };
 
     initializeFromParams();
-  }, [portfolioStocks, stockIdParam, lang]);
-  
+  }, [portfolioStocks, stockIdParam, lang, params?.q]);
+
+  const loadOverlayData = useCallback(async () => {
+    setIssueKeywordsLoading(true);
+    try {
+      const [issues, recent] = await Promise.all([
+        fetchIssueKeywords(),
+        getRecentSearches().catch(() => [] as string[]),
+      ]);
+      setIssueKeywords(issues);
+      setRecentSearches(recent);
+    } finally {
+      setIssueKeywordsLoading(false);
+    }
+  }, []);
+
+  const closeSearchOverlay = useCallback(() => {
+    setSearchOverlayOpen(false);
+    Keyboard.dismiss();
+    searchInputRef.current?.blur();
+  }, []);
+
+  const runSearchQuery = async (raw: string) => {
+    const q = raw.trim();
+    setSearchOverlayOpen(false);
+    Keyboard.dismiss();
+    searchInputRef.current?.blur();
+
+    if (q.length === 0) {
+      setSearchQuery('');
+      setSelectedStockId(null);
+      setDaysBack(7);
+      setHasMore(true);
+      setLoading(true);
+      loadNews(true, undefined, 7, false, undefined, null);
+      return;
+    }
+
+    setSearchQuery(q);
+    setSelectedStockId(null);
+    setIsSearching(true);
+    setLoading(true);
+    setDaysBack(7);
+    setHasMore(true);
+    try {
+      const recent = await addRecentSearch(q);
+      setRecentSearches(recent);
+    } catch (e) {
+      console.warn('[News] addRecentSearch:', e);
+    }
+    loadNews(true, q, 7, false, undefined, null);
+  };
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -346,31 +477,21 @@ export default function NewsScreen() {
   };
 
   const handleSearch = () => {
-    if (searchQuery.trim().length === 0) {
-      // 검색어가 없으면 전체 뉴스로 (종목 선택 시에는 종목별 뉴스)
-      setDaysBack(7);
-      setHasMore(true);
-      setLoading(true);
-      loadNews(true, undefined);
-      return;
-    }
-    
-    // 검색 시에는 전체 뉴스로 전환
-    setSelectedStockId(null);
-    Keyboard.dismiss();
-    setIsSearching(true);
-    setLoading(true);
-    setDaysBack(7);
-    setHasMore(true);
-    loadNews(true, searchQuery.trim());
+    void runSearchQuery(searchQuery);
   };
 
   const handleClearSearch = () => {
+    setSearchOverlayOpen(false);
     setSearchQuery('');
     setDaysBack(7);
     setHasMore(true);
     setLoading(true);
     loadNews(true);
+  };
+
+  const handleRemoveRecent = async (term: string) => {
+    const next = await removeRecentSearch(term);
+    setRecentSearches(next);
   };
 
   const handleLoadMore = () => {
@@ -399,6 +520,11 @@ export default function NewsScreen() {
     );
   };
 
+  const onSearchRowLayout = useCallback((e: LayoutChangeEvent) => {
+    const { y, height } = e.nativeEvent.layout;
+    setSearchAreaBottom(y + height);
+  }, []);
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -410,25 +536,32 @@ export default function NewsScreen() {
 
   return (
     <View style={styles.container}>
-      {/* 검색창 */}
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="뉴스 검색 (예: 삼성전자, 애플, 반도체...)"
-          placeholderTextColor="#94A3B8"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          onSubmitEditing={handleSearch}
-          returnKeyType="search"
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={handleClearSearch} style={styles.clearButton}>
-            <Text style={styles.clearButtonText}>✕</Text>
+      {/* 검색창 (레이아웃 측정으로 오버레이 시작 위치 결정) */}
+      <View onLayout={onSearchRowLayout} style={styles.searchRowMeasure}>
+        <View style={styles.searchContainer}>
+          <TextInput
+            ref={searchInputRef}
+            style={styles.searchInput}
+            placeholder="뉴스 검색 (예: 삼성전자, 애플, 반도체...)"
+            placeholderTextColor="#94A3B8"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onSubmitEditing={handleSearch}
+            onFocus={() => {
+              setSearchOverlayOpen(true);
+              void loadOverlayData();
+            }}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={handleClearSearch} style={styles.clearButton}>
+              <Text style={styles.clearButtonText}>✕</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={handleSearch} style={styles.searchButton}>
+            <Text style={styles.searchButtonText}>검색</Text>
           </TouchableOpacity>
-        )}
-        <TouchableOpacity onPress={handleSearch} style={styles.searchButton}>
-          <Text style={styles.searchButtonText}>검색</Text>
-        </TouchableOpacity>
+        </View>
       </View>
       
       {/* 종목 및 언어 선택 탭 */}
@@ -583,6 +716,99 @@ export default function NewsScreen() {
           loadingMore={loadingMore}
         />
       )}
+
+      {searchOverlayOpen && (
+        <View style={styles.searchOverlayRoot} pointerEvents="box-none">
+          <Pressable
+            style={[styles.searchOverlayBackdrop, { top: searchAreaBottom }]}
+            onPress={closeSearchOverlay}
+          />
+          <View
+            style={[
+              styles.overlayPanel,
+              {
+                top: searchAreaBottom + 6,
+                maxHeight:
+                  Dimensions.get('window').height -
+                  searchAreaBottom -
+                  insets.bottom -
+                  24,
+              },
+            ]}
+          >
+            <View style={styles.overlayHeader}>
+              <Text style={styles.overlayHeaderTitle}>빠른 검색</Text>
+              <Pressable
+                onPress={closeSearchOverlay}
+                hitSlop={12}
+                style={styles.overlayClosePress}
+              >
+                <Text style={styles.overlayCloseText}>닫기</Text>
+              </Pressable>
+            </View>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={true}
+              style={styles.overlayScrollWrap}
+            >
+              <Text style={[styles.overlayTitle, styles.overlayTitleFirstInBody]}>최근 검색</Text>
+              {recentSearches.length === 0 ? (
+                <Text style={styles.overlayEmpty}>최근 검색어가 없습니다.</Text>
+              ) : (
+                recentSearches.map((term) => (
+                  <View key={`recent-${term}`} style={styles.recentRow}>
+                    <Pressable
+                      style={styles.recentTextWrap}
+                      onPress={() => void runSearchQuery(term)}
+                    >
+                      <Text style={styles.recentText} numberOfLines={2}>
+                        {term}
+                      </Text>
+                    </Pressable>
+                    <TouchableOpacity
+                      onPress={() => void handleRemoveRecent(term)}
+                      style={styles.recentRemove}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={styles.recentRemoveText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+
+              <Text style={[styles.overlayTitle, styles.overlayTitleSecond]}>실시간 이슈</Text>
+              {issueKeywordsLoading ? (
+                <ActivityIndicator color="#42A5F5" style={{ marginVertical: 12 }} />
+              ) : issueKeywords.length === 0 ? (
+                <Text style={styles.overlayEmpty}>
+                  이슈 키워드를 불러오지 못했습니다.
+                </Text>
+              ) : (
+                issueKeywords.map((item) => (
+                  <Pressable
+                    key={`issue-${item.rank}-${item.keyword}`}
+                    style={({ pressed }) => [
+                      styles.issueRow,
+                      pressed && styles.issueRowPressed,
+                    ]}
+                    onPress={() => void runSearchQuery(item.keyword)}
+                  >
+                    <View style={styles.issueRank}>
+                      <Text style={styles.issueRankText}>{item.rank}</Text>
+                    </View>
+                    <Text style={styles.issueKeyword} numberOfLines={2}>
+                      {item.keyword}
+                    </Text>
+                    {item.count != null && (
+                      <Text style={styles.issueCount}>{item.count.toLocaleString()}회</Text>
+                    )}
+                  </Pressable>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -706,6 +932,142 @@ const styles = StyleSheet.create({
   },
   languageTabTextActive: {
     color: '#FFFFFF',
+  },
+  searchRowMeasure: {
+    zIndex: 2,
+  },
+  searchOverlayRoot: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 50,
+    elevation: 24,
+  },
+  searchOverlayBackdrop: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.52)',
+  },
+  overlayPanel: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#42A5F5',
+    backgroundColor: '#1E1E1E',
+    overflow: 'hidden',
+  },
+  overlayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.12)',
+  },
+  overlayHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#F1F5F9',
+  },
+  overlayClosePress: {
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  overlayCloseText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#42A5F5',
+  },
+  overlayScrollWrap: {
+    flexGrow: 0,
+  },
+  overlayTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#94A3B8',
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 6,
+  },
+  overlayTitleFirstInBody: {
+    paddingTop: 8,
+  },
+  overlayTitleSecond: {
+    marginTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.12)',
+  },
+  overlayEmpty: {
+    fontSize: 13,
+    color: '#64748B',
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+  },
+  issueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  issueRowPressed: {
+    backgroundColor: 'rgba(66, 165, 245, 0.12)',
+  },
+  issueRank: {
+    width: 28,
+    height: 28,
+    borderRadius: 4,
+    backgroundColor: '#42A5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  issueRankText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  issueKeyword: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#F1F5F9',
+  },
+  issueCount: {
+    fontSize: 13,
+    color: '#94A3B8',
+    marginLeft: 8,
+  },
+  recentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  recentTextWrap: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  recentText: {
+    fontSize: 15,
+    color: '#E2E8F0',
+  },
+  recentRemove: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  recentRemoveText: {
+    color: '#94A3B8',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

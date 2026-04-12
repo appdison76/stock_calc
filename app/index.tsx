@@ -4,6 +4,7 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   Modal,
   Platform,
@@ -13,6 +14,7 @@ import {
   Image,
   Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,6 +40,13 @@ import { NewsItem } from '../src/models/NewsItem';
 import { SettingsService } from '../src/services/SettingsService';
 import { US_ETF_TO_UNDERLYING_MAP } from '../src/data/us_etf_underlying_map';
 import BottomNavigationBar from '../src/components/BottomNavigationBar';
+import {
+  fetchIssueKeywords,
+  IssueKeywordItem,
+  FALLBACK_ISSUE_KEYWORDS,
+} from '../src/services/IssueKeywordsService';
+
+const MAIN_ISSUE_SECTION_COLLAPSED_KEY = '@main_issue_section_collapsed';
 
 interface CalculatorCardProps {
   title: string;
@@ -154,12 +163,67 @@ export default function MainScreen() {
   const [showLatestNews, setShowLatestNews] = useState(true);
   const [showWorldTime, setShowWorldTime] = useState(true);
   const [showInterestRates, setShowInterestRates] = useState(true);
+  const [showIssueKeywords, setShowIssueKeywords] = useState(true);
   
   // 포트폴리오 표시 개수 (기본 5개)
   const [displayedPortfolioCount, setDisplayedPortfolioCount] = useState(5);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+
+  /** 실시간 이슈: 접힘=false(기본 펼침), AsyncStorage 'true'면 접힘 */
+  const [mainIssueSectionCollapsed, setMainIssueSectionCollapsed] = useState(false);
+  const [issueKeywords, setIssueKeywords] = useState<IssueKeywordItem[]>([]);
+  const [issueKeywordsLoading, setIssueKeywordsLoading] = useState(false);
   
   const UPDATE_INTERVAL = 1 * 60 * 1000; // 1분
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const v = await AsyncStorage.getItem(MAIN_ISSUE_SECTION_COLLAPSED_KEY);
+        if (!cancelled && v === 'true') {
+          setMainIssueSectionCollapsed(true);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIssueKeywordsLoading(true);
+    (async () => {
+      try {
+        const list = await fetchIssueKeywords();
+        if (!cancelled) {
+          setIssueKeywords(
+            list.length > 0 ? list : [...FALLBACK_ISSUE_KEYWORDS]
+          );
+        }
+      } catch {
+        if (!cancelled) setIssueKeywords([...FALLBACK_ISSUE_KEYWORDS]);
+      } finally {
+        if (!cancelled) setIssueKeywordsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggleMainIssueCollapsed = useCallback(() => {
+    setMainIssueSectionCollapsed((prev) => {
+      const next = !prev;
+      AsyncStorage.setItem(MAIN_ISSUE_SECTION_COLLAPSED_KEY, next ? 'true' : 'false').catch(
+        () => {}
+      );
+      return next;
+    });
+  }, []);
 
   // 시장 지표 자동 갱신 (1분마다)
   useEffect(() => {
@@ -341,6 +405,7 @@ export default function MainScreen() {
         latestNews,
         worldTime,
         interestRates,
+        issueKeywords,
       ] = await Promise.all([
         SettingsService.getShowMarketIndicators(),
         SettingsService.getShowMiniBanners(),
@@ -349,6 +414,7 @@ export default function MainScreen() {
         SettingsService.getShowLatestNews(),
         SettingsService.getShowWorldTime(),
         SettingsService.getShowInterestRates(),
+        SettingsService.getShowIssueKeywords(),
       ]);
 
       setShowMarketIndicators(marketIndicators);
@@ -358,6 +424,7 @@ export default function MainScreen() {
       setShowLatestNews(latestNews);
       setShowWorldTime(worldTime);
       setShowInterestRates(interestRates);
+      setShowIssueKeywords(issueKeywords);
     } catch (error) {
       console.error('표시 설정 로드 오류:', error);
     }
@@ -770,6 +837,7 @@ export default function MainScreen() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          nestedScrollEnabled
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -869,6 +937,54 @@ export default function MainScreen() {
                       </LinearGradient>
                     </TouchableOpacity>
                   ))}
+                </View>
+              )}
+
+              {/* 실시간 이슈 — 주요 지표 바로 아래 (환경설정에서 끌 수 있음) */}
+              {showIssueKeywords && (
+                <View style={[styles.dashboardSection, styles.issueKeywordsSectionWrap]}>
+                  <Pressable
+                    onPress={toggleMainIssueCollapsed}
+                    style={({ pressed }) => [
+                      styles.issueKeywordsHeaderRow,
+                      pressed && { opacity: 0.85 },
+                    ]}
+                  >
+                    <Text style={styles.sectionTitle}>실시간 이슈</Text>
+                    <Text style={styles.issueKeywordsChevron}>
+                      {mainIssueSectionCollapsed ? '▼' : '▲'}
+                    </Text>
+                  </Pressable>
+                  {!mainIssueSectionCollapsed &&
+                    (issueKeywordsLoading && issueKeywords.length === 0 ? (
+                      <View style={styles.issueKeywordsLoadingBox}>
+                        <ActivityIndicator color="#42A5F5" />
+                      </View>
+                    ) : (
+                      <ScrollView
+                        horizontal
+                        nestedScrollEnabled
+                        style={styles.issueKeywordsHorizontalScroll}
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.issueKeywordsChipsRow}
+                        keyboardShouldPersistTaps="handled"
+                      >
+                        {issueKeywords.map((item) => (
+                          <Pressable
+                            key={`${item.rank}-${item.keyword}`}
+                            style={({ pressed }) => [
+                              styles.issueKeywordChip,
+                              pressed && styles.issueKeywordChipPressed,
+                            ]}
+                            onPress={() =>
+                              router.push(`/news?q=${encodeURIComponent(item.keyword)}`)
+                            }
+                          >
+                            <Text style={styles.issueKeywordChipText}>{item.keyword}</Text>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    ))}
                 </View>
               )}
 
@@ -2207,6 +2323,52 @@ const styles = StyleSheet.create({
   dashboardSection: {
     width: '100%',
     marginBottom: 32,
+  },
+  /** scrollContent의 alignItems:center 때문에 가로 스크롤 높이가 0으로 붕괴되지 않도록 */
+  issueKeywordsSectionWrap: {
+    alignSelf: 'stretch',
+  },
+  issueKeywordsHorizontalScroll: {
+    width: '100%',
+    minHeight: 48,
+    flexGrow: 0,
+  },
+  issueKeywordsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  issueKeywordsChevron: {
+    fontSize: 16,
+    color: '#94A3B8',
+  },
+  issueKeywordsLoadingBox: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  issueKeywordsChipsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 8,
+    paddingBottom: 4,
+  },
+  issueKeywordChip: {
+    marginRight: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: 'rgba(66, 165, 245, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.35)',
+  },
+  issueKeywordChipPressed: {
+    opacity: 0.8,
+  },
+  issueKeywordChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#42A5F5',
   },
   sectionHeader: {
     flexDirection: 'row',

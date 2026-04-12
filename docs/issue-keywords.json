@@ -1,0 +1,14 @@
+{
+  "keywords": [
+    { "rank": 1, "keyword": "이란", "count": 1038 },
+    { "rank": 2, "keyword": "트럼프", "count": 218 },
+    { "rank": 3, "keyword": "원전", "count": 69 },
+    { "rank": 4, "keyword": "스테이블코인", "count": 50 },
+    { "rank": 5, "keyword": "이스라엘", "count": 43 },
+    { "rank": 6, "keyword": "호르무즈", "count": 40 },
+    { "rank": 7, "keyword": "이재명", "count": 37 },
+    { "rank": 8, "keyword": "반도체", "count": 32 },
+    { "rank": 9, "keyword": "금리", "count": 28 },
+    { "rank": 10, "keyword": "환율", "count": 25 }
+  ]
+}

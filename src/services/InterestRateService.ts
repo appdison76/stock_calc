@@ -1,5 +1,9 @@
 // 기준금리 데이터를 가져오는 서비스
 // API 키 없이도 작동하도록 공개 데이터 소스 활용
+//
+// 우선순위: GitHub Pages의 interest-rates.json → (실패 시) 기존 로직(ECOS/하드코딩 등)
+
+import { fetchInterestRatesFromRemote } from './InterestRatesRemoteService';
 
 // 참고: API 키를 설정하려면 아래 상수를 업데이트하세요
 // FRED API 키: https://fred.stlouisfed.org/docs/api/api_key.html (무료)
@@ -191,6 +195,20 @@ export class InterestRateService {
     kr: number | null;
     jp: number | null;
   }> {
+    try {
+      const fromRemote = await fetchInterestRatesFromRemote();
+      if (fromRemote !== null) {
+        console.log('[InterestRate] 원격 interest-rates.json 사용');
+        return {
+          us: fromRemote.us,
+          kr: fromRemote.kr,
+          jp: fromRemote.jp,
+        };
+      }
+    } catch (e) {
+      console.warn('[InterestRate] 원격 JSON 처리 오류, 기존 방식 사용:', e);
+    }
+
     try {
       const [us, kr, jp] = await Promise.all([
         this.getUSInterestRate(),
