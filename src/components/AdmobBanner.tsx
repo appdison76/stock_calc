@@ -22,11 +22,16 @@ const getAdUnitId = (): string => {
   return TestIds.BANNER;
 };
 
-export const AdmobBanner: React.FC = () => {
+interface AdmobBannerProps {
+  /** 뉴스 탭 등 좁은 간격용 — 세로 패딩만 줄임 */
+  compact?: boolean;
+}
+
+export const AdmobBanner: React.FC<AdmobBannerProps> = ({ compact }) => {
   const adUnitId = getAdUnitId();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, compact && styles.containerCompact]}>
       <BannerAd
         unitId={adUnitId}
         size={BannerAdSize.BANNER}
@@ -57,6 +62,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#1E1E1E',
     paddingVertical: 8,
+  },
+  containerCompact: {
+    paddingVertical: 4,
   },
 });
 

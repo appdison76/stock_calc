@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import NewsList from '../src/components/NewsList';
+import { AdmobBanner } from '../src/components/AdmobBanner';
 import { NewsItem } from '../src/models/NewsItem';
 import { fetchGeneralNews, fetchStockNews, fetchGoogleNewsRSS } from '../src/services/NewsService';
 import { initDatabase, getAllAccounts, getStocksByAccountId } from '../src/services/DatabaseService';
@@ -706,6 +707,10 @@ export default function NewsScreen() {
         </View>
       </View>
 
+      <View style={styles.newsBannerSlot}>
+        <AdmobBanner compact />
+      </View>
+
       <View style={[styles.newsListSafeArea, { paddingBottom: navBarBottomInset }]}>
         {(loading || isSearching) ? (
           <View style={styles.loadingContainer}>
@@ -828,6 +833,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#121212',
   },
+  newsBannerSlot: {
+    alignItems: 'center',
+    backgroundColor: '#121212',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+  },
   newsListSafeArea: {
     flex: 1,
     minHeight: 0,
@@ -923,7 +934,7 @@ const styles = StyleSheet.create({
   },
   languageTabs: {
     flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: 12,
     gap: 8,
     paddingHorizontal: 16,
   },
