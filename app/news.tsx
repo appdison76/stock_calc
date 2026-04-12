@@ -10,8 +10,8 @@ import {
   Keyboard,
   ScrollView,
   Pressable,
-  Dimensions,
   LayoutChangeEvent,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -525,6 +525,14 @@ export default function NewsScreen() {
     setSearchAreaBottom(y + height);
   }, []);
 
+  /** 일부 Android에서 insets.bottom이 0 → 내비·제스처 바와 겹침 */
+  const navBarBottomInset = Math.max(
+    insets.bottom,
+    Platform.OS === 'android' ? 48 : 12
+  );
+  /** 오버레이 패널 하단: top+height 대신 bottom 고정으로 테두리가 내비 뒤로 안 깔림 */
+  const overlayPanelBottom = navBarBottomInset + 12;
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -698,24 +706,26 @@ export default function NewsScreen() {
         </View>
       </View>
 
-      {(loading || isSearching) ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#42A5F5" />
-          <Text style={styles.loadingText}>
-            {isSearching ? `"${searchQuery}" 검색 중...` : '뉴스를 불러오는 중...'}
-          </Text>
-        </View>
-      ) : (
-        <NewsList
-          news={news}
-          onRefresh={handleRefresh}
-          refreshing={refreshing}
-          onNewsPress={handleNewsPress}
-          emptyMessage={searchQuery ? `"${searchQuery}"에 대한 뉴스가 없습니다.` : '뉴스가 없습니다.'}
-          onEndReached={handleLoadMore}
-          loadingMore={loadingMore}
-        />
-      )}
+      <View style={[styles.newsListSafeArea, { paddingBottom: navBarBottomInset }]}>
+        {(loading || isSearching) ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#42A5F5" />
+            <Text style={styles.loadingText}>
+              {isSearching ? `"${searchQuery}" 검색 중...` : '뉴스를 불러오는 중...'}
+            </Text>
+          </View>
+        ) : (
+          <NewsList
+            news={news}
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+            onNewsPress={handleNewsPress}
+            emptyMessage={searchQuery ? `"${searchQuery}"에 대한 뉴스가 없습니다.` : '뉴스가 없습니다.'}
+            onEndReached={handleLoadMore}
+            loadingMore={loadingMore}
+          />
+        )}
+      </View>
 
       {searchOverlayOpen && (
         <View style={styles.searchOverlayRoot} pointerEvents="box-none">
@@ -728,11 +738,7 @@ export default function NewsScreen() {
               styles.overlayPanel,
               {
                 top: searchAreaBottom + 6,
-                maxHeight:
-                  Dimensions.get('window').height -
-                  searchAreaBottom -
-                  insets.bottom -
-                  24,
+                bottom: overlayPanelBottom,
               },
             ]}
           >
@@ -750,6 +756,10 @@ export default function NewsScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={true}
               style={styles.overlayScrollWrap}
+              contentContainerStyle={{
+                paddingBottom: 16,
+                flexGrow: 1,
+              }}
             >
               <Text style={[styles.overlayTitle, styles.overlayTitleFirstInBody]}>최근 검색</Text>
               {recentSearches.length === 0 ? (
@@ -817,6 +827,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#121212',
+  },
+  newsListSafeArea: {
+    flex: 1,
+    minHeight: 0,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -952,6 +966,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 16,
     right: 16,
+    flexDirection: 'column',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#42A5F5',
@@ -982,7 +997,8 @@ const styles = StyleSheet.create({
     color: '#42A5F5',
   },
   overlayScrollWrap: {
-    flexGrow: 0,
+    flex: 1,
+    minHeight: 0,
   },
   overlayTitle: {
     fontSize: 14,

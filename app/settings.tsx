@@ -13,11 +13,13 @@ import {
   Switch,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SettingsService } from '../src/services/SettingsService';
 
 type SettingsTab = 'main' | 'notification' | 'fee';
 
 export default function SettingsView() {
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<SettingsTab>('main');
   
   // 수수료 설정
@@ -246,7 +248,15 @@ export default function SettingsView() {
 
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[
+            styles.content,
+            {
+              paddingBottom:
+                16 +
+                insets.bottom +
+                (Platform.OS === 'android' && insets.bottom < 28 ? 28 - insets.bottom : 0),
+            },
+          ]}
           keyboardShouldPersistTaps="handled"
         >
           {activeTab === 'main' ? (
