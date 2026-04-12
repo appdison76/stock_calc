@@ -17,6 +17,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
+import { AdmobBanner } from '../src/components/AdmobBanner';
 import type { MyShortcut } from '../src/models/MyShortcut';
 import {
   loadMyShortcuts,
@@ -173,6 +174,10 @@ export default function ShortcutManagerScreen() {
             <Text style={styles.addBtnText}>+ 바로가기 추가</Text>
           </TouchableOpacity>
 
+          <View style={styles.bannerSlot}>
+            <AdmobBanner />
+          </View>
+
           {list.map((s) => (
             <View key={s.id} style={styles.rowCard}>
               <TouchableOpacity style={styles.rowMain} onPress={() => openUrl(s.url)} activeOpacity={0.75}>
@@ -201,8 +206,12 @@ export default function ShortcutManagerScreen() {
               </View>
 
               <View style={styles.rowActions}>
-                <TouchableOpacity style={styles.smallBtn} onPress={() => openUrl(s.url)}>
-                  <Text style={styles.smallBtnText}>열기</Text>
+                <TouchableOpacity
+                  style={[styles.smallBtn, styles.openBtn]}
+                  onPress={() => openUrl(s.url)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.smallBtnText, styles.openBtnText]}>열기</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.smallBtn} onPress={() => onReorder(s.id, -1)}>
                   <Text style={styles.smallBtnText}>↑</Text>
@@ -312,11 +321,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: 'rgba(66, 165, 245, 0.45)',
   },
   addBtnText: { color: '#42A5F5', fontWeight: '700', fontSize: 16 },
+  bannerSlot: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   rowCard: {
     backgroundColor: 'rgba(45, 45, 45, 0.75)',
     borderRadius: 14,
@@ -347,6 +361,15 @@ const styles = StyleSheet.create({
   smallBtnDisabled: { opacity: 0.4 },
   smallBtnText: { color: '#ECEFF1', fontSize: 13, fontWeight: '600' },
   smallBtnTextDisabled: { color: '#789' },
+  openBtn: {
+    backgroundColor: 'rgba(66, 165, 245, 0.32)',
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.5)',
+  },
+  openBtnText: {
+    color: '#E3F2FD',
+    fontWeight: '700',
+  },
   defaultBadge: { marginTop: 8, color: '#789', fontSize: 12 },
   modalOverlay: {
     flex: 1,
