@@ -142,7 +142,7 @@ export class SettingsService {
     await AsyncStorage.setItem(KEY_SHOW_MARKET_INDICATORS, value.toString());
   }
 
-  /// 미니배너 영역 표시 여부 가져오기
+  /// 앱 기본 메뉴(상단 3×3 아이콘) 표시 여부 가져오기
   static async getShowMiniBanners(): Promise<boolean> {
     try {
       const value = await AsyncStorage.getItem(KEY_SHOW_MINI_BANNERS);
@@ -152,7 +152,7 @@ export class SettingsService {
     }
   }
 
-  /// 미니배너 영역 표시 여부 저장하기
+  /// 앱 기본 메뉴(상단 3×3 아이콘) 표시 여부 저장하기
   static async setShowMiniBanners(value: boolean): Promise<void> {
     await AsyncStorage.setItem(KEY_SHOW_MINI_BANNERS, value.toString());
   }

@@ -329,8 +329,10 @@ export default function SettingsView() {
 
                 <View style={styles.settingRow}>
                   <View style={styles.settingLabelContainer}>
-                    <Text style={styles.settingLabel}>미니배너 영역</Text>
-                    <Text style={styles.settingDescription}>포트폴리오, 매매기록 등 미니배너 표시</Text>
+                    <Text style={styles.settingLabel}>앱 기본 메뉴</Text>
+                    <Text style={styles.settingDescription}>
+                      메인 상단의 계산기·뉴스·포트폴리오 등 기본 아이콘 메뉴(3×3)를 표시합니다.
+                    </Text>
                   </View>
                   <Switch
                     value={showMiniBanners}
