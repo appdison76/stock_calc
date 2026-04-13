@@ -885,7 +885,7 @@ export default function MainScreen() {
             </View>
           ) : (
             <>
-              {/* 뉴욕 및 런던 시간 표시 */}
+              {/* 세계 시각 — 열마다 라벨(위)·시각(아래) 두 줄 */}
               {showWorldTime && (
                 <View style={styles.timeContainer}>
                   {krDate && (
@@ -908,7 +908,7 @@ export default function MainScreen() {
               {/* 기준금리 (미국은 JSON 범위 문자열 그대로, 한 줄 pill) */}
               {showInterestRates && (
                 <View style={styles.interestRateRow}>
-                  <View style={styles.interestRatePill}>
+                  <View style={[styles.interestRatePill, styles.interestRatePillUS]}>
                     <Text
                       style={styles.interestRatePillInner}
                       numberOfLines={1}
@@ -921,7 +921,7 @@ export default function MainScreen() {
                       </Text>
                     </Text>
                   </View>
-                  <View style={styles.interestRatePill}>
+                  <View style={[styles.interestRatePill, styles.interestRatePillKR]}>
                     <Text
                       style={styles.interestRatePillInner}
                       numberOfLines={1}
@@ -934,7 +934,7 @@ export default function MainScreen() {
                       </Text>
                     </Text>
                   </View>
-                  <View style={styles.interestRatePill}>
+                  <View style={[styles.interestRatePill, styles.interestRatePillJP]}>
                     <Text
                       style={styles.interestRatePillInner}
                       numberOfLines={1}
@@ -961,9 +961,9 @@ export default function MainScreen() {
                       activeOpacity={0.8}
                     >
                       <LinearGradient
-                        colors={['rgba(30, 30, 30, 0.8)', 'rgba(18, 18, 18, 0.6)']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
+                        colors={['#1a1f2a', '#12161e']}
+                        start={{ x: 0.5, y: 0 }}
+                        end={{ x: 0.5, y: 1 }}
                         style={styles.topIndicatorGradient}
                       >
                         <Text style={styles.topIndicatorName}>{indicator.name}</Text>
@@ -974,7 +974,14 @@ export default function MainScreen() {
                           }
                         </Text>
                         {indicator.changePercent != null ? (
-                          <View style={styles.topIndicatorChangeContainer}>
+                          <View
+                            style={[
+                              styles.topIndicatorChangeContainer,
+                              indicator.changePercent >= 0
+                                ? styles.topIndicatorChangePillUp
+                                : styles.topIndicatorChangePillDown,
+                            ]}
+                          >
                             <Text
                               style={[
                                 styles.topIndicatorChange,
@@ -2189,32 +2196,35 @@ const styles = StyleSheet.create({
   },
   timeContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     justifyContent: 'space-around',
-    marginBottom: 12,
-    paddingVertical: 3,
-    paddingHorizontal: 20,
-    backgroundColor: 'rgba(45, 45, 45, 0.8)',
-    borderRadius: 8,
+    marginBottom: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    backgroundColor: 'rgba(21, 25, 34, 0.92)',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     alignSelf: 'stretch',
-    marginHorizontal: 12,
+    marginHorizontal: 0,
   },
   timeItem: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    gap: 2,
+    flex: 1,
+    minWidth: 0,
   },
   timeLabel: {
-    fontSize: 11,
-    color: '#94A3B8',
-    fontWeight: '500',
+    fontSize: 10,
+    color: '#78909C',
+    fontWeight: '600',
   },
   timeValue: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#FFFFFF',
-    fontWeight: '600',
+    fontWeight: '700',
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   timeValueHoliday: {
@@ -2223,20 +2233,20 @@ const styles = StyleSheet.create({
   interestRateRow: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    gap: 8,
-    marginBottom: 12,
-    marginHorizontal: 12,
+    gap: 6,
+    marginBottom: 10,
+    marginHorizontal: 0,
     alignSelf: 'stretch',
   },
   interestRatePill: {
     flex: 1,
     minWidth: 0,
     backgroundColor: 'rgba(21, 25, 34, 0.95)',
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 6,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -2244,42 +2254,54 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   interestRatePillCountry: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#94A3B8',
     fontWeight: '600',
   },
   interestRatePillValue: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#FFFFFF',
     fontWeight: '700',
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
+  interestRatePillUS: {
+    borderColor: 'rgba(66, 165, 245, 0.45)',
+    backgroundColor: 'rgba(66, 165, 245, 0.08)',
+  },
+  interestRatePillKR: {
+    borderColor: 'rgba(76, 175, 80, 0.45)',
+    backgroundColor: 'rgba(76, 175, 80, 0.08)',
+  },
+  interestRatePillJP: {
+    borderColor: 'rgba(239, 83, 80, 0.4)',
+    backgroundColor: 'rgba(239, 83, 80, 0.06)',
+  },
   topIndicatorsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    marginBottom: 24,
+    paddingHorizontal: 0,
+    marginBottom: 20,
     gap: 8,
   },
   topIndicatorCard: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: 'hidden',
-    elevation: 3,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
   },
   topIndicatorGradient: {
     paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 85,
+    minHeight: 88,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 14,
   },
   topIndicatorName: {
     color: '#94A3B8',
@@ -2296,7 +2318,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   topIndicatorChangeContainer: {
-    marginTop: 2,
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  topIndicatorChangePillUp: {
+    backgroundColor: 'rgba(76, 175, 80, 0.14)',
+  },
+  topIndicatorChangePillDown: {
+    backgroundColor: 'rgba(239, 83, 80, 0.14)',
   },
   topIndicatorChange: {
     fontSize: 10,
