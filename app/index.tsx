@@ -905,25 +905,46 @@ export default function MainScreen() {
                 </View>
               )}
 
-              {/* 기준금리 표시 (미국, 한국, 일본) */}
+              {/* 기준금리 (미국은 JSON 범위 문자열 그대로, 한 줄 pill) */}
               {showInterestRates && (
-                <View style={styles.interestRateContainer}>
-                  <View style={[styles.interestRateItem, { marginLeft: 8 }]}>
-                    <Text style={styles.interestRateLabel}>미국</Text>
-                    <Text style={styles.interestRateValue}>
-                      {usInterestRate !== null ? `${usInterestRate}%` : '--%'}
+                <View style={styles.interestRateRow}>
+                  <View style={styles.interestRatePill}>
+                    <Text
+                      style={styles.interestRatePillInner}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.82}
+                    >
+                      <Text style={styles.interestRatePillCountry}>미국 </Text>
+                      <Text style={styles.interestRatePillValue}>
+                        {usInterestRate !== null ? `${usInterestRate}%` : '--'}
+                      </Text>
                     </Text>
                   </View>
-                  <View style={styles.interestRateItem}>
-                    <Text style={styles.interestRateLabel}>한국</Text>
-                    <Text style={styles.interestRateValue}>
-                      {krInterestRate !== null ? `${krInterestRate.toFixed(2)}%` : '--%'}
+                  <View style={styles.interestRatePill}>
+                    <Text
+                      style={styles.interestRatePillInner}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.82}
+                    >
+                      <Text style={styles.interestRatePillCountry}>한국 </Text>
+                      <Text style={styles.interestRatePillValue}>
+                        {krInterestRate !== null ? `${krInterestRate.toFixed(2)}%` : '--'}
+                      </Text>
                     </Text>
                   </View>
-                  <View style={styles.interestRateItem}>
-                    <Text style={styles.interestRateLabel}>일본</Text>
-                    <Text style={styles.interestRateValue}>
-                      {jpInterestRate !== null ? `${jpInterestRate.toFixed(2)}%` : '--%'}
+                  <View style={styles.interestRatePill}>
+                    <Text
+                      style={styles.interestRatePillInner}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.82}
+                    >
+                      <Text style={styles.interestRatePillCountry}>일본 </Text>
+                      <Text style={styles.interestRatePillValue}>
+                        {jpInterestRate !== null ? `${jpInterestRate.toFixed(2)}%` : '--'}
+                      </Text>
                     </Text>
                   </View>
                 </View>
@@ -2199,35 +2220,38 @@ const styles = StyleSheet.create({
   timeValueHoliday: {
     color: '#FF5252',
   },
-  interestRateContainer: {
+  interestRateRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'stretch',
+    gap: 8,
     marginBottom: 12,
-    paddingVertical: 3,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(45, 45, 45, 0.8)',
-    borderRadius: 8,
+    marginHorizontal: 12,
+    alignSelf: 'stretch',
+  },
+  interestRatePill: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: 'rgba(21, 25, 34, 0.95)',
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    alignSelf: 'stretch',
-    marginHorizontal: 12,
-  },
-  interestRateItem: {
-    flexDirection: 'row',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 6,
-    marginRight: 16,
   },
-  interestRateLabel: {
+  interestRatePillInner: {
+    textAlign: 'center',
+  },
+  interestRatePillCountry: {
     fontSize: 11,
     color: '#94A3B8',
-    fontWeight: '500',
-  },
-  interestRateValue: {
-    fontSize: 14,
-    color: '#FFFFFF',
     fontWeight: '600',
+  },
+  interestRatePillValue: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '700',
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   topIndicatorsContainer: {
