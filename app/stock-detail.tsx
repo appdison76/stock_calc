@@ -39,7 +39,6 @@ import NewsCard from '../src/components/NewsCard';
 import { US_ETF_TO_UNDERLYING_MAP } from '../src/data/us_etf_underlying_map';
 import { AdmobBanner } from '../src/components/AdmobBanner';
 import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
-import { CoupangDynamicBanner } from '../src/components/CoupangDynamicBanner';
 import ChartSelectionModal from '../src/components/ChartSelectionModal';
 
 export default function StockDetailScreen() {
@@ -1248,11 +1247,8 @@ export default function StockDetailScreen() {
                         news={item}
                         onPress={() => handleNewsPress(item)}
                       />
-                      {/* 광고: 첫 번째 뒤는 쿠팡 배너, 그 다음 5개마다 AdMob 네이티브 광고 */}
-                      {index === 0 && (
-                        <CoupangDynamicBanner width={320} height={140} key={`coupang-ad-${index}`} />
-                      )}
-                      {(index > 0 && (index - 1) % 5 === 0) && (
+                      {/* 광고: 5개마다(첫 기사 포함) AdMob 네이티브 */}
+                      {index % 5 === 0 && (
                         <AdmobNativeAd key={`native-ad-${index}`} />
                       )}
                     </React.Fragment>
