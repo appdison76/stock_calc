@@ -21,7 +21,7 @@ import { ExchangeRateService } from '../src/services/ExchangeRateService';
 import { CurrencySwitch } from '../src/components/CurrencySwitch';
 import { CalculationResultCard } from '../src/components/CalculationResultCard';
 import { SharedResultSection } from '../src/components/SharedResultSection';
-import { CoupangDynamicBanner } from '../src/components/CoupangDynamicBanner';
+import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
 import { formatCurrency, formatNumber, getKrwEquivalent, addCommas } from '../src/utils/formatUtils';
 import { Share } from 'react-native';
 import { BrokerFeeService, BrokerFee } from '../src/services/BrokerFeeService';
@@ -527,7 +527,7 @@ export default function FeeComparisonCalculatorView() {
           </Animated.View>
         )}
 
-        {comparison && <CoupangDynamicBanner width={320} height={140} />}
+        {comparison && <AdmobNativeAd />}
         </ScrollView>
       </LinearGradient>
     </KeyboardAvoidingView>

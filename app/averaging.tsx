@@ -24,7 +24,7 @@ import { ExchangeRateService } from '../src/services/ExchangeRateService';
 import { CurrencySwitch } from '../src/components/CurrencySwitch';
 import { CalculationResultCard } from '../src/components/CalculationResultCard';
 import { SharedResultSection } from '../src/components/SharedResultSection';
-import { CoupangDynamicBanner } from '../src/components/CoupangDynamicBanner';
+import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
 import { formatCurrency, formatNumber, getKrwEquivalent, addCommas } from '../src/utils/formatUtils';
 import { getCurrencyFromTicker } from '../src/utils/stockUtils';
 import { Share } from 'react-native';
@@ -888,7 +888,7 @@ export default function AveragingCalculatorView() {
               );
             })}
 
-            <CoupangDynamicBanner width={320} height={140} />
+            <AdmobNativeAd />
           </>
         )}
         </ScrollView>
