@@ -20,7 +20,6 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AdmobBanner } from '../src/components/AdmobBanner';
 import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
-import { CoupangDynamicBanner } from '../src/components/CoupangDynamicBanner';
 import { getUnreadCount } from '../src/services/NotificationService';
 import { 
   initDatabase, 
@@ -1253,32 +1252,6 @@ export default function MainScreen() {
                 </View>
               )}
 
-              {/* 하단 그라데이션 카드 */}
-              <TouchableOpacity
-                style={styles.mainGradientCard}
-                onPress={() => router.push('/averaging')}
-                activeOpacity={0.9}
-              >
-                <LinearGradient
-                  colors={['#42A5F5', '#4CAF50']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.mainGradientCardContent}
-                >
-                  <View style={styles.mainGradientIconContainer}>
-                    <Image 
-                      source={require('../assets/icon.png')} 
-                      style={styles.mainGradientLogo}
-                      resizeMode="contain"
-                    />
-                  </View>
-                  <Text style={styles.mainGradientTitle}>스마트 물타기 계산기</Text>
-                  <Text style={styles.mainGradientSubtitle}>평단가 & 수익률 계산</Text>
-                  <Text style={styles.mainGradientFeature}>한국·미국 주식 지원</Text>
-                  <Text style={styles.mainGradientFeature}>반복 물타기 계산</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-
           {/* 포트폴리오 종목 섹션 */}
           {showPortfolio && portfolioStocks.length > 0 && (
             <View style={styles.dashboardSection}>
@@ -1382,10 +1355,288 @@ export default function MainScreen() {
             </View>
           )}
 
-          {/* 쿠팡 배너: 내 포트폴리오 아래 (포트폴리오 영역 표시 설정과 독립적으로 표시) */}
-          {portfolioStocks.length > 0 && (
-            <CoupangDynamicBanner width={320} height={140} />
+          {/* AdMob 네이티브: 보유 종목이 있을 때 내 포트폴리오 아래 (포트폴리오 영역 표시와 무관) */}
+          {portfolioStocks.length > 0 && <AdmobNativeAd />}
+
+          <View style={styles.adSpacer} />
+
+          {/* 관련 뉴스 섹션 (포트폴리오가 있을 때만) */}
+          {showRelatedNews && relatedNewsStocks.length > 0 && (
+            <View style={styles.dashboardSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>관련 뉴스</Text>
+                {relatedNewsStocks[selectedStockIndex] && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      // 주식뉴스 화면으로 이동 (선택된 종목과 언어 정보 포함)
+                      const selectedStock = relatedNewsStocks[selectedStockIndex];
+                      router.push(`/news?lang=${relatedNewsLanguage}&stockId=${selectedStock.id}`);
+                    }}
+                    style={styles.moreButton}
+                  >
+                    <Text style={styles.moreButtonText}>전체 보기 →</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* 종목 선택 탭 */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.stockTabsContainer}
+                contentContainerStyle={styles.stockTabsContent}
+              >
+                {relatedNewsStocks.map((stock, index) => (
+                  <TouchableOpacity
+                    key={stock.id}
+                    style={[
+                      styles.stockTab,
+                      selectedStockIndex === index && styles.stockTabActive,
+                    ]}
+                    onPress={() => {
+                      setSelectedStockIndex(index);
+                      const stockNews = stockNewsMap.get(stock.id) || { ko: [], en: [] };
+                      setRelatedNews(relatedNewsLanguage === 'ko' ? stockNews.ko : stockNews.en);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.stockTabText,
+                        selectedStockIndex === index && styles.stockTabTextActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {stock.name || stock.officialName || stock.ticker}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {/* 언어 선택 탭 */}
+              <View style={styles.languageTabs}>
+                <TouchableOpacity
+                  style={[
+                    styles.languageTab,
+                    relatedNewsLanguage === 'ko' && styles.languageTabActive,
+                  ]}
+                  onPress={() => {
+                    setRelatedNewsLanguage('ko');
+                    const selectedStock = relatedNewsStocks[selectedStockIndex];
+                    if (selectedStock) {
+                      const stockNews = stockNewsMap.get(selectedStock.id) || { ko: [], en: [] };
+                      setRelatedNews(stockNews.ko);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.languageTabText,
+                      relatedNewsLanguage === 'ko' && styles.languageTabTextActive,
+                    ]}
+                  >
+                    한글 기사
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.languageTab,
+                    relatedNewsLanguage === 'en' && styles.languageTabActive,
+                  ]}
+                  onPress={() => {
+                    setRelatedNewsLanguage('en');
+                    const selectedStock = relatedNewsStocks[selectedStockIndex];
+                    if (selectedStock) {
+                      const stockNews = stockNewsMap.get(selectedStock.id) || { ko: [], en: [] };
+                      setRelatedNews(stockNews.en);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.languageTabText,
+                      relatedNewsLanguage === 'en' && styles.languageTabTextActive,
+                    ]}
+                  >
+                    영문 기사
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {relatedNews.length > 0 ? (
+                relatedNews.slice(0, 3).map((news) => (
+                  <TouchableOpacity
+                    key={news.id}
+                    style={styles.newsCard}
+                    onPress={() => {
+                      Linking.openURL(news.link).catch(err =>
+                        console.error('링크 열기 실패:', err)
+                      );
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.newsTitle} numberOfLines={2}>
+                      {news.title}
+                    </Text>
+                    <Text style={styles.newsSource}>
+                      {news.source} · {new Date(news.publishedAt).toLocaleDateString('ko-KR')}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.emptyNewsContainer}>
+                  <Text style={styles.emptyNewsText}>
+                    {relatedNewsLanguage === 'ko' ? '한글 관련 뉴스가 없습니다.' : '영문 관련 뉴스가 없습니다.'}
+                  </Text>
+                </View>
+              )}
+            </View>
           )}
+
+          {/* 배너 광고: 관련 뉴스와 최신 뉴스 사이 */}
+          {(showRelatedNews && relatedNewsStocks.length > 0) || (showLatestNews && (latestNewsKo.length > 0 || latestNewsEn.length > 0)) ? (
+            <>
+              <View style={styles.adSpacer} />
+              <View style={styles.adContainer}>
+                <AdmobBanner />
+              </View>
+              <View style={styles.adSpacer} />
+            </>
+          ) : null}
+
+          {/* 최신 뉴스 섹션 */}
+          {showLatestNews && (latestNewsKo.length > 0 || latestNewsEn.length > 0) && (
+            <View style={styles.dashboardSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>최신 뉴스</Text>
+                <TouchableOpacity
+                  onPress={() => router.push(`/news?lang=${latestNewsLanguage}`)}
+                  style={styles.moreButton}
+                >
+                  <Text style={styles.moreButtonText}>전체 보기 →</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 언어 선택 탭 */}
+              <View style={styles.languageTabs}>
+                <TouchableOpacity
+                  style={[
+                    styles.languageTab,
+                    latestNewsLanguage === 'ko' && styles.languageTabActive,
+                  ]}
+                  onPress={() => {
+                    setLatestNewsLanguage('ko');
+                    if (latestNewsKo.length > 0) {
+                      setLatestNews(latestNewsKo.slice(0, 3));
+                    } else {
+                      setLatestNews([]);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.languageTabText,
+                      latestNewsLanguage === 'ko' && styles.languageTabTextActive,
+                    ]}
+                  >
+                    한글 기사
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.languageTab,
+                    latestNewsLanguage === 'en' && styles.languageTabActive,
+                  ]}
+                  onPress={() => {
+                    setLatestNewsLanguage('en');
+                    if (latestNewsEn.length > 0) {
+                      setLatestNews(latestNewsEn.slice(0, 3));
+                    } else {
+                      setLatestNews([]);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.languageTabText,
+                      latestNewsLanguage === 'en' && styles.languageTabTextActive,
+                    ]}
+                  >
+                    영문 기사
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {latestNews.length > 0 ? (
+                latestNews.map((news) => (
+                  <TouchableOpacity
+                    key={news.id}
+                    style={styles.newsCard}
+                    onPress={() => {
+                      Linking.openURL(news.link).catch(err =>
+                        console.error('링크 열기 실패:', err)
+                      );
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.newsTitle} numberOfLines={2}>
+                      {news.title}
+                    </Text>
+                    <Text style={styles.newsSource}>
+                      {news.source} · {new Date(news.publishedAt).toLocaleDateString('ko-KR')}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.emptyNewsContainer}>
+                  <Text style={styles.emptyNewsText}>
+                    {latestNewsLanguage === 'ko' ? '한글 최신 뉴스가 없습니다.' : '영문 최신 뉴스가 없습니다.'}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* 배너 광고: 최신 뉴스와 물타기 CTA 사이 */}
+          {showLatestNews && (latestNewsKo.length > 0 || latestNewsEn.length > 0) ? (
+            <>
+              <View style={styles.adSpacer} />
+              <View style={styles.adContainer}>
+                <AdmobBanner />
+              </View>
+              <View style={styles.adSpacer} />
+            </>
+          ) : null}
+
+          {/* 하단 그라데이션 카드 (스마트 물타기) — 뉴스 블록 아래 */}
+          <TouchableOpacity
+            style={styles.mainGradientCard}
+            onPress={() => router.push('/averaging')}
+            activeOpacity={0.9}
+          >
+            <LinearGradient
+              colors={['#42A5F5', '#4CAF50']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.mainGradientCardContent}
+            >
+              <View style={styles.mainGradientIconContainer}>
+                <Image
+                  source={require('../assets/icon.png')}
+                  style={styles.mainGradientLogo}
+                  resizeMode="contain"
+                />
+              </View>
+              <Text style={styles.mainGradientTitle}>스마트 물타기 계산기</Text>
+              <Text style={styles.mainGradientSubtitle}>평단가 & 수익률 계산</Text>
+              <Text style={styles.mainGradientFeature}>한국·미국 주식 지원</Text>
+              <Text style={styles.mainGradientFeature}>반복 물타기 계산</Text>
+            </LinearGradient>
+          </TouchableOpacity>
 
           {/* 계산기 카드들 */}
           <View style={styles.cardsContainer}>
@@ -1463,254 +1714,6 @@ export default function MainScreen() {
 
           </View>
 
-          <View style={styles.adSpacer} />
-
-          {/* 관련 뉴스 섹션 (포트폴리오가 있을 때만) */}
-          {showRelatedNews && relatedNewsStocks.length > 0 && (
-            <View style={styles.dashboardSection}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>관련 뉴스</Text>
-                {relatedNewsStocks[selectedStockIndex] && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      // 주식뉴스 화면으로 이동 (선택된 종목과 언어 정보 포함)
-                      const selectedStock = relatedNewsStocks[selectedStockIndex];
-                      router.push(`/news?lang=${relatedNewsLanguage}&stockId=${selectedStock.id}`);
-                    }}
-                    style={styles.moreButton}
-                  >
-                    <Text style={styles.moreButtonText}>전체 보기 →</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              
-              {/* 종목 선택 탭 */}
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                style={styles.stockTabsContainer}
-                contentContainerStyle={styles.stockTabsContent}
-              >
-                {relatedNewsStocks.map((stock, index) => (
-                  <TouchableOpacity
-                    key={stock.id}
-                    style={[
-                      styles.stockTab,
-                      selectedStockIndex === index && styles.stockTabActive,
-                    ]}
-                    onPress={() => {
-                      setSelectedStockIndex(index);
-                      const stockNews = stockNewsMap.get(stock.id) || { ko: [], en: [] };
-                      setRelatedNews(relatedNewsLanguage === 'ko' ? stockNews.ko : stockNews.en);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.stockTabText,
-                        selectedStockIndex === index && styles.stockTabTextActive,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {stock.name || stock.officialName || stock.ticker}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              
-              {/* 언어 선택 탭 */}
-              <View style={styles.languageTabs}>
-                <TouchableOpacity
-                  style={[
-                    styles.languageTab,
-                    relatedNewsLanguage === 'ko' && styles.languageTabActive,
-                  ]}
-                  onPress={() => {
-                    setRelatedNewsLanguage('ko');
-                    const selectedStock = relatedNewsStocks[selectedStockIndex];
-                    if (selectedStock) {
-                      const stockNews = stockNewsMap.get(selectedStock.id) || { ko: [], en: [] };
-                      setRelatedNews(stockNews.ko);
-                    }
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.languageTabText,
-                      relatedNewsLanguage === 'ko' && styles.languageTabTextActive,
-                    ]}
-                  >
-                    한글 기사
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.languageTab,
-                    relatedNewsLanguage === 'en' && styles.languageTabActive,
-                  ]}
-                  onPress={() => {
-                    setRelatedNewsLanguage('en');
-                    const selectedStock = relatedNewsStocks[selectedStockIndex];
-                    if (selectedStock) {
-                      const stockNews = stockNewsMap.get(selectedStock.id) || { ko: [], en: [] };
-                      setRelatedNews(stockNews.en);
-                    }
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.languageTabText,
-                      relatedNewsLanguage === 'en' && styles.languageTabTextActive,
-                    ]}
-                  >
-                    영문 기사
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              
-              {relatedNews.length > 0 ? (
-                relatedNews.slice(0, 3).map((news) => (
-                  <TouchableOpacity
-                    key={news.id}
-                    style={styles.newsCard}
-                    onPress={() => {
-                      Linking.openURL(news.link).catch(err =>
-                        console.error('링크 열기 실패:', err)
-                      );
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.newsTitle} numberOfLines={2}>
-                      {news.title}
-                    </Text>
-                    <Text style={styles.newsSource}>
-                      {news.source} · {new Date(news.publishedAt).toLocaleDateString('ko-KR')}
-                    </Text>
-                  </TouchableOpacity>
-                ))
-              ) : (
-                <View style={styles.emptyNewsContainer}>
-                  <Text style={styles.emptyNewsText}>
-                    {relatedNewsLanguage === 'ko' ? '한글 관련 뉴스가 없습니다.' : '영문 관련 뉴스가 없습니다.'}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* 배너 광고: 관련 뉴스와 최신 뉴스 사이 */}
-          {(showRelatedNews && relatedNewsStocks.length > 0) || (showLatestNews && (latestNewsKo.length > 0 || latestNewsEn.length > 0)) ? (
-            <>
-              <View style={styles.adSpacer} />
-              <View style={styles.adContainer}>
-                <AdmobBanner />
-              </View>
-              <View style={styles.adSpacer} />
-            </>
-          ) : null}
-
-          {/* 최신 뉴스 섹션 */}
-          {showLatestNews && (latestNewsKo.length > 0 || latestNewsEn.length > 0) && (
-            <View style={styles.dashboardSection}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>최신 뉴스</Text>
-                <TouchableOpacity
-                  onPress={() => router.push(`/news?lang=${latestNewsLanguage}`)}
-                  style={styles.moreButton}
-                >
-                  <Text style={styles.moreButtonText}>전체 보기 →</Text>
-                </TouchableOpacity>
-              </View>
-              
-              {/* 언어 선택 탭 */}
-              <View style={styles.languageTabs}>
-                <TouchableOpacity
-                  style={[
-                    styles.languageTab,
-                    latestNewsLanguage === 'ko' && styles.languageTabActive,
-                  ]}
-                  onPress={() => {
-                    setLatestNewsLanguage('ko');
-                    if (latestNewsKo.length > 0) {
-                      setLatestNews(latestNewsKo.slice(0, 3));
-                    } else {
-                      setLatestNews([]);
-                    }
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.languageTabText,
-                      latestNewsLanguage === 'ko' && styles.languageTabTextActive,
-                    ]}
-                  >
-                    한글 기사
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.languageTab,
-                    latestNewsLanguage === 'en' && styles.languageTabActive,
-                  ]}
-                  onPress={() => {
-                    setLatestNewsLanguage('en');
-                    if (latestNewsEn.length > 0) {
-                      setLatestNews(latestNewsEn.slice(0, 3));
-                    } else {
-                      setLatestNews([]);
-                    }
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.languageTabText,
-                      latestNewsLanguage === 'en' && styles.languageTabTextActive,
-                    ]}
-                  >
-                    영문 기사
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              
-              {latestNews.length > 0 ? (
-                latestNews.map((news) => (
-                  <TouchableOpacity
-                    key={news.id}
-                    style={styles.newsCard}
-                    onPress={() => {
-                      Linking.openURL(news.link).catch(err =>
-                        console.error('링크 열기 실패:', err)
-                      );
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.newsTitle} numberOfLines={2}>
-                      {news.title}
-                    </Text>
-                    <Text style={styles.newsSource}>
-                      {news.source} · {new Date(news.publishedAt).toLocaleDateString('ko-KR')}
-                    </Text>
-                  </TouchableOpacity>
-                ))
-              ) : (
-                <View style={styles.emptyNewsContainer}>
-                  <Text style={styles.emptyNewsText}>
-                    {latestNewsLanguage === 'ko' ? '한글 최신 뉴스가 없습니다.' : '영문 최신 뉴스가 없습니다.'}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* 네이티브 광고: 최신 뉴스 아래 */}
-          {showLatestNews && (latestNewsKo.length > 0 || latestNewsEn.length > 0) && (
-            <AdmobNativeAd />
-          )}
-
           <View style={styles.cardsContainer}>
             <CalculatorCard
               title="포트폴리오"
@@ -1751,6 +1754,8 @@ export default function MainScreen() {
             />
           </View>
 
+          <View style={styles.cardSpacer} />
+
           <View style={styles.cardsContainer}>
             <CalculatorCard
               title="주요 지표"
@@ -1760,6 +1765,8 @@ export default function MainScreen() {
               onPress={() => router.push('/market-indicators')}
             />
           </View>
+
+          <View style={styles.cardSpacer} />
 
           <View style={styles.cardsContainer}>
             <CalculatorCard
