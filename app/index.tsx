@@ -885,20 +885,20 @@ export default function MainScreen() {
             </View>
           ) : (
             <>
-              {/* 세계 시각 — 열마다 라벨(위)·시각(아래) 두 줄 */}
+              {/* 세계 시각 — 열마다 금리 pill과 비슷한 테두리·틴트 */}
               {showWorldTime && (
                 <View style={styles.timeContainer}>
                   {krDate && (
-                    <View style={styles.timeItem}>
+                    <View style={[styles.timeItem, styles.timeItemToday]}>
                       <Text style={styles.timeLabel}>오늘</Text>
                       <Text style={[styles.timeValue, isKrHoliday && styles.timeValueHoliday]}>{krDate}</Text>
                     </View>
                   )}
-                  <View style={styles.timeItem}>
+                  <View style={[styles.timeItem, styles.timeItemNY]}>
                     <Text style={styles.timeLabel}>뉴욕</Text>
                     <Text style={styles.timeValue}>{nyTime}</Text>
                   </View>
-                  <View style={styles.timeItem}>
+                  <View style={[styles.timeItem, styles.timeItemLondon]}>
                     <Text style={styles.timeLabel}>런던</Text>
                     <Text style={styles.timeValue}>{euTime}</Text>
                   </View>
@@ -2197,14 +2197,8 @@ const styles = StyleSheet.create({
   timeContainer: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    justifyContent: 'space-around',
+    gap: 6,
     marginBottom: 10,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    backgroundColor: 'rgba(21, 25, 34, 0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
     alignSelf: 'stretch',
     marginHorizontal: 0,
   },
@@ -2215,6 +2209,24 @@ const styles = StyleSheet.create({
     gap: 2,
     flex: 1,
     minWidth: 0,
+    paddingVertical: 7,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(21, 25, 34, 0.95)',
+  },
+  timeItemToday: {
+    borderColor: 'rgba(255, 193, 7, 0.4)',
+    backgroundColor: 'rgba(255, 193, 7, 0.07)',
+  },
+  timeItemNY: {
+    borderColor: 'rgba(66, 165, 245, 0.45)',
+    backgroundColor: 'rgba(66, 165, 245, 0.08)',
+  },
+  timeItemLondon: {
+    borderColor: 'rgba(0, 188, 212, 0.4)',
+    backgroundColor: 'rgba(0, 188, 212, 0.07)',
   },
   timeLabel: {
     fontSize: 10,
