@@ -836,7 +836,14 @@ export default function MainScreen() {
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.topHeaderTitle}>스마트 물타기 계산기</Text>
+            <Text
+              style={styles.topHeaderTitle}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.78}
+            >
+              스마트 물타기 계산기
+            </Text>
           </View>
           <View style={styles.topHeaderRight}>
             <TouchableOpacity 
@@ -1897,9 +1904,20 @@ const styles = StyleSheet.create({
     height: 60,
   },
   topHeaderTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    flexShrink: 1,
+    fontSize: 20,
+    fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: Platform.OS === 'ios' ? -0.55 : -0.28,
+    fontFamily: Platform.select({
+      ios: 'Apple SD Gothic Neo',
+      android: 'sans-serif',
+      default: undefined,
+    }),
+    textShadowColor: 'rgba(0, 0, 0, 0.22)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
   },
   addStockButton: {
     width: 36,
