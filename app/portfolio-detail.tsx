@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { AdmobBanner } from '../src/components/AdmobBanner';
 import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
 import { getAccountById, getStocksByAccountId, deleteStock, createStock, updateStock, initDatabase, getTradingRecordsByStockId, updateStockCurrentPrice, updatePortfolioCurrentPrices } from '../src/services/DatabaseService';
 import { Account } from '../src/models/Account';
@@ -739,9 +738,6 @@ export default function PortfolioDetailScreen() {
               </View>
             )}
           </View>
-
-          {/* 합계 아래 배너 광고 */}
-          {stocks.length > 0 && <AdmobBanner />}
 
           {stocks.length === 0 ? (
             <View style={styles.emptyContainer}>
