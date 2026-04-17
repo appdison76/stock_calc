@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Linking,
   ActivityIndicator,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -48,11 +49,48 @@ const emptyDraft = (): Draft => ({
 
 export default function ShortcutManagerScreen() {
   const insets = useSafeAreaInsets();
+  const modalScrollRef = useRef<ScrollView>(null);
+  const [keyboardPad, setKeyboardPad] = useState(0);
   const [list, setList] = useState<MyShortcut[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [saving, setSaving] = useState(false);
+
+  /** Android는 app.json `softwareKeyboardLayoutMode: pan` 이라 KAV만으로는 부족한 경우가 많음 */
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const show = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardPad(e.endCoordinates.height);
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardPad(0);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!modalVisible) {
+      setKeyboardPad(0);
+      Keyboard.dismiss();
+    }
+  }, [modalVisible]);
+
+  const scrollModalForField = useCallback((field: 'title' | 'url' | 'emoji') => {
+    const r = modalScrollRef.current;
+    if (!r) return;
+    const delay = Platform.OS === 'ios' ? 160 : 120;
+    setTimeout(() => {
+      if (field === 'title') {
+        r.scrollTo({ y: 0, animated: true });
+      } else {
+        r.scrollToEnd({ animated: true });
+      }
+    }, delay);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -240,65 +278,86 @@ export default function ShortcutManagerScreen() {
 
       <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
         <KeyboardAvoidingView
+          style={styles.modalFullscreen}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 8 : 0}
         >
-          <View style={[styles.modalCard, { paddingBottom: 16 + insets.bottom }]}>
-            <Text style={styles.modalTitle}>{draft.id ? '바로가기 수정' : '바로가기 추가'}</Text>
+          <View style={styles.modalOverlay}>
+            <ScrollView
+              ref={modalScrollRef}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={[
+                styles.modalScrollContent,
+                {
+                  paddingBottom:
+                    keyboardPad + Math.max(insets.bottom, 12) + (Platform.OS === 'android' ? 12 : 20),
+                },
+              ]}
+            >
+              <View style={styles.modalCard}>
+                <Text style={styles.modalTitle}>{draft.id ? '바로가기 수정' : '바로가기 추가'}</Text>
 
-            <Text style={styles.fieldLabel}>이름 (비우면 주소에서 자동)</Text>
-            <TextInput
-              style={styles.input}
-              value={draft.title}
-              onChangeText={(t) => setDraft((d) => ({ ...d, title: t }))}
-              placeholder="예: 내 유튜브"
-              placeholderTextColor="#789"
-            />
+                <Text style={styles.fieldLabel}>이름 (비우면 주소에서 자동)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={draft.title}
+                  onChangeText={(t) => setDraft((d) => ({ ...d, title: t }))}
+                  placeholder="예: 내 유튜브"
+                  placeholderTextColor="#789"
+                  onFocus={() => scrollModalForField('title')}
+                />
 
-            <Text style={styles.fieldLabel}>링크 (필수)</Text>
-            <TextInput
-              style={styles.input}
-              value={draft.url}
-              onChangeText={(t) => setDraft((d) => ({ ...d, url: t }))}
-              placeholder="https://..."
-              placeholderTextColor="#789"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-            />
+                <Text style={styles.fieldLabel}>링크 (필수)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={draft.url}
+                  onChangeText={(t) => setDraft((d) => ({ ...d, url: t }))}
+                  placeholder="https://..."
+                  placeholderTextColor="#789"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  onFocus={() => scrollModalForField('url')}
+                />
 
-            <Text style={styles.fieldLabel}>이모지 (비우면 링크 기준 자동: 유튜브 📺, 그 외 🔗)</Text>
-            <TextInput
-              style={styles.input}
-              value={draft.iconEmoji}
-              onChangeText={(t) => setDraft((d) => ({ ...d, iconEmoji: t }))}
-              placeholder={suggestedEmojiForUrl(draft.url || 'https://')}
-              placeholderTextColor="#789"
-              maxLength={8}
-            />
+                <Text style={styles.fieldLabel}>이모지 (비우면 링크 기준 자동: 유튜브 📺, 그 외 🔗)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={draft.iconEmoji}
+                  onChangeText={(t) => setDraft((d) => ({ ...d, iconEmoji: t }))}
+                  placeholder={suggestedEmojiForUrl(draft.url || 'https://')}
+                  placeholderTextColor="#789"
+                  maxLength={8}
+                  onFocus={() => scrollModalForField('emoji')}
+                />
 
-            <View style={styles.modalSwitchRow}>
-              <Text style={styles.fieldLabel}>메인 화면에 표시</Text>
-              <Switch
-                value={draft.showOnMain}
-                onValueChange={(v) => setDraft((d) => ({ ...d, showOnMain: v }))}
-                trackColor={{ false: '#555', true: '#42A5F5' }}
-                thumbColor="#fff"
-              />
-            </View>
+                <View style={styles.modalSwitchRow}>
+                  <Text style={styles.fieldLabel}>메인 화면에 표시</Text>
+                  <Switch
+                    value={draft.showOnMain}
+                    onValueChange={(v) => setDraft((d) => ({ ...d, showOnMain: v }))}
+                    trackColor={{ false: '#555', true: '#42A5F5' }}
+                    thumbColor="#fff"
+                  />
+                </View>
 
-            <View style={styles.modalFooter}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setModalVisible(false)}>
-                <Text style={styles.modalCancelText}>취소</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalSave, saving && styles.modalSaveDisabled]}
-                onPress={onSaveDraft}
-                disabled={saving}
-              >
-                <Text style={styles.modalSaveText}>{saving ? '저장 중…' : '저장'}</Text>
-              </TouchableOpacity>
-            </View>
+                <View style={styles.modalFooter}>
+                  <TouchableOpacity style={styles.modalCancel} onPress={() => setModalVisible(false)}>
+                    <Text style={styles.modalCancelText}>취소</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalSave, saving && styles.modalSaveDisabled]}
+                    onPress={onSaveDraft}
+                    disabled={saving}
+                  >
+                    <Text style={styles.modalSaveText}>{saving ? '저장 중…' : '저장'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -371,9 +430,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   defaultBadge: { marginTop: 8, color: '#789', fontSize: 12 },
+  modalFullscreen: {
+    flex: 1,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'flex-end',
+  },
+  modalScrollContent: {
+    flexGrow: 1,
     justifyContent: 'flex-end',
   },
   modalCard: {
