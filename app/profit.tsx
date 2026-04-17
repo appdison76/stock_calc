@@ -225,16 +225,21 @@ export default function ProfitCalculatorView() {
     let finalValue = formatted.replace(/(?!^)-/g, '');
     
     // 천단위 콤마 적용 (소수점 앞 정수 부분에만)
+    // 소수는 둘째 자리까지. "10." 처럼 둘째 토큰이 빈 문자열이어도 마침표는 유지해야 입력이 끊기지 않음
     if (finalValue && finalValue !== '-') {
       const isNegative = finalValue.startsWith('-');
       const valueWithoutSign = isNegative ? finalValue.substring(1) : finalValue;
       const decimalParts = valueWithoutSign.split('.');
       const integerPart = decimalParts[0];
-      const decimalPart = decimalParts[1] ? '.' + decimalParts[1] : '';
-      
+      const hasFraction = decimalParts.length > 1;
+      const fracDigits = hasFraction ? (decimalParts[1] ?? '').slice(0, 2) : '';
+      const decimalPart = hasFraction ? '.' + fracDigits : '';
+
       if (integerPart) {
         const integerWithCommas = addCommas(integerPart);
         finalValue = (isNegative ? '-' : '') + integerWithCommas + decimalPart;
+      } else if (hasFraction) {
+        finalValue = (isNegative ? '-' : '') + '0' + decimalPart;
       }
     }
     
@@ -592,7 +597,11 @@ export default function ProfitCalculatorView() {
             placeholderTextColor="#757575"
             value={profitRate}
             onChangeText={(text) => handleProfitRateInputChange(text, setProfitRate)}
-            keyboardType="numeric"
+            keyboardType={Platform.select({
+              ios: 'numbers-and-punctuation',
+              android: 'decimal-pad',
+              default: 'decimal-pad',
+            })}
           />
 
           <TextInput
