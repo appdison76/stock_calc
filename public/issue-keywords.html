@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>실시간 이슈 검색어 — 알림 관리자</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+      color: #333;
+    }
+
+    .container {
+      max-width: 920px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 26px;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      opacity: 0.9;
+      font-size: 14px;
+    }
+
+    .admin-nav {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 14px 20px;
+      background: #f8f9fa;
+      border-bottom: 1px solid #e9ecef;
+    }
+
+    .admin-nav__link {
+      color: #555;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .admin-nav__link:hover {
+      color: #667eea;
+      background: rgba(102, 126, 234, 0.12);
+    }
+
+    .admin-nav__link--active {
+      color: #667eea;
+      background: rgba(102, 126, 234, 0.15);
+    }
+
+    .content {
+      padding: 30px;
+    }
+
+    .hint {
+      background: #f8f9fa;
+      padding: 14px 16px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: #555;
+      line-height: 1.5;
+    }
+
+    .hint code {
+      font-size: 12px;
+      background: #e9ecef;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    label {
+      font-weight: 600;
+      color: #555;
+      font-size: 13px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 10px 8px;
+      text-align: left;
+      border-bottom: 1px solid #e9ecef;
+    }
+
+    th {
+      color: #666;
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .col-rank {
+      width: 56px;
+      text-align: center;
+      color: #667eea;
+      font-weight: 700;
+    }
+
+    .col-keyword input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .col-keyword input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .col-count {
+      width: 110px;
+    }
+
+    .col-count input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .col-actions {
+      width: 88px;
+      text-align: right;
+    }
+
+    .btn-row-del {
+      background: #fff;
+      color: #c0392b;
+      border: 2px solid #f5c6cb;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-row-del:hover {
+      background: #fdf2f2;
+    }
+
+    .actions-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 14px 24px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.35);
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.45);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: #667eea;
+      border: 2px solid #667eea;
+      box-shadow: none;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(102, 126, 234, 0.08);
+    }
+
+    .status {
+      margin-top: 16px;
+      padding: 14px;
+      border-radius: 10px;
+      display: none;
+    }
+
+    .status.show {
+      display: block;
+    }
+
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .empty-msg {
+      padding: 24px;
+      text-align: center;
+      color: #888;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔎 실시간 이슈 검색어</h1>
+      <p>로컬 <code style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 6px;">docs/issue-keywords.json</code> 편집</p>
+    </div>
+
+    <nav class="admin-nav" aria-label="관리자 메뉴">
+      <a href="/" class="admin-nav__link">알림 발송</a>
+      <a href="/issue-keywords.html" class="admin-nav__link admin-nav__link--active">실시간 이슈 검색어</a>
+    </nav>
+
+    <div class="content">
+      <p class="hint">
+        앱은 최대 <strong>10개</strong>까지 표시합니다. 저장하면 프로젝트의 <code>docs/issue-keywords.json</code>이 갱신됩니다.
+        GitHub Pages에 반영하려면 변경 후 <strong>커밋·푸시</strong>를 해 주세요.<br /><br />
+        <strong>접속 방법:</strong> 프로젝트 루트에서 <code>node scripts/notification-server.js</code> 실행 후 브라우저로
+        <code>http://localhost:3000/issue-keywords.html</code> 를 여세요.
+        VS Code Live Server·다른 포트 정적 서버·<code>file://</code> 로만 HTML을 열면 <code>/api</code>가 없어 <strong>HTTP 404</strong>가 납니다.
+      </p>
+
+      <div class="actions-row">
+        <button type="button" class="btn btn-secondary" id="btnAdd">＋ 항목 추가</button>
+        <button type="button" class="btn" id="btnSave">💾 파일에 저장</button>
+        <button type="button" class="btn btn-secondary" id="btnReload">↻ 다시 불러오기</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th class="col-keyword">키워드</th>
+            <th class="col-count">건수 (선택)</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody id="kwRows"></tbody>
+      </table>
+      <div class="empty-msg" id="emptyMsg" style="display: none;">행을 추가한 뒤 키워드를 입력하고 저장하세요.</div>
+
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+
+  <script>
+    const MAX_ROWS = 10;
+    const tbody = document.getElementById('kwRows');
+    const statusEl = document.getElementById('status');
+    const emptyMsg = document.getElementById('emptyMsg');
+
+    function showStatus(kind, text) {
+      statusEl.className = 'status show ' + kind;
+      statusEl.textContent = text;
+    }
+
+    function hideStatus() {
+      statusEl.className = 'status';
+      statusEl.textContent = '';
+    }
+
+    function msgApiNotFound() {
+      return (
+        'API(404): 알림 관리 서버가 아닌 곳에서 이 페이지를 연 것 같습니다. ' +
+        '프로젝트 루트에서 node scripts/notification-server.js 를 실행한 뒤 ' +
+        'http://localhost:3000/issue-keywords.html 로 다시 여세요.'
+      );
+    }
+
+    function renumber() {
+      const rows = tbody.querySelectorAll('tr');
+      rows.forEach((tr, i) => {
+        const cell = tr.querySelector('.col-rank');
+        if (cell) cell.textContent = String(i + 1);
+      });
+      emptyMsg.style.display = rows.length === 0 ? 'block' : 'none';
+    }
+
+    function addRow(keyword, count) {
+      if (tbody.querySelectorAll('tr').length >= MAX_ROWS) {
+        showStatus('error', '최대 ' + MAX_ROWS + '개까지 추가할 수 있습니다.');
+        return;
+      }
+      hideStatus();
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td class="col-rank"></td>' +
+        '<td class="col-keyword"><input type="text" class="kw-input" placeholder="검색어" autocomplete="off" /></td>' +
+        '<td class="col-count"><input type="number" class="count-input" placeholder="선택" min="0" step="1" /></td>' +
+        '<td class="col-actions"><button type="button" class="btn-row-del">삭제</button></td>';
+      tr.querySelector('.kw-input').value = keyword != null ? keyword : '';
+      const ci = tr.querySelector('.count-input');
+      if (count !== undefined && count !== null && count !== '') {
+        ci.value = String(count);
+      }
+      tr.querySelector('.btn-row-del').addEventListener('click', function () {
+        tr.remove();
+        renumber();
+        hideStatus();
+      });
+      tbody.appendChild(tr);
+      renumber();
+    }
+
+    function collectKeywords() {
+      const rows = tbody.querySelectorAll('tr');
+      const keywords = [];
+      rows.forEach(function (tr, idx) {
+        const keyword = (tr.querySelector('.kw-input') && tr.querySelector('.kw-input').value || '').trim();
+        const countRaw = (tr.querySelector('.count-input') && tr.querySelector('.count-input').value || '').trim();
+        if (!keyword) return;
+        const item = { rank: keywords.length + 1, keyword: keyword };
+        if (countRaw !== '') {
+          const n = parseInt(countRaw, 10);
+          if (!Number.isNaN(n)) item.count = n;
+        }
+        keywords.push(item);
+      });
+      return keywords;
+    }
+
+    async function loadData() {
+      hideStatus();
+      try {
+        const response = await fetch('/api/issue-keywords');
+        if (!response.ok) {
+          if (response.status === 404) throw new Error(msgApiNotFound());
+          throw new Error('HTTP ' + response.status);
+        }
+        const data = await response.json();
+        tbody.innerHTML = '';
+        const list = Array.isArray(data.keywords) ? data.keywords : [];
+        if (list.length === 0) {
+          renumber();
+          return;
+        }
+        list.sort(function (a, b) {
+          return (a.rank || 0) - (b.rank || 0);
+        });
+        list.forEach(function (item) {
+          addRow(item.keyword, item.count !== undefined ? item.count : '');
+        });
+      } catch (e) {
+        showStatus('error', '불러오기 실패: ' + e.message);
+      }
+    }
+
+    document.getElementById('btnAdd').addEventListener('click', function () {
+      addRow('', '');
+    });
+
+    document.getElementById('btnReload').addEventListener('click', function () {
+      if (tbody.querySelectorAll('tr').length > 0) {
+        if (!confirm('저장하지 않은 변경이 사라질 수 있습니다. 다시 불러올까요?')) return;
+      }
+      loadData();
+    });
+
+    document.getElementById('btnSave').addEventListener('click', async function () {
+      const btn = document.getElementById('btnSave');
+      const keywords = collectKeywords();
+      if (keywords.length === 0) {
+        showStatus('error', '키워드가 비어 있습니다. 한 줄 이상 입력해 주세요.');
+        return;
+      }
+      btn.disabled = true;
+      hideStatus();
+      try {
+        const response = await fetch('/api/issue-keywords', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keywords: keywords }),
+        });
+        const data = await response.json().catch(function () {
+          return {};
+        });
+        if (!response.ok) {
+          if (response.status === 404) throw new Error(msgApiNotFound());
+          throw new Error(data.error || '저장 실패');
+        }
+        showStatus('success', '저장했습니다. (' + (data.keywords && data.keywords.length || keywords.length) + '건) 커밋·푸시는 별도로 진행해 주세요.');
+        tbody.innerHTML = '';
+        (data.keywords || keywords).forEach(function (item) {
+          addRow(item.keyword, item.count !== undefined ? item.count : '');
+        });
+      } catch (e) {
+        showStatus('error', '저장 오류: ' + e.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    loadData();
+  </script>
+</body>
+</html>

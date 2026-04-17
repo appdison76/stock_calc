@@ -45,6 +45,36 @@
       font-size: 14px;
     }
 
+    .admin-nav {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 14px 20px;
+      background: #f8f9fa;
+      border-bottom: 1px solid #e9ecef;
+    }
+
+    .admin-nav__link {
+      color: #555;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .admin-nav__link:hover {
+      color: #667eea;
+      background: rgba(102, 126, 234, 0.12);
+    }
+
+    .admin-nav__link--active {
+      color: #667eea;
+      background: rgba(102, 126, 234, 0.15);
+    }
+
     .content {
       padding: 30px;
     }
@@ -218,6 +248,11 @@
       <h1>📱 알림 발송 관리자</h1>
       <p>모든 사용자에게 푸시 알림을 발송합니다</p>
     </div>
+
+    <nav class="admin-nav" aria-label="관리자 메뉴">
+      <a href="/" class="admin-nav__link admin-nav__link--active">알림 발송</a>
+      <a href="/issue-keywords.html" class="admin-nav__link">실시간 이슈 검색어</a>
+    </nav>
 
     <div class="content">
       <div class="token-info">
