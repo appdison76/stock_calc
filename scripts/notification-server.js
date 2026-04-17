@@ -6,7 +6,8 @@
  *
  * 브라우저에서 http://localhost:3000 접속
  *
- * 실시간 이슈 키워드는 Firestore `issueKeywords/current` 에 읽기/쓰기합니다.
+ * 실시간 이슈 키워드: Firestore `issueKeywords/current`
+ * 메인 기준금리: Firestore `interestRates/current`
  * (send-notification 과 동일한 FIREBASE_ADMIN_KEY / 서비스 계정 필요)
  */
 
@@ -22,6 +23,9 @@ const ISSUE_KEYWORDS_COLLECTION = 'issueKeywords';
 const ISSUE_KEYWORDS_DOC_ID = 'current';
 /** 저장 시 허용 최대 개수 */
 const ISSUE_KEYWORDS_MAX = 20;
+
+const INTEREST_RATES_COLLECTION = 'interestRates';
+const INTEREST_RATES_DOC_ID = 'current';
 
 function getAdminFirestore() {
   const admin = require('firebase-admin');
@@ -69,6 +73,32 @@ function normalizeIssueKeywords(rawKeywords) {
   }));
 }
 
+function normalizeInterestRates(body) {
+  const o = body && typeof body === 'object' ? body : {};
+  const usRaw = o.us;
+  let us;
+  if (typeof usRaw === 'string') {
+    us = usRaw.trim();
+  } else if (typeof usRaw === 'number' && Number.isFinite(usRaw)) {
+    us = String(usRaw);
+  } else {
+    throw new Error('미국(us)은 문자열 또는 숫자여야 합니다.');
+  }
+  if (!us) throw new Error('미국(us) 값이 비어 있습니다.');
+
+  const krRaw = o.kr;
+  const kr =
+    typeof krRaw === 'number' ? krRaw : typeof krRaw === 'string' ? parseFloat(krRaw) : NaN;
+  if (!Number.isFinite(kr)) throw new Error('한국(kr)은 숫자여야 합니다.');
+
+  const jpRaw = o.jp;
+  const jp =
+    typeof jpRaw === 'number' ? jpRaw : typeof jpRaw === 'string' ? parseFloat(jpRaw) : NaN;
+  if (!Number.isFinite(jp)) throw new Error('일본(jp)은 숫자여야 합니다.');
+
+  return { us, kr, jp };
+}
+
 /** Firestore issueKeywords/current 읽기 (관리자 UI) */
 app.get('/api/issue-keywords', async (req, res) => {
   try {
@@ -106,6 +136,55 @@ app.put('/api/issue-keywords', async (req, res) => {
     res.json({ success: true, keywords: normalized });
   } catch (error) {
     console.error('❌ issue-keywords Firestore 저장 오류:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message || '저장에 실패했습니다.',
+    });
+  }
+});
+
+/** Firestore interestRates/current 읽기 (관리자 UI) */
+app.get('/api/interest-rates', async (req, res) => {
+  const defaults = { us: '3.50~3.75', kr: 2.5, jp: 0.75 };
+  try {
+    const db = getAdminFirestore();
+    const snap = await db.collection(INTEREST_RATES_COLLECTION).doc(INTEREST_RATES_DOC_ID).get();
+    if (!snap.exists) {
+      return res.json(defaults);
+    }
+    const data = snap.data() || {};
+    try {
+      const normalized = normalizeInterestRates(data);
+      return res.json(normalized);
+    } catch (parseErr) {
+      console.warn('⚠️ interestRates 필드 불완전, 기본값 반환:', parseErr.message);
+      return res.json(defaults);
+    }
+  } catch (error) {
+    console.error('❌ interest-rates Firestore 읽기 오류:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || '읽기에 실패했습니다.',
+    });
+  }
+});
+
+app.put('/api/interest-rates', async (req, res) => {
+  try {
+    const admin = require('firebase-admin');
+    const normalized = normalizeInterestRates(req.body || {});
+    const db = getAdminFirestore();
+    await db.collection(INTEREST_RATES_COLLECTION).doc(INTEREST_RATES_DOC_ID).set(
+      {
+        ...normalized,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+    console.log('💾 interestRates/current Firestore 저장:', normalized);
+    res.json({ success: true, ...normalized });
+  } catch (error) {
+    console.error('❌ interest-rates Firestore 저장 오류:', error);
     res.status(400).json({
       success: false,
       error: error.message || '저장에 실패했습니다.',

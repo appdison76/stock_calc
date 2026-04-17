@@ -1,7 +1,7 @@
 // 기준금리 데이터를 가져오는 서비스
 // API 키 없이도 작동하도록 공개 데이터 소스 활용
 //
-// 우선순위: GitHub Pages의 interest-rates.json → (실패 시) 기존 로직(ECOS/하드코딩 등)
+// 우선순위: Firestore interestRates/current → (실패 시) 기존 로직(ECOS/하드코딩 등)
 
 import { fetchInterestRatesFromRemote } from './InterestRatesRemoteService';
 
@@ -198,7 +198,7 @@ export class InterestRateService {
     try {
       const fromRemote = await fetchInterestRatesFromRemote();
       if (fromRemote !== null) {
-        console.log('[InterestRate] 원격 interest-rates.json 사용');
+        console.log('[InterestRate] Firestore interestRates/current 사용');
         return {
           us: fromRemote.us,
           kr: fromRemote.kr,

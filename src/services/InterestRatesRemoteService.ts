@@ -1,8 +1,11 @@
-// GitHub Pages 원격 설정 베이스. 앱 재배포 없이 갱신 가능.
-const INTEREST_RATES_URL =
-  'https://appdison76.github.io/stock_calc/interest-rates.json';
+import { doc, getDoc } from 'firebase/firestore';
+import { getFirestoreInstance } from './FirebaseService';
 
-/** 원격 JSON 파싱 성공 시 (메인 화면 표시용) */
+/** Firestore 문서: 메인 대시보드 기준금리 (비로그인 읽기 전용 규칙) */
+export const INTEREST_RATES_COLLECTION = 'interestRates';
+export const INTEREST_RATES_DOC_ID = 'current';
+
+/** 원격 파싱 성공 시 (메인 화면 표시용) */
 export interface InterestRatesRemoteResult {
   /** 미국: 범위 문자열 등 (예: "3.50~3.75") */
   us: string;
@@ -47,38 +50,33 @@ function parseRemotePayload(data: unknown): InterestRatesRemoteResult | null {
 }
 
 /**
- * Pages에 배포된 interest-rates.json 을 가져온다.
+ * Firestore interestRates/current 에서 기준금리를 가져온다.
  * 실패·형식 오류 시 null (호출측에서 기존 InterestRateService 로직으로 폴백).
  */
 export async function fetchInterestRatesFromRemote(): Promise<InterestRatesRemoteResult | null> {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-    const response = await fetch(INTEREST_RATES_URL, {
-      signal: controller.signal,
-      headers: {
-        'Cache-Control': 'no-cache',
-        Accept: 'application/json',
-      },
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      console.warn('[InterestRatesRemote] HTTP', response.status);
+    const db = getFirestoreInstance();
+    if (!db) {
+      console.warn('[InterestRatesRemote] Firestore 없음');
       return null;
     }
 
-    const data: unknown = await response.json();
-    const parsed = parseRemotePayload(data);
+    const ref = doc(db, INTEREST_RATES_COLLECTION, INTEREST_RATES_DOC_ID);
+    const snap = await getDoc(ref);
+
+    if (!snap.exists) {
+      console.warn('[InterestRatesRemote] 문서 없음:', INTEREST_RATES_COLLECTION, INTEREST_RATES_DOC_ID);
+      return null;
+    }
+
+    const parsed = parseRemotePayload(snap.data());
     if (!parsed) {
-      console.warn('[InterestRatesRemote] JSON 형식 불일치');
+      console.warn('[InterestRatesRemote] 필드 형식 불일치');
       return null;
     }
     return parsed;
   } catch (e) {
-    console.warn('[InterestRatesRemote] fetch 실패:', e);
+    console.warn('[InterestRatesRemote] Firestore 읽기 실패:', e);
     return null;
   }
 }
