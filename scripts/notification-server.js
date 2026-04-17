@@ -8,6 +8,7 @@
  *
  * 실시간 이슈 키워드: Firestore `issueKeywords/current`
  * 메인 기준금리: Firestore `interestRates/current`
+ * 추천 바로가기: Firestore `recommendedShortcuts/current`
  * (send-notification 과 동일한 FIREBASE_ADMIN_KEY / 서비스 계정 필요)
  */
 
@@ -26,6 +27,11 @@ const ISSUE_KEYWORDS_MAX = 20;
 
 const INTEREST_RATES_COLLECTION = 'interestRates';
 const INTEREST_RATES_DOC_ID = 'current';
+
+const RECOMMENDED_SHORTCUTS_COLLECTION = 'recommendedShortcuts';
+const RECOMMENDED_SHORTCUTS_DOC_ID = 'current';
+/** 저장 시 최대 개수 */
+const RECOMMENDED_SHORTCUTS_MAX = 12;
 
 function getAdminFirestore() {
   const admin = require('firebase-admin');
@@ -97,6 +103,54 @@ function normalizeInterestRates(body) {
   if (!Number.isFinite(jp)) throw new Error('일본(jp)은 숫자여야 합니다.');
 
   return { us, kr, jp };
+}
+
+function normalizeRecommendedShortcuts(rawItems) {
+  if (!Array.isArray(rawItems)) {
+    throw new Error('items는 배열이어야 합니다.');
+  }
+  const rows = [];
+  for (const entry of rawItems) {
+    if (!entry || typeof entry !== 'object') continue;
+    const title = typeof entry.title === 'string' ? entry.title.trim() : '';
+    const url = typeof entry.url === 'string' ? entry.url.trim() : '';
+    if (!title || !url) continue;
+    if (!/^https:\/\//i.test(url)) {
+      throw new Error(`URL은 https:// 로 시작해야 합니다: "${title}"`);
+    }
+    const id = typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : '';
+    const iconEmoji = typeof entry.iconEmoji === 'string' ? entry.iconEmoji.trim() : '';
+    let showOnMain = true;
+    if (typeof entry.showOnMain === 'boolean') {
+      showOnMain = entry.showOnMain;
+    } else if (typeof entry.enabled === 'boolean') {
+      showOnMain = entry.enabled;
+    }
+    let sortOrder =
+      typeof entry.sortOrder === 'number' && Number.isFinite(entry.sortOrder)
+        ? Math.floor(entry.sortOrder)
+        : rows.length;
+    rows.push({
+      id,
+      title,
+      url,
+      ...(iconEmoji ? { iconEmoji } : {}),
+      showOnMain,
+      enabled: showOnMain,
+      sortOrder,
+    });
+  }
+  rows.sort((a, b) => a.sortOrder - b.sortOrder);
+  const capped = rows.slice(0, RECOMMENDED_SHORTCUTS_MAX);
+  return capped.map((r, idx) => ({
+    id: r.id || `rs-${idx}`,
+    title: r.title,
+    url: r.url,
+    ...(r.iconEmoji ? { iconEmoji: r.iconEmoji } : {}),
+    showOnMain: r.showOnMain,
+    enabled: r.showOnMain,
+    sortOrder: idx,
+  }));
 }
 
 /** Firestore issueKeywords/current 읽기 (관리자 UI) */
@@ -185,6 +239,61 @@ app.put('/api/interest-rates', async (req, res) => {
     res.json({ success: true, ...normalized });
   } catch (error) {
     console.error('❌ interest-rates Firestore 저장 오류:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message || '저장에 실패했습니다.',
+    });
+  }
+});
+
+/** Firestore recommendedShortcuts/current 읽기 (관리자 UI) */
+app.get('/api/recommended-shortcuts', async (req, res) => {
+  try {
+    const db = getAdminFirestore();
+    const snap = await db
+      .collection(RECOMMENDED_SHORTCUTS_COLLECTION)
+      .doc(RECOMMENDED_SHORTCUTS_DOC_ID)
+      .get();
+    if (!snap.exists) {
+      return res.json({ items: [] });
+    }
+    const data = snap.data() || {};
+    const items = Array.isArray(data.items) ? data.items : [];
+    res.json({ items });
+  } catch (error) {
+    console.error('❌ recommended-shortcuts Firestore 읽기 오류:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || '읽기에 실패했습니다.',
+    });
+  }
+});
+
+app.put('/api/recommended-shortcuts', async (req, res) => {
+  try {
+    const admin = require('firebase-admin');
+    const body = req.body || {};
+    const rawItems = Array.isArray(body.items) ? body.items : [];
+    const normalized = normalizeRecommendedShortcuts(rawItems);
+    const db = getAdminFirestore();
+    await db
+      .collection(RECOMMENDED_SHORTCUTS_COLLECTION)
+      .doc(RECOMMENDED_SHORTCUTS_DOC_ID)
+      .set(
+        {
+          items: normalized,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    console.log(
+      '💾 recommendedShortcuts/current Firestore 저장:',
+      normalized.length,
+      '건'
+    );
+    res.json({ success: true, items: normalized });
+  } catch (error) {
+    console.error('❌ recommended-shortcuts Firestore 저장 오류:', error);
     res.status(400).json({
       success: false,
       error: error.message || '저장에 실패했습니다.',

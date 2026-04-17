@@ -50,7 +50,10 @@ import {
   shortcutsForMain,
   displayEmoji,
   reorderMainVisible,
+  suggestedEmojiForUrl,
 } from '../src/services/MyShortcutsService';
+import type { RecommendedShortcut } from '../src/models/RecommendedShortcut';
+import { fetchRecommendedShortcutsFromRemote } from '../src/services/RecommendedShortcutsRemoteService';
 
 const MAIN_ISSUE_SECTION_COLLAPSED_KEY = '@main_issue_section_collapsed';
 
@@ -179,8 +182,10 @@ export default function MainScreen() {
   const [showInterestRates, setShowInterestRates] = useState(true);
   const [showIssueKeywords, setShowIssueKeywords] = useState(true);
   const [showMyShortcuts, setShowMyShortcuts] = useState(true);
+  const [showRecommendedShortcuts, setShowRecommendedShortcuts] = useState(true);
   const [myShortcutsList, setMyShortcutsList] = useState<MyShortcut[]>([]);
   const [myShortcutsEditMode, setMyShortcutsEditMode] = useState(false);
+  const [recommendedShortcutsList, setRecommendedShortcutsList] = useState<RecommendedShortcut[]>([]);
   
   // 포트폴리오 표시 개수 (기본 5개)
   const [displayedPortfolioCount, setDisplayedPortfolioCount] = useState(5);
@@ -221,6 +226,15 @@ export default function MainScreen() {
       setIssueKeywords([...FALLBACK_ISSUE_KEYWORDS]);
     } finally {
       if (!silent) setIssueKeywordsLoading(false);
+    }
+  }, []);
+
+  const reloadRecommendedShortcuts = useCallback(async () => {
+    try {
+      const list = await fetchRecommendedShortcutsFromRemote();
+      setRecommendedShortcutsList(list);
+    } catch {
+      setRecommendedShortcutsList([]);
     }
   }, []);
 
@@ -408,7 +422,8 @@ export default function MainScreen() {
       reloadMyShortcuts();
       void reloadIssueKeywords({ silent: !issueKeywordsFirstFocusRef.current });
       issueKeywordsFirstFocusRef.current = false;
-    }, [reloadMyShortcuts, reloadIssueKeywords])
+      void reloadRecommendedShortcuts();
+    }, [reloadMyShortcuts, reloadIssueKeywords, reloadRecommendedShortcuts])
   );
 
   // 초기 로드 시 읽지 않은 알림 수 가져오기
@@ -428,6 +443,7 @@ export default function MainScreen() {
         interestRates,
         issueKeywords,
         myShortcutsArea,
+        recommendedShortcutsArea,
       ] = await Promise.all([
         SettingsService.getShowMarketIndicators(),
         SettingsService.getShowMiniBanners(),
@@ -438,6 +454,7 @@ export default function MainScreen() {
         SettingsService.getShowInterestRates(),
         SettingsService.getShowIssueKeywords(),
         SettingsService.getShowMyShortcuts(),
+        SettingsService.getShowRecommendedShortcuts(),
       ]);
 
       setShowMarketIndicators(marketIndicators);
@@ -449,6 +466,7 @@ export default function MainScreen() {
       setShowInterestRates(interestRates);
       setShowIssueKeywords(issueKeywords);
       setShowMyShortcuts(myShortcutsArea);
+      setShowRecommendedShortcuts(recommendedShortcutsArea);
     } catch (error) {
       console.error('표시 설정 로드 오류:', error);
     }
@@ -709,6 +727,7 @@ export default function MainScreen() {
     } finally {
       setIsLoading(false);
       setRefreshing(false);
+      void reloadRecommendedShortcuts();
     }
   };
 
@@ -1243,6 +1262,54 @@ export default function MainScreen() {
                       </View>
                     ))
                   )}
+                </View>
+              )}
+
+              {/* 추천 바로가기 (Firestore, 관리자만 편집 — 나만의 바로가기 아래) */}
+              {showRecommendedShortcuts && recommendedShortcutsList.length > 0 && (
+                <View style={styles.myShortcutsSection}>
+                  <View style={styles.recommendedShortcutsHeaderBlock}>
+                    <Text style={styles.sectionTitle}>추천 바로가기</Text>
+                  </View>
+                  {chunkArray(recommendedShortcutsList, 3).map((row, ri) => (
+                    <View key={`rec-shortcut-row-${ri}`} style={styles.iconGridRow}>
+                      {row.map((s, ci) => (
+                        <View key={`${s.id}-${ri}-${ci}`} style={styles.iconItemContainer}>
+                          <TouchableOpacity
+                            style={[
+                              styles.circularIconCard,
+                              {
+                                backgroundColor: 'rgba(171, 111, 216, 0.55)',
+                                borderColor: 'rgba(255, 255, 255, 0.38)',
+                              },
+                            ]}
+                            onPress={() => {
+                              Linking.openURL(s.url).catch(() =>
+                                Alert.alert('오류', '링크를 열 수 없습니다.')
+                              );
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.circularIconText}>
+                              {s.iconEmoji?.trim()
+                                ? s.iconEmoji.trim()
+                                : suggestedEmojiForUrl(s.url)}
+                            </Text>
+                          </TouchableOpacity>
+                          <Text style={styles.circularIconLabel} numberOfLines={2}>
+                            {s.title}
+                          </Text>
+                        </View>
+                      ))}
+                      {row.length < 3 &&
+                        Array.from({ length: 3 - row.length }).map((_, padIdx) => (
+                          <View
+                            key={`rec-shortcut-pad-${ri}-${padIdx}`}
+                            style={styles.iconItemContainer}
+                          />
+                        ))}
+                    </View>
+                  ))}
                 </View>
               )}
 
@@ -2414,6 +2481,10 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 8,
     alignSelf: 'stretch',
+  },
+  recommendedShortcutsHeaderBlock: {
+    marginBottom: 10,
+    paddingHorizontal: 2,
   },
   myShortcutsHeader: {
     flexDirection: 'row',

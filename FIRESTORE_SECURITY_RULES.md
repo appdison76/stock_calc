@@ -46,6 +46,13 @@ service cloud.firestore {
       allow read: if true; // 비로그인 사용자도 읽기 가능(공개 표시용)
       allow write: if false; // 앱·브라우저에서 Firestore 클라이언트로 직접 쓰기 불가
     }
+
+    // 추천 바로가기 (예: recommendedShortcuts/current — items 배열)
+    // - 앱 메인에서 읽기만, 관리자 서버(Admin)로만 쓰기
+    match /recommendedShortcuts/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
     
     // 기타 모든 문서: 거부
     match /{document=**} {
@@ -85,6 +92,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
+
+    match /recommendedShortcuts/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
   }
 }
 ```
@@ -103,13 +115,19 @@ service cloud.firestore {
 
 개발 단계에서는 첫 번째 규칙(모든 접근 허용)을 사용하세요. 앱이 정상 작동하는지 확인한 후, 프로덕션 배포 전에 더 엄격한 규칙으로 변경하세요.
 
-프로덕션에서는 `issueKeywords`, `interestRates`에 위 **읽기만 / 쓰기 거부** 규칙을 반드시 포함하세요.
+프로덕션에서는 `issueKeywords`, `interestRates`, `recommendedShortcuts`에 위 **읽기만 / 쓰기 거부** 규칙을 반드시 포함하세요.
 
 ## 메인 기준금리 (`interestRates/current`)
 
 - 앱은 **`InterestRatesRemoteService`** 로 Firestore에서 읽기만 합니다.
 - 관리자: `http://localhost:3000/interest-rates.html` → `PUT /api/interest-rates` (Admin SDK).
 - 최초 시드: `node scripts/seed-interest-rates-firestore.js`
+
+## 추천 바로가기 (`recommendedShortcuts/current`)
+
+- 앱 메인 「나만의 바로가기」 아래에서 **`RecommendedShortcutsRemoteService`** 로 읽기만 합니다.
+- 관리자: `http://localhost:3000/recommended-shortcuts.html` → `PUT /api/recommended-shortcuts` (Admin SDK).
+- 최초 빈 문서: `node scripts/seed-recommended-shortcuts-firestore.js`
 
 ## 규칙 테스트
 

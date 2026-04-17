@@ -38,6 +38,7 @@ export default function SettingsView() {
   const [showInterestRates, setShowInterestRates] = useState(true);
   const [showIssueKeywords, setShowIssueKeywords] = useState(true);
   const [showMyShortcuts, setShowMyShortcuts] = useState(true);
+  const [showRecommendedShortcuts, setShowRecommendedShortcuts] = useState(true);
   
   // 알림 설정
   const [enableNewsNotifications, setEnableNewsNotifications] = useState(true);
@@ -77,6 +78,7 @@ export default function SettingsView() {
         interestRates,
         issueKeywords,
         myShortcuts,
+        recommendedShortcuts,
         newsNotifications,
         stockNotifications,
       ] = await Promise.all([
@@ -89,6 +91,7 @@ export default function SettingsView() {
         SettingsService.getShowInterestRates(),
         SettingsService.getShowIssueKeywords(),
         SettingsService.getShowMyShortcuts(),
+        SettingsService.getShowRecommendedShortcuts(),
         SettingsService.getEnableNewsNotifications(),
         SettingsService.getEnableStockNotifications(),
       ]);
@@ -102,6 +105,7 @@ export default function SettingsView() {
       setShowInterestRates(interestRates);
       setShowIssueKeywords(issueKeywords);
       setShowMyShortcuts(myShortcuts);
+      setShowRecommendedShortcuts(recommendedShortcuts);
       setEnableNewsNotifications(newsNotifications);
       setEnableStockNotifications(stockNotifications);
     } catch (e) {
@@ -126,6 +130,7 @@ export default function SettingsView() {
           SettingsService.setShowInterestRates(showInterestRates),
           SettingsService.setShowIssueKeywords(showIssueKeywords),
           SettingsService.setShowMyShortcuts(showMyShortcuts),
+          SettingsService.setShowRecommendedShortcuts(showRecommendedShortcuts),
         ]);
 
         Alert.alert('성공', '설정이 저장되었습니다.');
@@ -350,6 +355,21 @@ export default function SettingsView() {
                   <Switch
                     value={showMyShortcuts}
                     onValueChange={setShowMyShortcuts}
+                    trackColor={{ false: '#757575', true: '#42A5F5' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+
+                <View style={styles.settingRow}>
+                  <View style={styles.settingLabelContainer}>
+                    <Text style={styles.settingLabel}>추천 바로가기 영역</Text>
+                    <Text style={styles.settingDescription}>
+                      메인에서 관리자가 설정한 추천 링크 표시(나만의 바로가기 아래)
+                    </Text>
+                  </View>
+                  <Switch
+                    value={showRecommendedShortcuts}
+                    onValueChange={setShowRecommendedShortcuts}
                     trackColor={{ false: '#757575', true: '#42A5F5' }}
                     thumbColor="#FFFFFF"
                   />

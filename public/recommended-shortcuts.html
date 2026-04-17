@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>추천 바로가기 — 알림 관리자</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+      color: #333;
+    }
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 28px;
+      text-align: center;
+    }
+    .header h1 { font-size: 24px; margin-bottom: 8px; }
+    .header p { opacity: 0.9; font-size: 14px; }
+    .admin-nav {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 14px 16px;
+      background: #f8f9fa;
+      border-bottom: 1px solid #e9ecef;
+    }
+    .admin-nav__link {
+      color: #555;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      transition: background 0.2s, color 0.2s;
+    }
+    .admin-nav__link:hover {
+      color: #667eea;
+      background: rgba(102, 126, 234, 0.12);
+    }
+    .admin-nav__link--active {
+      color: #667eea;
+      background: rgba(102, 126, 234, 0.15);
+    }
+    .content { padding: 26px; }
+    .hint {
+      background: #f8f9fa;
+      padding: 14px 16px;
+      border-radius: 10px;
+      margin-bottom: 18px;
+      font-size: 13px;
+      color: #555;
+      line-height: 1.55;
+    }
+    .hint code {
+      font-size: 12px;
+      background: #e9ecef;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    label { font-weight: 600; color: #555; font-size: 12px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 14px;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 8px 6px;
+      text-align: left;
+      border-bottom: 1px solid #e9ecef;
+      vertical-align: middle;
+    }
+    th {
+      color: #666;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .col-rank { width: 40px; text-align: center; color: #667eea; font-weight: 700; }
+    .col-title { min-width: 100px; }
+    .col-title input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .col-url input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .col-emoji { width: 72px; }
+    .col-emoji input {
+      width: 100%;
+      padding: 8px 6px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      text-align: center;
+    }
+    .col-on { width: 92px; text-align: center; }
+    .in-on-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #555;
+      cursor: pointer;
+      user-select: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .in-on-label input { width: 16px; height: 16px; cursor: pointer; }
+    .col-move { width: 88px; text-align: center; white-space: nowrap; }
+    .col-actions { width: 72px; text-align: right; }
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.12);
+    }
+    .btn-move {
+      background: #fff;
+      color: #667eea;
+      border: 2px solid #667eea;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      margin: 0 2px;
+    }
+    .btn-move:hover { background: rgba(102, 126, 234, 0.08); }
+    .btn-row-del {
+      background: #fff;
+      color: #c0392b;
+      border: 2px solid #f5c6cb;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-row-del:hover { background: #fdf2f2; }
+    .actions-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.35);
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-secondary {
+      background: #fff;
+      color: #667eea;
+      border: 2px solid #667eea;
+      box-shadow: none;
+    }
+    .status {
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 10px;
+      display: none;
+    }
+    .status.show { display: block; }
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    .empty-msg {
+      padding: 20px;
+      text-align: center;
+      color: #888;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>⭐ 추천 바로가기</h1>
+      <p>Firestore <code style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 6px;">recommendedShortcuts / current</code></p>
+    </div>
+
+    <nav class="admin-nav" aria-label="관리자 메뉴">
+      <a href="/" class="admin-nav__link">알림 발송</a>
+      <a href="/issue-keywords.html" class="admin-nav__link">실시간 이슈 검색어</a>
+      <a href="/interest-rates.html" class="admin-nav__link">메인 기준금리</a>
+      <a href="/recommended-shortcuts.html" class="admin-nav__link admin-nav__link--active">추천 바로가기</a>
+    </nav>
+
+    <div class="content">
+      <p class="hint">
+        앱 <strong>메인 화면</strong>에서 「나만의 바로가기」 아래에만 표시됩니다. 사용자는 앱에서 수정할 수 없습니다.<br />
+        URL은 <strong>https://</strong> 만 허용됩니다. 최대 <strong>12개</strong>. 이모지를 비우면 앱에서 유튜브는 📺, 그 외 🔗로 표시됩니다.
+        <strong>메인 표시</strong>를 끄면 해당 행은 앱 메인에 나오지 않고(삭제 아님) Firestore에는 그대로 둡니다.<br />
+        <code>node scripts/notification-server.js</code> 실행 후
+        <code>http://localhost:3000/recommended-shortcuts.html</code> 로 여세요. Firestore 규칙에
+        <code>recommendedShortcuts</code> 읽기 허용을 추가해야 합니다.
+      </p>
+
+      <div class="actions-row">
+        <button type="button" class="btn btn-secondary" id="btnAdd">＋ 행 추가</button>
+        <button type="button" class="btn" id="btnSave">💾 Firestore에 저장</button>
+        <button type="button" class="btn btn-secondary" id="btnReload">↻ 다시 불러오기</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th class="col-title">제목</th>
+            <th class="col-url">URL (https)</th>
+            <th class="col-emoji">이모지</th>
+            <th class="col-on">메인 표시</th>
+            <th class="col-move">순서</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="empty-msg" id="emptyMsg" style="display: none;">행을 추가한 뒤 제목·URL을 입력하고 저장하세요. 모두 비우고 저장하면 메인에서 숨깁니다.</div>
+
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+
+  <script>
+    const MAX_ROWS = 12;
+    const tbody = document.getElementById('rows');
+    const statusEl = document.getElementById('status');
+    const emptyMsg = document.getElementById('emptyMsg');
+
+    function showStatus(kind, text) {
+      statusEl.className = 'status show ' + kind;
+      statusEl.textContent = text;
+      if (kind === 'success' || kind === 'error') {
+        statusEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+    function hideStatus() {
+      statusEl.className = 'status';
+      statusEl.textContent = '';
+    }
+    function msgApiNotFound() {
+      return (
+        'API(404): 알림 관리 서버가 아닌 곳에서 이 페이지를 연 것 같습니다. ' +
+        '프로젝트 루트에서 node scripts/notification-server.js 를 실행한 뒤 ' +
+        'http://localhost:3000/recommended-shortcuts.html 로 다시 여세요.'
+      );
+    }
+    function renumber() {
+      const rows = tbody.querySelectorAll('tr');
+      rows.forEach(function (tr, i) {
+        const cell = tr.querySelector('.col-rank');
+        if (cell) cell.textContent = String(i + 1);
+      });
+      emptyMsg.style.display = rows.length === 0 ? 'block' : 'none';
+    }
+    function addRow(item) {
+      if (tbody.querySelectorAll('tr').length >= MAX_ROWS) {
+        showStatus('error', '최대 ' + MAX_ROWS + '개까지 추가할 수 있습니다.');
+        return;
+      }
+      const tr = document.createElement('tr');
+      tr.dataset.rowId =
+        item && item.id && String(item.id).trim() ? String(item.id).trim() : '';
+      tr.innerHTML =
+        '<td class="col-rank"></td>' +
+        '<td class="col-title"><input type="text" class="in-title" placeholder="표시 이름" autocomplete="off" /></td>' +
+        '<td class="col-url"><input type="text" class="in-url" placeholder="https://..." autocomplete="off" /></td>' +
+        '<td class="col-emoji"><input type="text" class="in-emoji" placeholder="선택" maxlength="8" /></td>' +
+        '<td class="col-on"><label class="in-on-label" title="앱 메인에 이 바로가기 표시"><input type="checkbox" class="in-on" checked /> ON</label></td>' +
+        '<td class="col-move">' +
+        '<button type="button" class="btn-move btn-up" title="위로">↑</button>' +
+        '<button type="button" class="btn-move btn-down" title="아래로">↓</button>' +
+        '</td>' +
+        '<td class="col-actions"><button type="button" class="btn-row-del">삭제</button></td>';
+      const titleIn = tr.querySelector('.in-title');
+      const urlIn = tr.querySelector('.in-url');
+      const emojiIn = tr.querySelector('.in-emoji');
+      const onIn = tr.querySelector('.in-on');
+      if (item) {
+        titleIn.value = item.title != null ? item.title : '';
+        urlIn.value = item.url != null ? item.url : '';
+        emojiIn.value = item.iconEmoji != null ? item.iconEmoji : '';
+        var mainOn =
+          typeof item.showOnMain === 'boolean'
+            ? item.showOnMain
+            : typeof item.enabled === 'boolean'
+              ? item.enabled
+              : true;
+        onIn.checked = mainOn;
+      }
+      tr.querySelector('.btn-row-del').addEventListener('click', function () {
+        tr.remove();
+        renumber();
+        hideStatus();
+      });
+      tr.querySelector('.btn-up').addEventListener('click', function () {
+        const prev = tr.previousElementSibling;
+        if (prev) tr.parentNode.insertBefore(tr, prev);
+        renumber();
+      });
+      tr.querySelector('.btn-down').addEventListener('click', function () {
+        const next = tr.nextElementSibling;
+        if (next) tr.parentNode.insertBefore(next, tr);
+        renumber();
+      });
+      tbody.appendChild(tr);
+      renumber();
+    }
+
+    function collectItems() {
+      const rows = tbody.querySelectorAll('tr');
+      const items = [];
+      rows.forEach(function (tr, idx) {
+        const title = (tr.querySelector('.in-title') && tr.querySelector('.in-title').value) || '';
+        const url = (tr.querySelector('.in-url') && tr.querySelector('.in-url').value) || '';
+        const iconEmoji = (tr.querySelector('.in-emoji') && tr.querySelector('.in-emoji').value) || '';
+        const showOnMain = tr.querySelector('.in-on') ? tr.querySelector('.in-on').checked : true;
+        const id = tr.dataset.rowId || '';
+        const t = title.trim();
+        const u = url.trim();
+        if (!t && !u) return;
+        items.push({
+          ...(id ? { id: id } : {}),
+          title: t,
+          url: u,
+          ...(iconEmoji.trim() ? { iconEmoji: iconEmoji.trim() } : {}),
+          showOnMain: showOnMain,
+          enabled: showOnMain,
+          sortOrder: items.length,
+        });
+      });
+      return items;
+    }
+
+    async function loadData() {
+      hideStatus();
+      try {
+        const response = await fetch('/api/recommended-shortcuts');
+        if (!response.ok) {
+          if (response.status === 404) throw new Error(msgApiNotFound());
+          throw new Error('HTTP ' + response.status);
+        }
+        const data = await response.json();
+        tbody.innerHTML = '';
+        const list = Array.isArray(data.items) ? data.items : [];
+        list.sort(function (a, b) {
+          return (a.sortOrder || 0) - (b.sortOrder || 0);
+        });
+        list.forEach(function (it) {
+          addRow(it);
+        });
+        renumber();
+      } catch (e) {
+        showStatus('error', '불러오기 실패: ' + e.message);
+      }
+    }
+
+    document.getElementById('btnAdd').addEventListener('click', function () {
+      hideStatus();
+      addRow(null);
+    });
+    document.getElementById('btnReload').addEventListener('click', function () {
+      if (tbody.querySelectorAll('tr').length > 0) {
+        if (!confirm('저장하지 않은 변경이 사라질 수 있습니다. 다시 불러올까요?')) return;
+      }
+      loadData();
+    });
+    document.getElementById('btnSave').addEventListener('click', async function () {
+      const btn = document.getElementById('btnSave');
+      const items = collectItems();
+      btn.disabled = true;
+      hideStatus();
+      try {
+        const response = await fetch('/api/recommended-shortcuts', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: items }),
+        });
+        const data = await response.json().catch(function () {
+          return {};
+        });
+        if (!response.ok) {
+          if (response.status === 404) throw new Error(msgApiNotFound());
+          throw new Error(data.error || '저장 실패');
+        }
+        const saved = data.items || [];
+        tbody.innerHTML = '';
+        saved.forEach(function (it) {
+          addRow(it);
+        });
+        renumber();
+        showStatus(
+          'success',
+          '저장했습니다. (' +
+            saved.length +
+            '건) Firestore recommendedShortcuts/current 가 갱신되었습니다.'
+        );
+      } catch (e) {
+        showStatus('error', '저장 오류: ' + e.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    loadData();
+  </script>
+</body>
+</html>

@@ -16,6 +16,7 @@ const KEY_SHOW_WORLD_TIME = 'show_world_time';
 const KEY_SHOW_INTEREST_RATES = 'show_interest_rates';
 const KEY_SHOW_ISSUE_KEYWORDS = 'show_issue_keywords';
 const KEY_SHOW_MY_SHORTCUTS = 'show_my_shortcuts';
+const KEY_SHOW_RECOMMENDED_SHORTCUTS = 'show_recommended_shortcuts';
 
 // 종목 목록 정렬/필터 설정 키
 const KEY_PORTFOLIO_SORT_OPTION = 'portfolio_sort_option';
@@ -41,6 +42,7 @@ const DEFAULT_SHOW_WORLD_TIME = true;
 const DEFAULT_SHOW_INTEREST_RATES = true;
 const DEFAULT_SHOW_ISSUE_KEYWORDS = true;
 const DEFAULT_SHOW_MY_SHORTCUTS = true;
+const DEFAULT_SHOW_RECOMMENDED_SHORTCUTS = true;
 
 // 종목 목록 정렬/필터 기본값
 const DEFAULT_PORTFOLIO_SORT_OPTION = 'name'; // 이름순
@@ -300,6 +302,21 @@ export class SettingsService {
   /// 나만의 바로가기 영역 표시 여부 저장하기
   static async setShowMyShortcuts(value: boolean): Promise<void> {
     await AsyncStorage.setItem(KEY_SHOW_MY_SHORTCUTS, value ? 'true' : 'false');
+  }
+
+  /// 추천 바로가기(관리자 Firestore) 영역 표시 여부 가져오기
+  static async getShowRecommendedShortcuts(): Promise<boolean> {
+    try {
+      const value = await AsyncStorage.getItem(KEY_SHOW_RECOMMENDED_SHORTCUTS);
+      return value !== null ? value === 'true' : DEFAULT_SHOW_RECOMMENDED_SHORTCUTS;
+    } catch (e) {
+      return DEFAULT_SHOW_RECOMMENDED_SHORTCUTS;
+    }
+  }
+
+  /// 추천 바로가기 영역 표시 여부 저장하기
+  static async setShowRecommendedShortcuts(value: boolean): Promise<void> {
+    await AsyncStorage.setItem(KEY_SHOW_RECOMMENDED_SHORTCUTS, value ? 'true' : 'false');
   }
 
   // ===== 알림 설정 =====
