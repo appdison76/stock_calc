@@ -2,6 +2,9 @@
 const ISSUE_KEYWORDS_URL =
   'https://appdison76.github.io/stock_calc/issue-keywords.json';
 
+/** 원격 JSON·앱에서 사용하는 이슈 키워드 상한 */
+const ISSUE_KEYWORDS_MAX = 20;
+
 export interface IssueKeywordItem {
   rank: number;
   keyword: string;
@@ -12,7 +15,7 @@ interface IssueKeywordsPayload {
   keywords?: unknown;
 }
 
-/** 원격 JSON 미배포·오류 시 앱 기본 이슈 (최대 10) */
+/** 원격 JSON 미배포·오류 시 앱 기본 이슈 */
 export const FALLBACK_ISSUE_KEYWORDS: IssueKeywordItem[] = [
   { rank: 1, keyword: '이란', count: 1038 },
   { rank: 2, keyword: '트럼프', count: 218 },
@@ -42,7 +45,7 @@ function parsePayload(data: IssueKeywordsPayload): IssueKeywordItem[] {
   }
 
   out.sort((a, b) => a.rank - b.rank);
-  return out.slice(0, 10);
+  return out.slice(0, ISSUE_KEYWORDS_MAX);
 }
 
 export async function fetchIssueKeywords(): Promise<IssueKeywordItem[]> {

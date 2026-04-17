@@ -16,6 +16,8 @@ const app = express();
 const PORT = 3000;
 
 const ISSUE_KEYWORDS_PATH = path.join(__dirname, '../docs/issue-keywords.json');
+/** 관리자·JSON 저장 시 허용 최대 개수 */
+const ISSUE_KEYWORDS_MAX = 20;
 
 // 정적 파일 제공 (HTML, CSS, JS)
 app.use(express.static(path.join(__dirname, '../public')));
@@ -46,7 +48,7 @@ function normalizeIssueKeywords(rawKeywords) {
     items.push({ rank, keyword, ...(count !== undefined ? { count } : {}) });
   }
   items.sort((a, b) => a.rank - b.rank);
-  return items.slice(0, 10).map((item, i) => ({
+  return items.slice(0, ISSUE_KEYWORDS_MAX).map((item, i) => ({
     rank: i + 1,
     keyword: item.keyword,
     ...(item.count !== undefined ? { count: item.count } : {}),

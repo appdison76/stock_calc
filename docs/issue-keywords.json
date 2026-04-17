@@ -49,6 +49,56 @@
       "rank": 10,
       "keyword": "네이버",
       "count": 25
+    },
+    {
+      "rank": 11,
+      "keyword": "비료",
+      "count": 19
+    },
+    {
+      "rank": 12,
+      "keyword": "후성",
+      "count": 18
+    },
+    {
+      "rank": 13,
+      "keyword": "초전도체",
+      "count": 17
+    },
+    {
+      "rank": 14,
+      "keyword": "양자",
+      "count": 15
+    },
+    {
+      "rank": 15,
+      "keyword": "삼성sdi",
+      "count": 12
+    },
+    {
+      "rank": 16,
+      "keyword": "고영",
+      "count": 12
+    },
+    {
+      "rank": 17,
+      "keyword": "보안",
+      "count": 12
+    },
+    {
+      "rank": 18,
+      "keyword": "전고체",
+      "count": 11
+    },
+    {
+      "rank": 19,
+      "keyword": "아모레",
+      "count": 10
+    },
+    {
+      "rank": 20,
+      "keyword": "폴더블",
+      "count": 9
     }
   ]
 }
