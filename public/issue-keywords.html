@@ -255,7 +255,7 @@
   <div class="container">
     <div class="header">
       <h1>🔎 실시간 이슈 검색어</h1>
-      <p>로컬 <code style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 6px;">docs/issue-keywords.json</code> 편집</p>
+      <p>Firestore <code style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 6px;">issueKeywords / current</code> 편집</p>
     </div>
 
     <nav class="admin-nav" aria-label="관리자 메뉴">
@@ -265,8 +265,8 @@
 
     <div class="content">
       <p class="hint">
-        최대 <strong>20개</strong>까지 저장할 수 있습니다. 적게 쓰려면 그만큼만 등록하면 됩니다. 저장하면 프로젝트의 <code>docs/issue-keywords.json</code>이 갱신됩니다.
-        GitHub Pages에 반영하려면 변경 후 <strong>커밋·푸시</strong>를 해 주세요.<br /><br />
+        최대 <strong>20개</strong>까지 저장할 수 있습니다. 적게 쓰려면 그만큼만 등록하면 됩니다.
+        <strong>저장 시 Firestore</strong> 컬렉션 <code>issueKeywords</code> 문서 <code>current</code> 가 갱신되며, 앱은 여기서 읽습니다 (비로그인 읽기 전용 규칙 필요).<br /><br />
         <strong>접속 방법:</strong> 프로젝트 루트에서 <code>node scripts/notification-server.js</code> 실행 후 브라우저로
         <code>http://localhost:3000/issue-keywords.html</code> 를 여세요.
         VS Code Live Server·다른 포트 정적 서버·<code>file://</code> 로만 HTML을 열면 <code>/api</code>가 없어 <strong>HTTP 404</strong>가 납니다.
@@ -274,7 +274,7 @@
 
       <div class="actions-row">
         <button type="button" class="btn btn-secondary" id="btnAdd">＋ 항목 추가</button>
-        <button type="button" class="btn" id="btnSave">💾 파일에 저장</button>
+        <button type="button" class="btn" id="btnSave">💾 Firestore에 저장</button>
         <button type="button" class="btn btn-secondary" id="btnReload">↻ 다시 불러오기</button>
       </div>
 
@@ -443,7 +443,7 @@
           'success',
           '저장했습니다. (' +
             savedCount +
-            '건) docs/issue-keywords.json 이 갱신되었습니다. GitHub Pages 반영은 커밋·푸시 후입니다.'
+            '건) Firestore issueKeywords/current 가 갱신되었습니다.'
         );
       } catch (e) {
         showStatus('error', '저장 오류: ' + e.message);

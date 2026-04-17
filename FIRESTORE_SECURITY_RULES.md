@@ -32,6 +32,12 @@ service cloud.firestore {
     match /notificationHistory/{historyId} {
       allow read, write: if true;
     }
+
+    // 실시간 이슈 키워드: 앱은 읽기만 (쓰기는 Firebase Admin / 관리자 서버만)
+    match /issueKeywords/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
     
     // 기타 모든 문서: 거부
     match /{document=**} {
@@ -67,9 +73,17 @@ service cloud.firestore {
    - "게시" 버튼 클릭
    - 확인 메시지에서 "게시" 클릭
 
+## 실시간 이슈 키워드 (`issueKeywords/current`)
+
+- 앱은 **Firestore에서 읽기만** 합니다 (`IssueKeywordsService`).
+- 데이터 입력·수정은 **로컬 관리자** `node scripts/notification-server.js` → 웹에서 저장 시 Admin SDK로 기록합니다.
+- 최초 시드: `node scripts/seed-issue-keywords-firestore.js` (서비스 계정 키 필요). 커스텀 JSON은 `node scripts/seed-issue-keywords-firestore.js ./my.json` 형식으로 경로 지정 가능.
+
 ## 현재 권장 설정
 
 개발 단계에서는 첫 번째 규칙(모든 접근 허용)을 사용하세요. 앱이 정상 작동하는지 확인한 후, 프로덕션 배포 전에 더 엄격한 규칙으로 변경하세요.
+
+프로덕션에서는 `issueKeywords`에 위 **읽기만 / 쓰기 거부** 규칙을 반드시 포함하세요.
 
 ## 규칙 테스트
 

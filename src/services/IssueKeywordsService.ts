@@ -1,8 +1,11 @@
-// GitHub Pages — min-version.json 과 동일 베이스. 배포 후 앱 재배포 없이 갱신 가능.
-const ISSUE_KEYWORDS_URL =
-  'https://appdison76.github.io/stock_calc/issue-keywords.json';
+import { doc, getDoc } from 'firebase/firestore';
+import { getFirestoreInstance } from './FirebaseService';
 
-/** 원격 JSON·앱에서 사용하는 이슈 키워드 상한 */
+/** Firestore 문서: 비로그인 읽기 전용 규칙으로 공개 */
+export const ISSUE_KEYWORDS_COLLECTION = 'issueKeywords';
+export const ISSUE_KEYWORDS_DOC_ID = 'current';
+
+/** 앱에서 사용하는 이슈 키워드 상한 */
 const ISSUE_KEYWORDS_MAX = 20;
 
 export interface IssueKeywordItem {
@@ -15,7 +18,7 @@ interface IssueKeywordsPayload {
   keywords?: unknown;
 }
 
-/** 원격 JSON 미배포·오류 시 앱 기본 이슈 */
+/** Firestore 미설정·오류 시 앱 기본 이슈 */
 export const FALLBACK_ISSUE_KEYWORDS: IssueKeywordItem[] = [
   { rank: 1, keyword: '이란', count: 1038 },
   { rank: 2, keyword: '트럼프', count: 218 },
@@ -50,29 +53,25 @@ function parsePayload(data: IssueKeywordsPayload): IssueKeywordItem[] {
 
 export async function fetchIssueKeywords(): Promise<IssueKeywordItem[]> {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-    const response = await fetch(ISSUE_KEYWORDS_URL, {
-      signal: controller.signal,
-      headers: {
-        'Cache-Control': 'no-cache',
-        Accept: 'application/json',
-      },
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      console.warn('[IssueKeywords] HTTP', response.status);
+    const db = getFirestoreInstance();
+    if (!db) {
+      console.warn('[IssueKeywords] Firestore 없음');
       return [...FALLBACK_ISSUE_KEYWORDS];
     }
 
-    const data = (await response.json()) as IssueKeywordsPayload;
+    const ref = doc(db, ISSUE_KEYWORDS_COLLECTION, ISSUE_KEYWORDS_DOC_ID);
+    const snap = await getDoc(ref);
+
+    if (!snap.exists) {
+      console.warn('[IssueKeywords] 문서 없음:', ISSUE_KEYWORDS_COLLECTION, ISSUE_KEYWORDS_DOC_ID);
+      return [...FALLBACK_ISSUE_KEYWORDS];
+    }
+
+    const data = snap.data() as IssueKeywordsPayload;
     const parsed = parsePayload(data);
     return parsed.length > 0 ? parsed : [...FALLBACK_ISSUE_KEYWORDS];
   } catch (e) {
-    console.warn('[IssueKeywords] fetch 실패:', e);
+    console.warn('[IssueKeywords] Firestore 읽기 실패:', e);
     return [...FALLBACK_ISSUE_KEYWORDS];
   }
 }

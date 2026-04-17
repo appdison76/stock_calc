@@ -190,7 +190,8 @@ export default function MainScreen() {
   const [mainIssueSectionCollapsed, setMainIssueSectionCollapsed] = useState(false);
   const [issueKeywords, setIssueKeywords] = useState<IssueKeywordItem[]>([]);
   const [issueKeywordsLoading, setIssueKeywordsLoading] = useState(false);
-  
+  const issueKeywordsFirstFocusRef = useRef(true);
+
   const UPDATE_INTERVAL = 1 * 60 * 1000; // 1분
 
   useEffect(() => {
@@ -210,26 +211,17 @@ export default function MainScreen() {
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    setIssueKeywordsLoading(true);
-    (async () => {
-      try {
-        const list = await fetchIssueKeywords();
-        if (!cancelled) {
-          setIssueKeywords(
-            list.length > 0 ? list : [...FALLBACK_ISSUE_KEYWORDS]
-          );
-        }
-      } catch {
-        if (!cancelled) setIssueKeywords([...FALLBACK_ISSUE_KEYWORDS]);
-      } finally {
-        if (!cancelled) setIssueKeywordsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const reloadIssueKeywords = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    if (!silent) setIssueKeywordsLoading(true);
+    try {
+      const list = await fetchIssueKeywords();
+      setIssueKeywords(list.length > 0 ? list : [...FALLBACK_ISSUE_KEYWORDS]);
+    } catch {
+      setIssueKeywords([...FALLBACK_ISSUE_KEYWORDS]);
+    } finally {
+      if (!silent) setIssueKeywordsLoading(false);
+    }
   }, []);
 
   const toggleMainIssueCollapsed = useCallback(() => {
@@ -414,7 +406,9 @@ export default function MainScreen() {
       // 읽지 않은 알림 수 업데이트
       updateUnreadNotificationCount();
       reloadMyShortcuts();
-    }, [reloadMyShortcuts])
+      void reloadIssueKeywords({ silent: !issueKeywordsFirstFocusRef.current });
+      issueKeywordsFirstFocusRef.current = false;
+    }, [reloadMyShortcuts, reloadIssueKeywords])
   );
 
   // 초기 로드 시 읽지 않은 알림 수 가져오기

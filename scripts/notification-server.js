@@ -1,23 +1,37 @@
 /**
  * 알림 발송 관리자 웹 서버
- * 
+ *
  * 사용법:
  * node scripts/notification-server.js
- * 
+ *
  * 브라우저에서 http://localhost:3000 접속
+ *
+ * 실시간 이슈 키워드는 Firestore `issueKeywords/current` 에 읽기/쓰기합니다.
+ * (send-notification 과 동일한 FIREBASE_ADMIN_KEY / 서비스 계정 필요)
  */
 
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
 const { sendNotificationToAll } = require('./send-notification');
 
 const app = express();
 const PORT = 3000;
 
-const ISSUE_KEYWORDS_PATH = path.join(__dirname, '../docs/issue-keywords.json');
-/** 관리자·JSON 저장 시 허용 최대 개수 */
+/** Firestore: 공개 읽기 문서 (관리자 서버는 Admin으로만 쓰기) */
+const ISSUE_KEYWORDS_COLLECTION = 'issueKeywords';
+const ISSUE_KEYWORDS_DOC_ID = 'current';
+/** 저장 시 허용 최대 개수 */
 const ISSUE_KEYWORDS_MAX = 20;
+
+function getAdminFirestore() {
+  const admin = require('firebase-admin');
+  if (!admin.apps.length) {
+    throw new Error(
+      'Firebase Admin이 초기화되지 않았습니다. send-notification과 동일한 서비스 계정 키가 필요합니다.'
+    );
+  }
+  return admin.firestore();
+}
 
 // 정적 파일 제공 (HTML, CSS, JS)
 app.use(express.static(path.join(__dirname, '../public')));
@@ -55,43 +69,43 @@ function normalizeIssueKeywords(rawKeywords) {
   }));
 }
 
-/** 로컬 docs/issue-keywords.json 읽기·저장 (Git 커밋·푸시는 별도) */
-app.get('/api/issue-keywords', (req, res) => {
+/** Firestore issueKeywords/current 읽기 (관리자 UI) */
+app.get('/api/issue-keywords', async (req, res) => {
   try {
-    if (!fs.existsSync(ISSUE_KEYWORDS_PATH)) {
+    const db = getAdminFirestore();
+    const snap = await db.collection(ISSUE_KEYWORDS_COLLECTION).doc(ISSUE_KEYWORDS_DOC_ID).get();
+    if (!snap.exists) {
       return res.json({ keywords: [] });
     }
-    const raw = fs.readFileSync(ISSUE_KEYWORDS_PATH, 'utf8');
-    const data = JSON.parse(raw);
+    const data = snap.data() || {};
     const keywords = Array.isArray(data.keywords) ? data.keywords : [];
     res.json({ keywords });
   } catch (error) {
-    console.error('❌ issue-keywords 읽기 오류:', error);
+    console.error('❌ issue-keywords Firestore 읽기 오류:', error);
     res.status(500).json({
       success: false,
-      error: error.message || '파일을 읽을 수 없습니다.',
+      error: error.message || '읽기에 실패했습니다.',
     });
   }
 });
 
-app.put('/api/issue-keywords', (req, res) => {
+app.put('/api/issue-keywords', async (req, res) => {
   try {
+    const admin = require('firebase-admin');
     const body = req.body || {};
     const normalized = normalizeIssueKeywords(body.keywords);
-    const payload = { keywords: normalized };
-    const dir = path.dirname(ISSUE_KEYWORDS_PATH);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(
-      ISSUE_KEYWORDS_PATH,
-      JSON.stringify(payload, null, 2) + '\n',
-      'utf8'
+    const db = getAdminFirestore();
+    await db.collection(ISSUE_KEYWORDS_COLLECTION).doc(ISSUE_KEYWORDS_DOC_ID).set(
+      {
+        keywords: normalized,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
     );
-    console.log('💾 issue-keywords.json 저장:', normalized.length, '건');
+    console.log('💾 issueKeywords/current Firestore 저장:', normalized.length, '건');
     res.json({ success: true, keywords: normalized });
   } catch (error) {
-    console.error('❌ issue-keywords 저장 오류:', error);
+    console.error('❌ issue-keywords Firestore 저장 오류:', error);
     res.status(400).json({
       success: false,
       error: error.message || '저장에 실패했습니다.',

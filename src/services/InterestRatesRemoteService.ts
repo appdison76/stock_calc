@@ -1,4 +1,4 @@
-// GitHub Pages — issue-keywords.json 과 동일 베이스. 앱 재배포 없이 갱신 가능.
+// GitHub Pages 원격 설정 베이스. 앱 재배포 없이 갱신 가능.
 const INTEREST_RATES_URL =
   'https://appdison76.github.io/stock_calc/interest-rates.json';
 
