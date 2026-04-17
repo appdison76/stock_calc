@@ -304,6 +304,9 @@
     function showStatus(kind, text) {
       statusEl.className = 'status show ' + kind;
       statusEl.textContent = text;
+      if (kind === 'success' || kind === 'error') {
+        statusEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
     }
 
     function hideStatus() {
@@ -333,7 +336,6 @@
         showStatus('error', '최대 ' + MAX_ROWS + '개까지 추가할 수 있습니다.');
         return;
       }
-      hideStatus();
       const tr = document.createElement('tr');
       tr.innerHTML =
         '<td class="col-rank"></td>' +
@@ -398,6 +400,7 @@
     }
 
     document.getElementById('btnAdd').addEventListener('click', function () {
+      hideStatus();
       addRow('', '');
     });
 
@@ -430,11 +433,18 @@
           if (response.status === 404) throw new Error(msgApiNotFound());
           throw new Error(data.error || '저장 실패');
         }
-        showStatus('success', '저장했습니다. (' + (data.keywords && data.keywords.length || keywords.length) + '건) 커밋·푸시는 별도로 진행해 주세요.');
+        const saved = data.keywords || keywords;
+        const savedCount = saved.length;
         tbody.innerHTML = '';
-        (data.keywords || keywords).forEach(function (item) {
+        saved.forEach(function (item) {
           addRow(item.keyword, item.count !== undefined ? item.count : '');
         });
+        showStatus(
+          'success',
+          '저장했습니다. (' +
+            savedCount +
+            '건) docs/issue-keywords.json 이 갱신되었습니다. GitHub Pages 반영은 커밋·푸시 후입니다.'
+        );
       } catch (e) {
         showStatus('error', '저장 오류: ' + e.message);
       } finally {
