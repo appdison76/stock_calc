@@ -1,6 +1,6 @@
 {
   "name": "stock_calculator_rn",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "main": "index.ts",
   "scripts": {
     "start": "expo start --tunnel",
@@ -13,7 +13,7 @@
     "build:debug": "cd android && gradlew.bat assembleDebug",
     "build:debug:install": "powershell -ExecutionPolicy Bypass -File scripts/build-and-install.ps1 debug",
     "build:release": "cd android && gradlew.bat assembleRelease",
-    "build:bundle": "cd android && gradlew.bat bundleRelease",
+    "build:bundle": "cd android && gradlew.bat bundleRelease && cd .. && powershell -ExecutionPolicy Bypass -File scripts/copy-release-aab.ps1",
     "build:release:install": "powershell -ExecutionPolicy Bypass -File scripts/build-and-install.ps1 release",
     "version:patch": "powershell -ExecutionPolicy Bypass -File scripts/increment-version.ps1 patch",
     "version:minor": "powershell -ExecutionPolicy Bypass -File scripts/increment-version.ps1 minor",
