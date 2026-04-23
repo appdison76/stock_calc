@@ -30,7 +30,7 @@ import {
 import { Stock } from '../src/models/Stock';
 import { Account } from '../src/models/Account';
 import { Currency } from '../src/models/Currency';
-import { formatCurrency } from '../src/utils/formatUtils';
+import { formatCurrency, addCommas } from '../src/utils/formatUtils';
 import { ExchangeRateService } from '../src/services/ExchangeRateService';
 import { getStockQuote } from '../src/services/YahooFinanceService';
 import { InterestRateService } from '../src/services/InterestRateService';
@@ -54,8 +54,17 @@ import {
 } from '../src/services/MyShortcutsService';
 import type { RecommendedShortcut } from '../src/models/RecommendedShortcut';
 import { fetchRecommendedShortcutsFromRemote } from '../src/services/RecommendedShortcutsRemoteService';
+import type { PeriodTab } from '../src/models/DailySettlement';
+import { sumForPeriod } from '../src/services/DailySettlementService';
 
 const MAIN_ISSUE_SECTION_COLLAPSED_KEY = '@main_issue_section_collapsed';
+
+function formatSignedKrwDaily(n: number): string {
+  const abs = addCommas(Math.abs(Math.round(n)).toString());
+  if (n > 0) return `+${abs}원`;
+  if (n < 0) return `-${abs}원`;
+  return `${abs}원`;
+}
 
 function chunkArray<T>(arr: T[], size: number): T[][] {
   const rows: T[][] = [];
@@ -181,6 +190,7 @@ export default function MainScreen() {
   const [showWorldTime, setShowWorldTime] = useState(true);
   const [showInterestRates, setShowInterestRates] = useState(true);
   const [showIssueKeywords, setShowIssueKeywords] = useState(true);
+  const [showDailySettlement, setShowDailySettlement] = useState(true);
   const [showMyShortcuts, setShowMyShortcuts] = useState(true);
   const [showRecommendedShortcuts, setShowRecommendedShortcuts] = useState(true);
   const [myShortcutsList, setMyShortcutsList] = useState<MyShortcut[]>([]);
@@ -196,6 +206,10 @@ export default function MainScreen() {
   const [issueKeywords, setIssueKeywords] = useState<IssueKeywordItem[]>([]);
   const [issueKeywordsLoading, setIssueKeywordsLoading] = useState(false);
   const issueKeywordsFirstFocusRef = useRef(true);
+
+  /** 메인 상단 일일 정산 카드 */
+  const [mainDailyTab, setMainDailyTab] = useState<PeriodTab>('month');
+  const [mainDailySum, setMainDailySum] = useState(0);
 
   const UPDATE_INTERVAL = 1 * 60 * 1000; // 1분
 
@@ -410,6 +424,21 @@ export default function MainScreen() {
     }
   }, []);
 
+  const reloadDailySettlementSummary = useCallback(async () => {
+    try {
+      const visible = await SettingsService.getShowDailySettlement();
+      if (!visible) {
+        setMainDailySum(0);
+        return;
+      }
+      await initDatabase();
+      const sum = await sumForPeriod(mainDailyTab);
+      setMainDailySum(sum);
+    } catch (error) {
+      console.error('메인 일일 정산 합계 오류:', error);
+    }
+  }, [mainDailyTab]);
+
   useFocusEffect(
     useCallback(() => {
       loadDisplaySettings();
@@ -423,7 +452,13 @@ export default function MainScreen() {
       void reloadIssueKeywords({ silent: !issueKeywordsFirstFocusRef.current });
       issueKeywordsFirstFocusRef.current = false;
       void reloadRecommendedShortcuts();
-    }, [reloadMyShortcuts, reloadIssueKeywords, reloadRecommendedShortcuts])
+      void reloadDailySettlementSummary();
+    }, [
+      reloadMyShortcuts,
+      reloadIssueKeywords,
+      reloadRecommendedShortcuts,
+      reloadDailySettlementSummary,
+    ])
   );
 
   // 초기 로드 시 읽지 않은 알림 수 가져오기
@@ -442,6 +477,7 @@ export default function MainScreen() {
         worldTime,
         interestRates,
         issueKeywords,
+        dailySettlementArea,
         myShortcutsArea,
         recommendedShortcutsArea,
       ] = await Promise.all([
@@ -453,6 +489,7 @@ export default function MainScreen() {
         SettingsService.getShowWorldTime(),
         SettingsService.getShowInterestRates(),
         SettingsService.getShowIssueKeywords(),
+        SettingsService.getShowDailySettlement(),
         SettingsService.getShowMyShortcuts(),
         SettingsService.getShowRecommendedShortcuts(),
       ]);
@@ -465,6 +502,7 @@ export default function MainScreen() {
       setShowWorldTime(worldTime);
       setShowInterestRates(interestRates);
       setShowIssueKeywords(issueKeywords);
+      setShowDailySettlement(dailySettlementArea);
       setShowMyShortcuts(myShortcutsArea);
       setShowRecommendedShortcuts(recommendedShortcutsArea);
     } catch (error) {
@@ -1016,6 +1054,62 @@ export default function MainScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+              )}
+
+              {/* 일일 정산 — 실시간 이슈 바로 위 (환경설정에서 끌 수 있음) */}
+              {showDailySettlement && (
+              <View style={[styles.dashboardSection, styles.dailySettlementCardWrap]}>
+                <View style={styles.dailySettlementTitleRow}>
+                  <Text style={styles.sectionTitle}>일일 정산</Text>
+                  <View style={styles.dailySettlementLinks}>
+                    <TouchableOpacity
+                      onPress={() => router.push('/daily-settlement/edit' as any)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={styles.dailySettlementMore}>정산 추가</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.dailySettlementLinkSep}>·</Text>
+                    <TouchableOpacity
+                      onPress={() => router.push('/daily-settlement' as any)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={styles.dailySettlementMore}>자세히</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <Text style={styles.dailySettlementSub}>금액·메모·일별 요약</Text>
+                <View style={styles.dailySettlementTabs}>
+                  {(['month', 'year', 'all'] as PeriodTab[]).map((t) => {
+                    const label = t === 'month' ? '이번 달' : t === 'year' ? '올해' : '전체';
+                    const active = mainDailyTab === t;
+                    return (
+                      <TouchableOpacity
+                        key={t}
+                        style={[styles.dailySettlementChip, active && styles.dailySettlementChipOn]}
+                        onPress={() => setMainDailyTab(t)}
+                        activeOpacity={0.85}
+                      >
+                        <Text
+                          style={[
+                            styles.dailySettlementChipText,
+                            active && styles.dailySettlementChipTextOn,
+                          ]}
+                        >
+                          {label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Text
+                  style={[
+                    styles.dailySettlementSum,
+                    mainDailySum >= 0 ? styles.positive : styles.negative,
+                  ]}
+                >
+                  {formatSignedKrwDaily(mainDailySum)}
+                </Text>
+              </View>
               )}
 
               {/* 실시간 이슈 — 주요 지표 바로 아래 (환경설정에서 끌 수 있음) */}
@@ -2667,6 +2761,67 @@ const styles = StyleSheet.create({
   dashboardSection: {
     width: '100%',
     marginBottom: 32,
+  },
+  dailySettlementCardWrap: {
+    alignSelf: 'stretch',
+  },
+  dailySettlementTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  dailySettlementLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dailySettlementLinkSep: {
+    color: '#616161',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dailySettlementMore: {
+    color: '#42A5F5',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dailySettlementSub: {
+    color: '#9E9E9E',
+    fontSize: 13,
+    marginBottom: 12,
+  },
+  dailySettlementTabs: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  dailySettlementChip: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: '#1E1E1E',
+    borderWidth: 1,
+    borderColor: '#333',
+    alignItems: 'center',
+  },
+  dailySettlementChipOn: {
+    borderColor: '#42A5F5',
+    backgroundColor: '#1a3a52',
+  },
+  dailySettlementChipText: {
+    color: '#B0B0B0',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  dailySettlementChipTextOn: {
+    color: '#FFFFFF',
+  },
+  dailySettlementSum: {
+    fontSize: 22,
+    fontWeight: '700',
+    textAlign: 'center',
+    paddingVertical: 8,
   },
   /** scrollContent의 alignItems:center 때문에 가로 스크롤 높이가 0으로 붕괴되지 않도록 */
   issueKeywordsSectionWrap: {

@@ -258,6 +258,32 @@ async function createTables(database: SQLite.SQLiteDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_averaging_records_stock_id ON averaging_records(stock_id);
     CREATE INDEX IF NOT EXISTS idx_averaging_records_created_at ON averaging_records(created_at);
   `);
+
+  // 일일 정산 (요약: 총액만 / 상세: 줄 단위 합계)
+  await database.execAsync(`
+    CREATE TABLE IF NOT EXISTS daily_settlements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL UNIQUE,
+      mode TEXT NOT NULL CHECK(mode IN ('summary', 'detail')),
+      summary_amount INTEGER,
+      daily_memo TEXT,
+      updated_at INTEGER NOT NULL
+    );
+  `);
+  await database.execAsync(`
+    CREATE TABLE IF NOT EXISTS daily_settlement_lines (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      settlement_id INTEGER NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      amount INTEGER NOT NULL,
+      memo TEXT,
+      FOREIGN KEY (settlement_id) REFERENCES daily_settlements(id) ON DELETE CASCADE
+    );
+  `);
+  await database.execAsync(`
+    CREATE INDEX IF NOT EXISTS idx_daily_settlements_date ON daily_settlements(date);
+    CREATE INDEX IF NOT EXISTS idx_daily_settlement_lines_sid ON daily_settlement_lines(settlement_id);
+  `);
 }
 
 /**

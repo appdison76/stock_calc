@@ -15,6 +15,7 @@ const KEY_SHOW_LATEST_NEWS = 'show_latest_news';
 const KEY_SHOW_WORLD_TIME = 'show_world_time';
 const KEY_SHOW_INTEREST_RATES = 'show_interest_rates';
 const KEY_SHOW_ISSUE_KEYWORDS = 'show_issue_keywords';
+const KEY_SHOW_DAILY_SETTLEMENT = 'show_daily_settlement';
 const KEY_SHOW_MY_SHORTCUTS = 'show_my_shortcuts';
 const KEY_SHOW_RECOMMENDED_SHORTCUTS = 'show_recommended_shortcuts';
 
@@ -41,6 +42,7 @@ const DEFAULT_SHOW_LATEST_NEWS = true;
 const DEFAULT_SHOW_WORLD_TIME = true;
 const DEFAULT_SHOW_INTEREST_RATES = true;
 const DEFAULT_SHOW_ISSUE_KEYWORDS = true;
+const DEFAULT_SHOW_DAILY_SETTLEMENT = true;
 const DEFAULT_SHOW_MY_SHORTCUTS = true;
 const DEFAULT_SHOW_RECOMMENDED_SHORTCUTS = true;
 
@@ -287,6 +289,21 @@ export class SettingsService {
   /// 실시간 이슈(키워드 칩) 영역 표시 여부 저장하기
   static async setShowIssueKeywords(value: boolean): Promise<void> {
     await AsyncStorage.setItem(KEY_SHOW_ISSUE_KEYWORDS, value ? 'true' : 'false');
+  }
+
+  /// 메인 화면 일일 정산 카드 표시 여부 가져오기
+  static async getShowDailySettlement(): Promise<boolean> {
+    try {
+      const value = await AsyncStorage.getItem(KEY_SHOW_DAILY_SETTLEMENT);
+      return value !== null ? value === 'true' : DEFAULT_SHOW_DAILY_SETTLEMENT;
+    } catch (e) {
+      return DEFAULT_SHOW_DAILY_SETTLEMENT;
+    }
+  }
+
+  /// 메인 화면 일일 정산 카드 표시 여부 저장하기
+  static async setShowDailySettlement(value: boolean): Promise<void> {
+    await AsyncStorage.setItem(KEY_SHOW_DAILY_SETTLEMENT, value ? 'true' : 'false');
   }
 
   /// 나만의 바로가기 영역 표시 여부 가져오기

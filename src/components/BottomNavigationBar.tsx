@@ -77,6 +77,7 @@ interface MoreMenuItem {
 }
 
 const moreMenuItems: MoreMenuItem[] = [
+  { label: '일일 정산', icon: '📝', route: '/daily-settlement', description: '금액·메모·일별 요약' },
   { label: '포트폴리오', icon: '📊', route: '/portfolios', description: '내 포트폴리오 관리' },
   { label: '매매기록', icon: '📉', route: '/visualization', description: '매매 기록 차트' },
   { label: '종목차트', icon: '📈', route: '/stock-chart', description: '종목 가격 차트' },

@@ -37,6 +37,7 @@ export default function SettingsView() {
   const [showWorldTime, setShowWorldTime] = useState(true);
   const [showInterestRates, setShowInterestRates] = useState(true);
   const [showIssueKeywords, setShowIssueKeywords] = useState(true);
+  const [showDailySettlement, setShowDailySettlement] = useState(true);
   const [showMyShortcuts, setShowMyShortcuts] = useState(true);
   const [showRecommendedShortcuts, setShowRecommendedShortcuts] = useState(true);
   
@@ -77,6 +78,7 @@ export default function SettingsView() {
         worldTime,
         interestRates,
         issueKeywords,
+        dailySettlement,
         myShortcuts,
         recommendedShortcuts,
         newsNotifications,
@@ -90,6 +92,7 @@ export default function SettingsView() {
         SettingsService.getShowWorldTime(),
         SettingsService.getShowInterestRates(),
         SettingsService.getShowIssueKeywords(),
+        SettingsService.getShowDailySettlement(),
         SettingsService.getShowMyShortcuts(),
         SettingsService.getShowRecommendedShortcuts(),
         SettingsService.getEnableNewsNotifications(),
@@ -104,6 +107,7 @@ export default function SettingsView() {
       setShowWorldTime(worldTime);
       setShowInterestRates(interestRates);
       setShowIssueKeywords(issueKeywords);
+      setShowDailySettlement(dailySettlement);
       setShowMyShortcuts(myShortcuts);
       setShowRecommendedShortcuts(recommendedShortcuts);
       setEnableNewsNotifications(newsNotifications);
@@ -129,6 +133,7 @@ export default function SettingsView() {
           SettingsService.setShowWorldTime(showWorldTime),
           SettingsService.setShowInterestRates(showInterestRates),
           SettingsService.setShowIssueKeywords(showIssueKeywords),
+          SettingsService.setShowDailySettlement(showDailySettlement),
           SettingsService.setShowMyShortcuts(showMyShortcuts),
           SettingsService.setShowRecommendedShortcuts(showRecommendedShortcuts),
         ]);
@@ -327,6 +332,21 @@ export default function SettingsView() {
                   <Switch
                     value={showIssueKeywords}
                     onValueChange={setShowIssueKeywords}
+                    trackColor={{ false: '#757575', true: '#42A5F5' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+
+                <View style={styles.settingRow}>
+                  <View style={styles.settingLabelContainer}>
+                    <Text style={styles.settingLabel}>일일 정산 카드</Text>
+                    <Text style={styles.settingDescription}>
+                      실시간 이슈 위에 일일 정산 요약(탭·합계) 카드 표시
+                    </Text>
+                  </View>
+                  <Switch
+                    value={showDailySettlement}
+                    onValueChange={setShowDailySettlement}
                     trackColor={{ false: '#757575', true: '#42A5F5' }}
                     thumbColor="#FFFFFF"
                   />

@@ -481,6 +481,12 @@ export default function RootLayout() {
             title: '바로가기 관리',
           }}
         />
+        <Stack.Screen
+          name="daily-settlement"
+          options={{
+            headerShown: false,
+          }}
+        />
       </Stack>
     </>
   );
