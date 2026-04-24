@@ -28,7 +28,12 @@ import { SettingsService } from '../src/services/SettingsService';
 
 export default function PortfolioDetailScreen() {
   const router = useRouter();
-  const { id, scrollToAdd } = useLocalSearchParams<{ id: string; scrollToAdd?: string }>();
+  const { id, scrollToAdd, _t } = useLocalSearchParams<{
+    id: string;
+    scrollToAdd?: string;
+    /** 종목 추가 재탭 시 스크롤 effect 재실행용 (값만 바뀜) */
+    _t?: string;
+  }>();
   const scrollViewRef = useRef<ScrollView>(null);
   const [portfolio, setPortfolio] = useState<Account | null>(null);
   const [stocks, setStocks] = useState<Stock[]>([]);
@@ -151,7 +156,7 @@ export default function PortfolioDetailScreen() {
         }, 500);
       });
     }
-  }, [scrollToAdd, isLoading, stocksWithRecordCount.length]);
+  }, [scrollToAdd, _t, isLoading, stocksWithRecordCount.length]);
 
   const loadPortfolioDetail = async () => {
     if (!id) return;

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Modal, ScrollView, Dimensions, Alert } from 'react-native';
-import { useRouter, usePathname } from 'expo-router';
+import { useRouter, usePathname, useGlobalSearchParams } from 'expo-router';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
-import { initDatabase, getAllAccounts } from '../services/DatabaseService';
+import { openDefaultPortfolioAddStock } from '../navigation/openDefaultPortfolioAddStock';
 
 interface NavItem {
   label: string;
@@ -99,6 +99,8 @@ const navItems: NavItem[] = [
 export default function BottomNavigationBar() {
   const router = useRouter();
   const pathname = usePathname();
+  const globalParams = useGlobalSearchParams<{ id?: string | string[] }>();
+  const routePortfolioId = Array.isArray(globalParams.id) ? globalParams.id[0] : globalParams.id;
   const insets = useSafeAreaInsets();
   const [calculatorModalVisible, setCalculatorModalVisible] = useState(false);
   const [moreModalVisible, setMoreModalVisible] = useState(false);
@@ -106,22 +108,11 @@ export default function BottomNavigationBar() {
   // 하단 네비게이션 바 높이 계산 (아이콘 40 + 라벨 20 + 패딩 20 + SafeArea)
   const bottomNavHeight = 80 + Math.max(insets.bottom, 8);
 
-  const handleAddStock = async () => {
-    try {
-      await initDatabase();
-      const accounts = await getAllAccounts();
-      // 이름이 "나의 포트폴리오"인 포트폴리오 찾기
-      let defaultAccount = accounts.find(account => account.name === '나의 포트폴리오');
-      // 없으면 첫 번째 포트폴리오 사용
-      if (!defaultAccount && accounts.length > 0) {
-        defaultAccount = accounts[0];
-      }
-      if (defaultAccount) {
-        router.push(`/portfolio-detail?id=${defaultAccount.id}&scrollToAdd=true` as any);
-      }
-    } catch (error) {
-      console.error('기본 포트폴리오 찾기 오류:', error);
-    }
+  const handleAddStock = () => {
+    openDefaultPortfolioAddStock(router, {
+      pathname,
+      currentPortfolioId: routePortfolioId != null ? String(routePortfolioId) : null,
+    });
   };
 
   const handleNavPress = (item: NavItem) => {

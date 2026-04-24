@@ -14,9 +14,15 @@ import {
 /** 해당 일자 하루 손익 금액 (원, 정수) */
 export function computeDayTotal(s: DailySettlement): number {
   if (s.mode === 'summary') {
-    return s.summaryAmount ?? 0;
+    const v = s.summaryAmount;
+    if (v == null || typeof v !== 'number' || !Number.isFinite(v)) return 0;
+    return v;
   }
-  return (s.lines ?? []).reduce((acc, l) => acc + l.amount, 0);
+  return (s.lines ?? []).reduce((acc, l) => {
+    const raw = l.amount;
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    return acc + (Number.isFinite(n) ? n : 0);
+  }, 0);
 }
 
 export function formatDateKey(d: Date): string {

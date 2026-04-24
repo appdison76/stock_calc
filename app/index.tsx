@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, usePathname, useGlobalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AdmobBanner } from '../src/components/AdmobBanner';
 import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
@@ -56,10 +56,14 @@ import type { RecommendedShortcut } from '../src/models/RecommendedShortcut';
 import { fetchRecommendedShortcutsFromRemote } from '../src/services/RecommendedShortcutsRemoteService';
 import type { PeriodTab } from '../src/models/DailySettlement';
 import { sumForPeriod } from '../src/services/DailySettlementService';
+import { openDefaultPortfolioAddStock } from '../src/navigation/openDefaultPortfolioAddStock';
 
 const MAIN_ISSUE_SECTION_COLLAPSED_KEY = '@main_issue_section_collapsed';
 
 function formatSignedKrwDaily(n: number): string {
+  if (n == null || typeof n !== 'number' || !Number.isFinite(n)) {
+    return '—';
+  }
   const abs = addCommas(Math.abs(Math.round(n)).toString());
   if (n > 0) return `+${abs}원`;
   if (n < 0) return `-${abs}원`;
@@ -155,6 +159,9 @@ interface MarketIndicator {
 
 export default function MainScreen() {
   const router = useRouter();
+  const pathname = usePathname();
+  const globalParams = useGlobalSearchParams<{ id?: string | string[] }>();
+  const routePortfolioId = Array.isArray(globalParams.id) ? globalParams.id[0] : globalParams.id;
   const insets = useSafeAreaInsets();
   const [isPrivacyModalVisible, setIsPrivacyModalVisible] = useState(false);
   const [portfolioStocks, setPortfolioStocks] = useState<PortfolioStock[]>([]);
@@ -431,9 +438,23 @@ export default function MainScreen() {
         setMainDailySum(0);
         return;
       }
-      await initDatabase();
-      const sum = await sumForPeriod(mainDailyTab);
-      setMainDailySum(sum);
+      let lastErr: unknown;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          await initDatabase();
+          const sum = await sumForPeriod(mainDailyTab);
+          const safe =
+            typeof sum === 'number' && Number.isFinite(sum) ? sum : 0;
+          setMainDailySum(safe);
+          return;
+        } catch (e) {
+          lastErr = e;
+          if (attempt < 2) {
+            await new Promise((r) => setTimeout(r, 60 * (attempt + 1)));
+          }
+        }
+      }
+      console.error('메인 일일 정산 합계 오류(재시도 후):', lastErr);
     } catch (error) {
       console.error('메인 일일 정산 합계 오류:', error);
     }
@@ -850,22 +871,11 @@ export default function MainScreen() {
     loadDashboardData(true);
   };
 
-  const handleAddStock = async () => {
-    try {
-      await initDatabase();
-      const accounts = await getAllAccounts();
-      // 이름이 "나의 포트폴리오"인 포트폴리오 찾기
-      let defaultAccount = accounts.find(account => account.name === '나의 포트폴리오');
-      // 없으면 첫 번째 포트폴리오 사용 (시스템이 항상 최소 1개는 생성하므로 안전)
-      if (!defaultAccount && accounts.length > 0) {
-        defaultAccount = accounts[0];
-      }
-      if (defaultAccount) {
-        router.push(`/portfolio-detail?id=${defaultAccount.id}&scrollToAdd=true`);
-      }
-    } catch (error) {
-      console.error('기본 포트폴리오 찾기 오류:', error);
-    }
+  const handleAddStock = () => {
+    openDefaultPortfolioAddStock(router, {
+      pathname,
+      currentPortfolioId: routePortfolioId != null ? String(routePortfolioId) : null,
+    });
   };
 
   return (
