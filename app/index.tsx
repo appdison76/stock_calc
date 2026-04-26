@@ -57,6 +57,8 @@ import { fetchRecommendedShortcutsFromRemote } from '../src/services/Recommended
 import type { PeriodTab } from '../src/models/DailySettlement';
 import { sumForPeriod } from '../src/services/DailySettlementService';
 import { openDefaultPortfolioAddStock } from '../src/navigation/openDefaultPortfolioAddStock';
+import { NaverFinanceMiniIcon } from '../src/components/NaverFinanceMiniIcon';
+import { isNaverFinanceShortcutUrl } from '../src/utils/naverFinanceUrl';
 
 const MAIN_ISSUE_SECTION_COLLAPSED_KEY = '@main_issue_section_collapsed';
 
@@ -1394,11 +1396,15 @@ export default function MainScreen() {
                             }}
                             activeOpacity={0.8}
                           >
-                            <Text style={styles.circularIconText}>
-                              {s.iconEmoji?.trim()
-                                ? s.iconEmoji.trim()
-                                : suggestedEmojiForUrl(s.url)}
-                            </Text>
+                            {isNaverFinanceShortcutUrl(s.url) ? (
+                              <NaverFinanceMiniIcon size={34} />
+                            ) : (
+                              <Text style={styles.circularIconText}>
+                                {s.iconEmoji?.trim()
+                                  ? s.iconEmoji.trim()
+                                  : suggestedEmojiForUrl(s.url)}
+                              </Text>
+                            )}
                           </TouchableOpacity>
                           <Text style={styles.circularIconLabel} numberOfLines={2}>
                             {s.title}

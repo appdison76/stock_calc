@@ -24,6 +24,7 @@ import { Stock } from '../src/models/Stock';
 import { Currency } from '../src/models/Currency';
 import { formatCurrency, addCommas } from '../src/utils/formatUtils';
 import { ExchangeRateService } from '../src/services/ExchangeRateService';
+import { NaverFinanceMiniIcon } from '../src/components/NaverFinanceMiniIcon';
 import ChartSelectionModal, {
   ChartSelectionMarketStock,
   ChartSelectionPortfolioStock,
@@ -772,11 +773,12 @@ export default function StockChartScreen() {
               </TouchableOpacity>
             )}
             <TouchableOpacity
-              style={styles.headerOverflowButton}
+              style={styles.headerIconButton}
               onPress={() => setShowChartSelectionModal(true)}
               activeOpacity={0.7}
             >
-              <Text style={styles.headerOverflowIcon}>⋮</Text>
+              <NaverFinanceMiniIcon size={24} />
+              <Text style={styles.headerIconLabel}>외부차트</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => router.push('/')}
@@ -1013,18 +1015,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     flexShrink: 0,
-  },
-  headerOverflowButton: {
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerOverflowIcon: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
-    lineHeight: 22,
   },
   headerIconButton: {
     alignItems: 'center',

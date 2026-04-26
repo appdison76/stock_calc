@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Modal, ScrollView, Dimensions, Alert } from 'react-native';
 import { useRouter, usePathname, useGlobalSearchParams } from 'expo-router';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { openDefaultPortfolioAddStock } from '../navigation/openDefaultPortfolioAddStock';
+import { SHOW_FUNDAMENTALS_COMPARE_MENU } from '../data/fundamentalsCompareMock';
 
 interface NavItem {
   label: string;
@@ -76,7 +77,7 @@ interface MoreMenuItem {
   description?: string;
 }
 
-const moreMenuItems: MoreMenuItem[] = [
+const moreMenuItemsBase: MoreMenuItem[] = [
   { label: '일일 정산', icon: '📝', route: '/daily-settlement', description: '금액·메모·일별 요약' },
   { label: '포트폴리오', icon: '📊', route: '/portfolios', description: '내 포트폴리오 관리' },
   { label: '매매기록', icon: '📉', route: '/visualization', description: '매매 기록 차트' },
@@ -84,8 +85,25 @@ const moreMenuItems: MoreMenuItem[] = [
   { label: '주요지표', icon: '📌', route: '/market-indicators', description: '시장 주요 지표' },
   { label: '바로가기 관리', icon: '🔗', route: '/shortcut-manager', description: '나만의 바로가기 추가·순서·삭제' },
   { label: '환경설정', icon: '⚙️', route: '/settings', description: '앱 설정 및 수수료 관리' },
-  // 여기에 추가 메뉴들을 계속 추가할 수 있음
 ];
+
+const fundamentalsCompareMenuItem: MoreMenuItem = {
+  label: '기업 실적 비교',
+  icon: '📋',
+  route: '/fundamentals-compare',
+  description: '시총·매출·영업이익·PER (샘플 데이터)',
+};
+
+function buildMoreMenuItems(): MoreMenuItem[] {
+  if (!SHOW_FUNDAMENTALS_COMPARE_MENU) {
+    return [...moreMenuItemsBase];
+  }
+  const items = [...moreMenuItemsBase];
+  const shortcutIdx = items.findIndex((x) => x.route === '/shortcut-manager');
+  const idx = shortcutIdx >= 0 ? shortcutIdx : items.length;
+  items.splice(idx, 0, fundamentalsCompareMenuItem);
+  return items;
+}
 
 const navItems: NavItem[] = [
   { label: '홈화면', icon: '⌂', route: '/' },
@@ -104,6 +122,7 @@ export default function BottomNavigationBar() {
   const insets = useSafeAreaInsets();
   const [calculatorModalVisible, setCalculatorModalVisible] = useState(false);
   const [moreModalVisible, setMoreModalVisible] = useState(false);
+  const moreMenuItems = useMemo(() => buildMoreMenuItems(), []);
   
   // 하단 네비게이션 바 높이 계산 (아이콘 40 + 라벨 20 + 패딩 20 + SafeArea)
   const bottomNavHeight = 80 + Math.max(insets.bottom, 8);

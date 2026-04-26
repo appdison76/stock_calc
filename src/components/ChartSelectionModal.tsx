@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Currency } from '../models/Currency';
+import { buildNaverFinanceWebUrl, isDomesticNaverItemCode } from '../utils/naverFinanceUrl';
 
 export type ChartSelectionOrigin =
   | 'heatmap'
@@ -72,18 +73,13 @@ export default function ChartSelectionModal({
     marketStock?.ticker ||
     '';
 
-  const isKrw = portfolioStock
-    ? portfolioStock.currency === Currency.KRW
-    : marketStock
-      ? marketStock.currency === Currency.KRW
-      : false;
-
   const showInternalChart = origin !== 'stock-chart';
   const showTradingChart =
     !!portfolioStock &&
     hasTradingRecords &&
     origin !== 'visualization';
-  const showNaver = isKrw;
+  /** 국내·해외 모두 네이버증권/금융 링크 제공(해외는 모바일 worldstock URL) */
+  const showNaver = true;
   const showYahoo = true;
   const showDetail = !!portfolioStock && origin !== 'stock-detail';
 
@@ -110,24 +106,18 @@ export default function ChartSelectionModal({
           break;
 
         case 'naver': {
-          const stockCurrency = ps?.currency ?? ms?.currency;
-          if (stockCurrency === Currency.USD) {
-            Alert.alert(
-              '알림',
-              '네이버 금융은 한국 주식만 지원합니다. 야후 파이낸스를 이용해주세요.'
-            );
-            return;
-          }
-          const naverCode = ticker.replace('.KS', '').replace('.KQ', '');
+          const naverUrl = buildNaverFinanceWebUrl(ticker);
           try {
-            const naverAppDeepLink = `nfinance://item/main?code=${naverCode}`;
-            try {
-              await Linking.openURL(naverAppDeepLink);
-              return;
-            } catch {
-              /* 앱 없으면 웹 */
+            if (isDomesticNaverItemCode(ticker)) {
+              const naverCode = ticker.replace('.KS', '').replace('.KQ', '');
+              const naverAppDeepLink = `nfinance://item/main?code=${naverCode}`;
+              try {
+                await Linking.openURL(naverAppDeepLink);
+                return;
+              } catch {
+                /* 앱 없으면 웹 */
+              }
             }
-            const naverUrl = `https://finance.naver.com/item/main.naver?code=${naverCode}`;
             await Linking.openURL(naverUrl);
           } catch (error) {
             console.error('네이버 금융 열기 오류:', error);

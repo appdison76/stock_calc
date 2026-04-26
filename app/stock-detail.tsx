@@ -40,6 +40,7 @@ import { US_ETF_TO_UNDERLYING_MAP } from '../src/data/us_etf_underlying_map';
 import { AdmobBanner } from '../src/components/AdmobBanner';
 import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
 import ChartSelectionModal from '../src/components/ChartSelectionModal';
+import { NaverFinanceMiniIcon } from '../src/components/NaverFinanceMiniIcon';
 
 export default function StockDetailScreen() {
   const router = useRouter();
@@ -818,11 +819,12 @@ export default function StockDetailScreen() {
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity
-                  style={styles.chartOverflowButton}
+                  style={styles.chartIconButton}
                   onPress={() => setShowChartSelectionModal(true)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.chartOverflowIcon}>⋮</Text>
+                  <NaverFinanceMiniIcon size={24} />
+                  <Text style={styles.chartIconLabel}>외부차트</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1437,18 +1439,6 @@ const styles = StyleSheet.create({
     gap: 6,
     alignItems: 'center',
     flexShrink: 0,
-  },
-  chartOverflowButton: {
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  chartOverflowIcon: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
-    lineHeight: 22,
   },
   chartIconButton: {
     alignItems: 'center',

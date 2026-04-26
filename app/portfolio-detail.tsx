@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,6 @@ import {
   Alert,
   TextInput,
   Modal,
-  InteractionManager,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -24,17 +23,16 @@ import { addCommas, formatCurrency } from '../src/utils/formatUtils';
 import { getCurrencyFromTicker } from '../src/utils/stockUtils';
 import StockSearchModal from '../src/components/StockSearchModal';
 import ChartSelectionModal from '../src/components/ChartSelectionModal';
+import { NaverFinanceMiniIcon } from '../src/components/NaverFinanceMiniIcon';
 import { SettingsService } from '../src/services/SettingsService';
 
 export default function PortfolioDetailScreen() {
   const router = useRouter();
-  const { id, scrollToAdd, _t } = useLocalSearchParams<{
+  const { id, pulseAdd } = useLocalSearchParams<{
     id: string;
-    scrollToAdd?: string;
-    /** 종목 추가 재탭 시 스크롤 effect 재실행용 (값만 바뀜) */
-    _t?: string;
+    /** 하단 탭 등에서 같은 포트폴리오에 있을 때 종목 검색 모달 열기 트리거 */
+    pulseAdd?: string;
   }>();
-  const scrollViewRef = useRef<ScrollView>(null);
   const [portfolio, setPortfolio] = useState<Account | null>(null);
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [stocksWithRecordCount, setStocksWithRecordCount] = useState<Array<Stock & { recordCount: number }>>([]);
@@ -144,19 +142,10 @@ export default function PortfolioDetailScreen() {
     await SettingsService.setPortfolioFilterOption(option);
   };
 
-  // scrollToAdd 파라미터가 있고 로딩이 완료되면 맨 아래로 스크롤
   useEffect(() => {
-    if (scrollToAdd === 'true' && !isLoading && stocksWithRecordCount.length >= 0) {
-      // 모든 인터랙션과 애니메이션이 완료된 후 스크롤
-      InteractionManager.runAfterInteractions(() => {
-        setTimeout(() => {
-          if (scrollViewRef.current) {
-            scrollViewRef.current.scrollToEnd({ animated: true });
-          }
-        }, 500);
-      });
-    }
-  }, [scrollToAdd, _t, isLoading, stocksWithRecordCount.length]);
+    if (pulseAdd == null || pulseAdd === '') return;
+    setShowStockModal(true);
+  }, [pulseAdd]);
 
   const loadPortfolioDetail = async () => {
     if (!id) return;
@@ -520,7 +509,6 @@ export default function PortfolioDetailScreen() {
         style={styles.gradient}
       >
         <ScrollView
-          ref={scrollViewRef}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
@@ -533,6 +521,21 @@ export default function PortfolioDetailScreen() {
                 </View>
               )}
             </View>
+            <TouchableOpacity
+              style={[styles.addButton, styles.addButtonTop]}
+              onPress={handleAddStock}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={['#42A5F5', '#1976D2']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.addButtonGradient}
+              >
+                <Text style={styles.addButtonIcon}>+</Text>
+                <Text style={styles.addButtonText}>종목 추가</Text>
+              </LinearGradient>
+            </TouchableOpacity>
             <View style={styles.metaContainer}>
               <View style={styles.stockCountBadge}>
                 <Text style={styles.stockCountBadgeText}>
@@ -824,14 +827,15 @@ export default function PortfolioDetailScreen() {
                               </TouchableOpacity>
                             )}
                             <TouchableOpacity
-                              style={styles.chartOverflowButton}
+                              style={styles.chartIconButton}
                               onPress={(e) => {
                                 e.stopPropagation();
                                 setChartMenuStock(stock);
                               }}
                               activeOpacity={0.7}
                             >
-                              <Text style={styles.chartOverflowIcon}>⋮</Text>
+                              <NaverFinanceMiniIcon size={24} />
+                              <Text style={styles.chartIconLabel}>외부차트</Text>
                             </TouchableOpacity>
                           </View>
                         </View>
@@ -947,22 +951,6 @@ export default function PortfolioDetailScreen() {
               ))}
             </View>
           )}
-
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={handleAddStock}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={['#42A5F5', '#1976D2']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.addButtonGradient}
-            >
-              <Text style={styles.addButtonIcon}>+</Text>
-              <Text style={styles.addButtonText}>종목 추가</Text>
-            </LinearGradient>
-          </TouchableOpacity>
         </ScrollView>
       </LinearGradient>
 
@@ -1203,7 +1191,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingTop: 20,
-    paddingBottom: 100,
+    paddingBottom: 32,
   },
   chartButton: {
     borderRadius: 16,
@@ -1468,18 +1456,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexShrink: 0,
   },
-  chartOverflowButton: {
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  chartOverflowIcon: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
-    lineHeight: 22,
-  },
   chartIconButton: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1632,10 +1608,14 @@ const styles = StyleSheet.create({
     fontWeight: 'normal',
     marginTop: 2,
   },
+  addButtonTop: {
+    marginTop: 8,
+    marginBottom: 12,
+  },
   addButton: {
     borderRadius: 16,
     overflow: 'hidden',
-    marginTop: 8,
+    marginTop: 0,
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

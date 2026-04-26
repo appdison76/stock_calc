@@ -487,6 +487,12 @@ export default function RootLayout() {
             headerShown: false,
           }}
         />
+        <Stack.Screen
+          name="fundamentals-compare"
+          options={{
+            title: '기업 실적 비교',
+          }}
+        />
       </Stack>
     </>
   );

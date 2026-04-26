@@ -13,10 +13,10 @@ export type OpenDefaultPortfolioAddStockContext = {
 };
 
 /**
- * 하단 탭·메인의 「종목 추가」: 기본 포트폴리오 상세로 이동(스크롤 유도).
+ * 하단 탭·메인의 「종목 추가」: 기본 포트폴리오 상세로 이동.
  * - 포트폴리오가 없으면 목록 화면으로 보냄
- * - 이미 같은 포트폴리오 상세에 있으면 setParams로 재진입 (스택 중복·push 무시 방지)
- * - 그 외에는 쿼리에 타임스탬프를 넣어 동일 URL push가 무시되는 기기 대응
+ * - 이미 같은 포트폴리오 상세에 있으면 pulseAdd로 종목 검색 모달만 띄움 (스택 중복 방지)
+ * - 그 외에는 portfolio-detail 로 push
  */
 export function openDefaultPortfolioAddStock(
   router: OpenAddStockRouter,
@@ -44,12 +44,11 @@ export function openDefaultPortfolioAddStock(
       const go = () => {
         if (onSamePortfolioDetail && typeof router.setParams === 'function') {
           router.setParams({
-            scrollToAdd: 'true',
-            _t: String(Date.now()),
+            pulseAdd: String(Date.now()),
           });
           return;
         }
-        const href = `/portfolio-detail?id=${encodeURIComponent(id)}&scrollToAdd=true&_t=${Date.now()}`;
+        const href = `/portfolio-detail?id=${encodeURIComponent(id)}`;
         router.push(href);
       };
 

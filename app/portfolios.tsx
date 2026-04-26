@@ -240,6 +240,22 @@ export default function PortfoliosScreen() {
             </Text>
           </View>
 
+          <TouchableOpacity
+            style={[styles.addButton, styles.addButtonTop]}
+            onPress={handleCreatePortfolio}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={['#FF9800', '#F57C00']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.addButtonGradient}
+            >
+              <Text style={styles.addButtonIcon}>+</Text>
+              <Text style={styles.addButtonText}>새 포트폴리오 추가</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
           {portfolios.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyIcon}>📊</Text>
@@ -521,22 +537,6 @@ export default function PortfoliosScreen() {
               ))}
             </View>
           )}
-
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={handleCreatePortfolio}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={['#FF9800', '#F57C00']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.addButtonGradient}
-            >
-              <Text style={styles.addButtonIcon}>+</Text>
-              <Text style={styles.addButtonText}>새 포트폴리오 추가</Text>
-            </LinearGradient>
-          </TouchableOpacity>
         </ScrollView>
       </LinearGradient>
 
@@ -646,7 +646,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingTop: 20,
-    paddingBottom: 100,
+    paddingBottom: 32,
   },
   loadingContainer: {
     flex: 1,
@@ -915,10 +915,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  addButtonTop: {
+    marginTop: 4,
+    marginBottom: 20,
+  },
   addButton: {
     borderRadius: 16,
     overflow: 'hidden',
-    marginTop: 8,
+    marginTop: 0,
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
