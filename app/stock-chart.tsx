@@ -25,6 +25,7 @@ import { Currency } from '../src/models/Currency';
 import { formatCurrency, addCommas } from '../src/utils/formatUtils';
 import { ExchangeRateService } from '../src/services/ExchangeRateService';
 import { NaverFinanceMiniIcon } from '../src/components/NaverFinanceMiniIcon';
+import { FundamentalsCompareNavButton } from '../src/components/FundamentalsHomeHeaderRight';
 import ChartSelectionModal, {
   ChartSelectionMarketStock,
   ChartSelectionPortfolioStock,
@@ -731,6 +732,7 @@ export default function StockChartScreen() {
               종목차트
             </Text>
             <View style={styles.headerRightContainer}>
+              <FundamentalsCompareNavButton />
               <TouchableOpacity
                 onPress={() => router.push('/')}
                 style={styles.homeButton}
@@ -780,6 +782,7 @@ export default function StockChartScreen() {
               <NaverFinanceMiniIcon size={24} />
               <Text style={styles.headerIconLabel}>외부차트</Text>
             </TouchableOpacity>
+            <FundamentalsCompareNavButton />
             <TouchableOpacity
               onPress={() => router.push('/')}
               style={styles.homeButton}

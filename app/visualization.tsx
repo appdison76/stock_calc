@@ -26,6 +26,7 @@ import { getStockQuote } from '../src/services/YahooFinanceService';
 import { ExchangeRateService } from '../src/services/ExchangeRateService';
 import ChartSelectionModal from '../src/components/ChartSelectionModal';
 import { NaverFinanceMiniIcon } from '../src/components/NaverFinanceMiniIcon';
+import { FundamentalsCompareNavButton } from '../src/components/FundamentalsHomeHeaderRight';
 
 interface DotData {
   price: number;
@@ -516,6 +517,7 @@ export default function VisualizationScreen() {
               매매기록 차트
             </Text>
             <View style={styles.headerRightContainer}>
+              <FundamentalsCompareNavButton />
               <TouchableOpacity
                 onPress={() => router.push('/')}
                 style={styles.homeButton}
@@ -573,6 +575,7 @@ export default function VisualizationScreen() {
                 <Text style={styles.headerIconLabel}>외부차트</Text>
               </TouchableOpacity>
             )}
+            <FundamentalsCompareNavButton />
             <TouchableOpacity
               onPress={() => router.push('/')}
               style={styles.homeButton}

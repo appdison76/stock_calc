@@ -1,8 +1,12 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, useRef } from 'react';
-import { TouchableOpacity, Text, StyleSheet, AppState, Linking } from 'react-native';
+import { AppState, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
+import {
+  FundamentalsHomeHeaderRight,
+  HomeHeaderButton,
+} from '../src/components/FundamentalsHomeHeaderRight';
 import Constants from 'expo-constants';
 import * as Application from 'expo-application';
 import mobileAds from 'react-native-google-mobile-ads';
@@ -13,31 +17,6 @@ import { getNotificationToken, setupNotificationListeners, saveNotificationToLoc
 import { initializeFirebase } from '../src/services/FirebaseService';
 import { checkAllNotifications } from '../src/services/NotificationCheckService';
 import { initDatabase } from '../src/services/DatabaseService';
-
-const headerButtonStyles = StyleSheet.create({
-  homeButton: {
-    marginRight: 16,
-    padding: 4,
-  },
-  homeButtonText: {
-    fontSize: 24,
-    color: '#FFFFFF',
-  },
-});
-
-// 홈 버튼 컴포넌트
-function HomeButton() {
-  const router = useRouter();
-  return (
-    <TouchableOpacity
-      onPress={() => router.push('/')}
-      style={headerButtonStyles.homeButton}
-      activeOpacity={0.7}
-    >
-      <Text style={headerButtonStyles.homeButtonText}>⌂</Text>
-    </TouchableOpacity>
-  );
-}
 
 export default function RootLayout() {
   const router = useRouter();
@@ -358,7 +337,7 @@ export default function RootLayout() {
           contentStyle: {
             backgroundColor: '#121212',
           },
-          headerRight: () => <HomeButton />,
+          headerRight: () => <HomeHeaderButton />,
         }}
       >
         <Stack.Screen
@@ -431,18 +410,21 @@ export default function RootLayout() {
           name="portfolios"
           options={{
             title: '포트폴리오',
+            headerRight: () => <FundamentalsHomeHeaderRight />,
           }}
         />
         <Stack.Screen
           name="portfolio-detail"
           options={{
             title: '종목 목록',
+            headerRight: () => <FundamentalsHomeHeaderRight />,
           }}
         />
         <Stack.Screen
           name="stock-detail"
           options={{
             title: '종목 상세',
+            headerRight: () => <FundamentalsHomeHeaderRight />,
           }}
         />
         <Stack.Screen
@@ -467,6 +449,7 @@ export default function RootLayout() {
           name="heatmap"
           options={{
             title: '히트맵',
+            headerRight: () => <FundamentalsHomeHeaderRight />,
           }}
         />
         <Stack.Screen

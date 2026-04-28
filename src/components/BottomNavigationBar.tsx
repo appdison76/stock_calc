@@ -105,8 +105,8 @@ function buildMoreMenuItems(): MoreMenuItem[] {
     return [...moreMenuItemsBase];
   }
   const items = [...moreMenuItemsBase];
-  const portfolioIdx = items.findIndex((x) => x.route === '/portfolios');
-  const idx = portfolioIdx >= 0 ? portfolioIdx + 1 : items.length;
+  const stockChartIdx = items.findIndex((x) => x.route === '/stock-chart');
+  const idx = stockChartIdx >= 0 ? stockChartIdx + 1 : items.length;
   items.splice(idx, 0, fundamentalsCompareMenuItem);
   return items;
 }
