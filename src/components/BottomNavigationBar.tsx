@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Modal, ScrollView, Dimensions, Alert } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, usePathname, useGlobalSearchParams } from 'expo-router';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { openDefaultPortfolioAddStock } from '../navigation/openDefaultPortfolioAddStock';
@@ -75,6 +76,8 @@ interface MoreMenuItem {
   icon: string;
   route: string;
   description?: string;
+  /** 이모지보다 선명하게 — 더보기 목록에서만 사용 */
+  renderMenuIcon?: () => React.ReactNode;
 }
 
 const moreMenuItemsBase: MoreMenuItem[] = [
@@ -89,9 +92,12 @@ const moreMenuItemsBase: MoreMenuItem[] = [
 
 const fundamentalsCompareMenuItem: MoreMenuItem = {
   label: '기업 실적 비교',
-  icon: '📋',
+  icon: '\u2696', // 폴백(미사용 시)
   route: '/fundamentals-compare',
-  description: '시총·매출·영업이익·PER (샘플 데이터)',
+  description: 'DART·Yahoo·네이버 — 실적·시총 비교',
+  renderMenuIcon: () => (
+    <MaterialCommunityIcons name="scale-balance" size={28} color="#FFFFFF" />
+  ),
 };
 
 function buildMoreMenuItems(): MoreMenuItem[] {
@@ -99,8 +105,8 @@ function buildMoreMenuItems(): MoreMenuItem[] {
     return [...moreMenuItemsBase];
   }
   const items = [...moreMenuItemsBase];
-  const shortcutIdx = items.findIndex((x) => x.route === '/shortcut-manager');
-  const idx = shortcutIdx >= 0 ? shortcutIdx : items.length;
+  const portfolioIdx = items.findIndex((x) => x.route === '/portfolios');
+  const idx = portfolioIdx >= 0 ? portfolioIdx + 1 : items.length;
   items.splice(idx, 0, fundamentalsCompareMenuItem);
   return items;
 }
@@ -323,7 +329,11 @@ export default function BottomNavigationBar() {
                     activeOpacity={0.7}
                   >
                     <View style={styles.menuItemIconContainer}>
-                      <Text style={styles.menuItemIcon}>{menuItem.icon}</Text>
+                      {menuItem.renderMenuIcon != null ? (
+                        menuItem.renderMenuIcon()
+                      ) : (
+                        <Text style={styles.menuItemIcon}>{menuItem.icon}</Text>
+                      )}
                     </View>
                     <View style={styles.menuItemTextContainer}>
                       <Text style={styles.menuItemLabel}>{menuItem.label}</Text>

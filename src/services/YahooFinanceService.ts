@@ -33,92 +33,315 @@ export interface StockQuote {
   marketCap?: number; // 시가총액
 }
 
+/** DB에 `5930`처럼 저장된 경우 Yahoo·Map 키와 맞추기 */
+export function normalizeYahooTickerKey(ticker: string): string {
+  const t = ticker.trim();
+  if (!t.includes('.') && /^\d{1,6}$/.test(t)) {
+    return t.padStart(6, '0');
+  }
+  return t;
+}
+
+const YAHOO_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+/** Yahoo web API는 Referer/Origin 없으면 quoteSummary가 401·빈 result로 떨어지는 경우가 있음(특히 RN/모바일). */
+function yahooRequestHeaders(symbol: string): HeadersInit {
+  return {
+    'User-Agent': YAHOO_UA,
+    Accept: 'application/json,text/plain,*/*',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+    Referer: `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}/`,
+    Origin: 'https://finance.yahoo.com',
+  };
+}
+
+/** Metro·adb: `[YAHOO_QUOTE]` — 시총·chart 실패 원인 (필터용) */
+function yahooQuoteTrace(message: string, data?: Record<string, unknown>): void {
+  if (data !== undefined) {
+    console.warn('[YAHOO_QUOTE]', message, data);
+  } else {
+    console.warn('[YAHOO_QUOTE]', message);
+  }
+}
+
+function mergeKoreanKsKqQuotes(
+  ks: StockQuote | null,
+  kq: StockQuote | null
+): StockQuote | null {
+  if (!ks && !kq) return null;
+  if (!ks) return kq;
+  if (!kq) return ks;
+  const ksCap = ks.marketCap != null && Number.isFinite(ks.marketCap) && ks.marketCap > 0;
+  const kqCap = kq.marketCap != null && Number.isFinite(kq.marketCap) && kq.marketCap > 0;
+  if (ksCap && !kqCap) return ks;
+  if (!ksCap && kqCap) return kq;
+  return ks;
+}
+
+/** Yahoo nested `{ raw, fmt }` 또는 단일 숫자 필드 */
+function readYahooNumericField(v: unknown): number | undefined {
+  if (v == null) return undefined;
+  if (typeof v === 'number' && Number.isFinite(v) && v > 0) return v;
+  if (typeof v === 'object' && v !== null && 'raw' in v) {
+    const r = (v as { raw?: unknown }).raw;
+    if (typeof r === 'number' && Number.isFinite(r) && r > 0) return r;
+  }
+  return undefined;
+}
+
+/** quoteSummary에서 발행주식수 후보를 넓게 수집 (한국 .KS/.KQ에서 시총 필드만 비는 경우가 많음) */
+function shareCountFromQuoteSummary(r0: Record<string, unknown> | undefined): number | undefined {
+  if (r0 == null) return undefined;
+  const dks = r0.defaultKeyStatistics as Record<string, unknown> | undefined;
+  const sd = r0.summaryDetail as Record<string, unknown> | undefined;
+  const candidates: unknown[] = [
+    dks?.sharesOutstanding,
+    dks?.floatShares,
+    dks?.impliedSharesOutstanding,
+    sd?.sharesOutstanding,
+  ];
+  for (const c of candidates) {
+    const n = readYahooNumericField(c);
+    if (n != null) return n;
+  }
+  return undefined;
+}
+
+/** Yahoo가 marketCap 필드를 안 줄 때: 보통주 총수 × 현재가 (원화 종목에서 자주 필요) */
+function marketCapFromSharesAndPrice(
+  r0: Record<string, unknown> | undefined,
+  price: number
+): number | undefined {
+  if (r0 == null || !Number.isFinite(price) || price <= 0) return undefined;
+  const rawShares = shareCountFromQuoteSummary(r0);
+  if (rawShares == null || !Number.isFinite(rawShares) || rawShares <= 0) return undefined;
+  const cap = rawShares * price;
+  return Number.isFinite(cap) && cap > 0 ? cap : undefined;
+}
+
+/** chart meta에 주식수가 있으면 시총 추정 (summary보다 먼저 시도) */
+function marketCapFromChartMetaShares(meta: Record<string, unknown>, price: number): number | undefined {
+  if (!Number.isFinite(price) || price <= 0) return undefined;
+  for (const k of ['sharesOutstanding', 'regularMarketSharesOutstanding', 'impliedSharesOutstanding'] as const) {
+    const v = meta[k];
+    const n = typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : readYahooNumericField(v);
+    if (n != null) {
+      const cap = n * price;
+      if (Number.isFinite(cap) && cap > 0) return cap;
+    }
+  }
+  return undefined;
+}
+
 /**
- * Yahoo Finance에서 주식 현재가 조회
- * @param ticker 종목 코드 (예: 'AAPL', '005930.KS' - 한국 주식은 .KS 접미사)
- * @returns 주식 현재가 정보
+ * 이미 `.KS` / `.KQ` / 미국 티커 등 Yahoo 심볼로 정규화된 한 종목 조회
  */
-export async function getStockQuote(ticker: string): Promise<StockQuote | null> {
+async function fetchYahooQuoteForNormalizedSymbol(normalizedTicker: string): Promise<StockQuote | null> {
   try {
-    // 티커 정규화: 이미 접미사가 있으면 그대로 사용, 6자리 숫자면 .KS 추가, 그 외는 그대로 사용
-    let normalizedTicker = ticker;
-    if (!ticker.includes('.')) {
-      // 6자리 숫자인 경우 한국 주식으로 간주하여 .KS 추가
-      if (/^\d{6}$/.test(ticker)) {
-        normalizedTicker = `${ticker}.KS`;
-      }
-      // 그 외 (영문 티커 등)는 그대로 사용 (미국 주식 등)
-    }
-    
-    // Yahoo Finance API 엔드포인트 (무료 버전)
-    // 참고: 실제 프로덕션에서는 더 안정적인 API를 사용하는 것이 좋습니다.
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${normalizedTicker}?interval=1d&range=1d`;
-    
-    const response = await fetch(url);
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+      normalizedTicker
+    )}?interval=1d&range=1d`;
+
+    const response = await fetch(url, { headers: yahooRequestHeaders(normalizedTicker) });
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      yahooQuoteTrace('chart_http_error', {
+        symbol: normalizedTicker,
+        status: response.status,
+        statusText: response.statusText,
+      });
+      return null;
     }
-    
+
     const data = await response.json();
-    
+
     if (!data.chart || !data.chart.result || data.chart.result.length === 0) {
+      yahooQuoteTrace('chart_empty_result', {
+        symbol: normalizedTicker,
+        chartError: data?.chart?.error?.description ?? data?.chart?.error,
+      });
       return null;
     }
-    
+
     const result = data.chart.result[0];
-    const meta = result.meta;
-    
-    if (!meta || !meta.regularMarketPrice) {
+    const meta = result.meta as Record<string, unknown> & {
+      regularMarketPrice?: number;
+      shortName?: string;
+      longName?: string;
+      symbol?: string;
+      currency?: string;
+    };
+
+    if (!meta || meta.regularMarketPrice == null) {
+      yahooQuoteTrace('chart_no_price_meta', { symbol: normalizedTicker, hasMeta: !!meta });
       return null;
     }
-    
+
     const previousClose = meta.previousClose || meta.regularMarketPreviousClose || meta.chartPreviousClose;
     const currentPrice = meta.regularMarketPrice;
     const change = previousClose ? currentPrice - previousClose : undefined;
     const changePercent = previousClose ? ((currentPrice - previousClose) / previousClose) * 100 : undefined;
-    // chart API에서 시가총액 가져오기 시도
-    let marketCap = meta.marketCap || meta.regularMarketMarketCap || meta.marketCapRaw;
-    
-    // marketCap이 없으면 quoteSummary API로 시도 (타임아웃 적용으로 속도 개선)
-    let finalMarketCap = marketCap;
-    if (!finalMarketCap) {
-      try {
-        // summaryDetail과 defaultKeyStatistics를 한 번에 요청 (병렬 처리)
-        const summaryUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${normalizedTicker}?modules=summaryDetail,defaultKeyStatistics`;
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000); // 2초 타임아웃
-        
-        const summaryResponse = await fetch(summaryUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          },
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        
-        if (summaryResponse.ok) {
-          const summaryData = await summaryResponse.json();
-          finalMarketCap = summaryData.quoteSummary?.result?.[0]?.summaryDetail?.marketCap?.raw
-            || summaryData.quoteSummary?.result?.[0]?.defaultKeyStatistics?.marketCap?.raw;
-        }
-      } catch (error) {
-        // marketCap 조회 실패는 무시 (선택적 정보, 타임아웃 포함)
-        // console.warn(`[YahooFinance] marketCap 조회 실패 (${ticker}):`, error);
+
+    let finalMarketCap =
+      readYahooNumericField(meta.marketCap) ??
+      readYahooNumericField(meta.regularMarketMarketCap) ??
+      readYahooNumericField(meta.marketCapRaw);
+
+    let chartMetaSharesUsed = false;
+    if (finalMarketCap == null) {
+      const fromChart = marketCapFromChartMetaShares(meta, currentPrice);
+      if (fromChart != null) {
+        finalMarketCap = fromChart;
+        chartMetaSharesUsed = true;
       }
     }
 
+    let summaryHttpStatus: number | null = null;
+    let summaryGotCap = false;
+    let sharesEstimateUsed = chartMetaSharesUsed;
+
+    const needSummary =
+      finalMarketCap == null || !Number.isFinite(finalMarketCap) || finalMarketCap <= 0;
+
+    if (needSummary) {
+      const summaryUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(
+        normalizedTicker
+      )}?modules=summaryDetail,defaultKeyStatistics,price`;
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (finalMarketCap != null && Number.isFinite(finalMarketCap) && finalMarketCap > 0) break;
+        const timeoutMs = attempt === 0 ? 7000 : 10000;
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+          const summaryResponse = await fetch(summaryUrl, {
+            headers: yahooRequestHeaders(normalizedTicker),
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          summaryHttpStatus = summaryResponse.status;
+
+          if (summaryResponse.ok) {
+            const summaryData = await summaryResponse.json();
+            const r0 = summaryData.quoteSummary?.result?.[0] as Record<string, unknown> | undefined;
+            if (!r0) {
+              yahooQuoteTrace('summary_empty_result', { symbol: normalizedTicker, attempt });
+            } else {
+              const fromSummary =
+                readYahooNumericField((r0.summaryDetail as { marketCap?: unknown } | undefined)?.marketCap) ??
+                readYahooNumericField(
+                  (r0.defaultKeyStatistics as { marketCap?: unknown } | undefined)?.marketCap
+                );
+              if (fromSummary != null) {
+                finalMarketCap = fromSummary;
+                summaryGotCap = true;
+                break;
+              }
+              const est = marketCapFromSharesAndPrice(r0, currentPrice);
+              if (est != null) {
+                finalMarketCap = est;
+                sharesEstimateUsed = true;
+                break;
+              }
+            }
+          } else {
+            yahooQuoteTrace('summary_http_error', {
+              symbol: normalizedTicker,
+              status: summaryResponse.status,
+              statusText: summaryResponse.statusText,
+              attempt,
+            });
+          }
+        } catch (e: unknown) {
+          const aborted = e instanceof Error && e.name === 'AbortError';
+          yahooQuoteTrace('summary_fetch_failed', {
+            symbol: normalizedTicker,
+            aborted,
+            attempt,
+            message: e instanceof Error ? e.message : String(e),
+          });
+        }
+      }
+    }
+
+    const resolvedCap =
+      finalMarketCap != null && Number.isFinite(finalMarketCap) && finalMarketCap > 0
+        ? finalMarketCap
+        : undefined;
+
+    if (resolvedCap == null) {
+      yahooQuoteTrace('no_market_cap_after_chart_summary', {
+        symbol: normalizedTicker,
+        price: currentPrice,
+        currency: meta.currency,
+        chartMetaHadCap: !!(
+          readYahooNumericField(meta.marketCap) ??
+          readYahooNumericField(meta.regularMarketMarketCap) ??
+          readYahooNumericField(meta.marketCapRaw)
+        ),
+        summaryHttpStatus,
+        summaryGotCap,
+        sharesEstimateUsed,
+      });
+    }
+
     return {
-      symbol: meta.symbol || ticker,
+      symbol: (meta.symbol as string | undefined) || normalizedTicker,
       price: currentPrice,
-      currency: meta.currency || 'KRW',
+      currency: (meta.currency as string | undefined) || 'KRW',
       name: meta.shortName || meta.longName,
       change: change,
       changePercent: changePercent,
-      marketCap: finalMarketCap,
+      marketCap: resolvedCap,
     };
-  } catch (error) {
-    // 백그라운드 작업이므로 조용히 처리 (사용자에게 오류 표시하지 않음)
-    // console.warn('Yahoo Finance API 오류:', error);
+  } catch (e: unknown) {
+    yahooQuoteTrace('chart_fetch_exception', {
+      symbol: normalizedTicker,
+      message: e instanceof Error ? e.message : String(e),
+    });
+    return null;
+  }
+}
+
+/**
+ * Yahoo Finance에서 주식 현재가 조회
+ * @param ticker 종목 코드 (예: 'AAPL', '005930.KS' - 한국 주식은 .KS/.KQ 접미사)
+ * @returns 주식 현재가 정보
+ */
+export async function getStockQuote(ticker: string): Promise<StockQuote | null> {
+  const raw = normalizeYahooTickerKey(ticker);
+  try {
+    // 6자리·접미사 없음 → 코스피(.KS)·코스닥(.KQ) 병렬 조회 후 유효한 쪽 사용 (시총 우선)
+    if (!raw.includes('.') && /^\d{6}$/.test(raw)) {
+      const [ks, kq] = await Promise.all([
+        fetchYahooQuoteForNormalizedSymbol(`${raw}.KS`),
+        fetchYahooQuoteForNormalizedSymbol(`${raw}.KQ`),
+      ]);
+      const merged = mergeKoreanKsKqQuotes(ks, kq);
+      if (merged && (merged.marketCap == null || !Number.isFinite(merged.marketCap))) {
+        yahooQuoteTrace('kr6_merge_no_mcap', {
+          pad6: raw,
+          ksQuote: ks != null,
+          kqQuote: kq != null,
+          ksMcap: ks?.marketCap,
+          kqMcap: kq?.marketCap,
+          mergedPrice: merged.price,
+          currency: merged.currency,
+        });
+      }
+      return merged;
+    }
+
+    const single = await fetchYahooQuoteForNormalizedSymbol(raw);
+    if (single && (single.marketCap == null || !Number.isFinite(single.marketCap))) {
+      yahooQuoteTrace('single_quote_no_mcap', { raw, symbol: single.symbol, price: single.price });
+    }
+    return single;
+  } catch (e: unknown) {
+    yahooQuoteTrace('getStockQuote_exception', {
+      ticker,
+      message: e instanceof Error ? e.message : String(e),
+    });
     return null;
   }
 }
@@ -134,7 +357,7 @@ export async function getMultipleStockQuotes(
   // 병렬로 요청 (너무 많으면 순차 처리로 변경 가능)
   const promises = tickers.map(async (ticker) => {
     const quote = await getStockQuote(ticker);
-    results.set(ticker, quote);
+    results.set(normalizeYahooTickerKey(ticker), quote);
   });
   
   await Promise.all(promises);
@@ -164,10 +387,10 @@ export async function getMultipleStockQuotesBatch(
     const batchPromises = batch.map(async (ticker) => {
       try {
         const quote = await getStockQuote(ticker);
-        results.set(ticker, quote);
+        results.set(normalizeYahooTickerKey(ticker), quote);
       } catch (error) {
         console.warn(`종목 ${ticker} 조회 실패:`, error);
-        results.set(ticker, null);
+        results.set(normalizeYahooTickerKey(ticker), null);
       }
     });
     
