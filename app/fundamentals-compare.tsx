@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Pressable,
+  TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect, usePathname, useGlobalSearchParams } from 'expo-router';
@@ -133,6 +134,57 @@ function annualizeIncomeForPerPor(baseWon: number | null, g: 'year' | 'quarter')
   return baseWon * 4;
 }
 
+/** 양수 금액 문자열 (쉼표 허용) */
+function parsePositiveAmountString(raw: string): number | null {
+  const s = raw.replace(/,/g, '').trim();
+  if (s === '') return null;
+  const n = Number(s);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+type OpScenarioUnit = 'jo' | 'eok' | 'cheonman' | 'baekman';
+
+const OP_SCENARIO_UNITS: { id: OpScenarioUnit; label: string }[] = [
+  { id: 'jo', label: '조' },
+  { id: 'eok', label: '억' },
+  { id: 'cheonman', label: '천만' },
+  { id: 'baekman', label: '백만' },
+];
+
+/** 선택 단위 → 분기 영업이익(억 원). 조=×10000억, 억=그대로, 천만=×0.1억, 백만=×0.01억 */
+function scenarioAmountToQuarterlyOpEok(amount: number, unit: OpScenarioUnit): number {
+  switch (unit) {
+    case 'jo':
+      return amount * 10000;
+    case 'eok':
+      return amount;
+    case 'cheonman':
+      return amount * 0.1;
+    case 'baekman':
+      return amount * 0.01;
+    default:
+      return amount;
+  }
+}
+
+function parseScenarioToQuarterlyOpEok(raw: string, unit: OpScenarioUnit): number | null {
+  const n = parsePositiveAmountString(raw);
+  if (n == null) return null;
+  return scenarioAmountToQuarterlyOpEok(n, unit);
+}
+
+/** 분기 영업이익(억)×4 = 연율 영업이익(원), POR = 시총÷연율영업이익 */
+function formatPorFromQuarterlyOpEok(capWon: number | null, quarterlyOpEok: number | null): string {
+  if (capWon == null || !Number.isFinite(capWon)) return '—';
+  if (quarterlyOpEok == null || !Number.isFinite(quarterlyOpEok)) return '—';
+  if (quarterlyOpEok <= 0) return '적자';
+  const annualOpWon = quarterlyOpEok * 1e8 * 4;
+  const por = capWon / annualOpWon;
+  if (!Number.isFinite(por) || por <= 0) return '—';
+  return formatRatioLocale(por);
+}
+
 const CAP_PER_TABLE_ROWS: { id: 'cap' | 'por' | 'per' | 'net' | 'op' | 'rev'; label: string }[] = [
   { id: 'cap', label: '시가총액' },
   { id: 'por', label: 'POR' },
@@ -177,6 +229,11 @@ export default function FundamentalsCompareScreen() {
   const [marketCapKrByKey, setMarketCapKrByKey] = useState<Record<string, string>>({});
   const [marketCapWonByKey, setMarketCapWonByKey] = useState<Record<string, number | null>>({});
   const [marketCapLoading, setMarketCapLoading] = useState(false);
+  /** 잠정·가이던스: 종목별 금액 문자열 + 단위(조·억·천만·백만) */
+  const [provisionalOpEokByKey, setProvisionalOpEokByKey] = useState<Record<string, string>>({});
+  const [guidanceOpEokByKey, setGuidanceOpEokByKey] = useState<Record<string, string>>({});
+  const [provisionalOpUnitByKey, setProvisionalOpUnitByKey] = useState<Record<string, OpScenarioUnit>>({});
+  const [guidanceOpUnitByKey, setGuidanceOpUnitByKey] = useState<Record<string, OpScenarioUnit>>({});
 
   const quarterYearChoices = useMemo(
     () => fundamentalsQuarterYearChoices(new Date(), FUNDAMENTALS_CALENDAR_YEAR_SPAN),
@@ -307,6 +364,38 @@ export default function FundamentalsCompareScreen() {
     () => deduped.filter((r) => selectedKeys.has(r.mockKey)),
     [deduped, selectedKeys]
   );
+
+  useEffect(() => {
+    const keyList = selectedRows.map((r) => r.mockKey);
+    setProvisionalOpEokByKey((prev) => {
+      const next: Record<string, string> = {};
+      for (const k of keyList) {
+        next[k] = prev[k] ?? '';
+      }
+      return next;
+    });
+    setGuidanceOpEokByKey((prev) => {
+      const next: Record<string, string> = {};
+      for (const k of keyList) {
+        next[k] = prev[k] ?? '';
+      }
+      return next;
+    });
+    setProvisionalOpUnitByKey((prev) => {
+      const next: Record<string, OpScenarioUnit> = {};
+      for (const k of keyList) {
+        next[k] = prev[k] ?? 'jo';
+      }
+      return next;
+    });
+    setGuidanceOpUnitByKey((prev) => {
+      const next: Record<string, OpScenarioUnit> = {};
+      for (const k of keyList) {
+        next[k] = prev[k] ?? 'jo';
+      }
+      return next;
+    });
+  }, [selectedRows]);
 
   /**
    * 상단 시총·PER·실적 요약에 쓰는 DART 기준 기간.
@@ -1055,6 +1144,158 @@ export default function FundamentalsCompareScreen() {
                 ? '시총은 Yahoo(조회 시점). POR=시총÷연간 영업이익, PER=시총÷연간 당기순이익(DART 기준).「영업이익」「당기순이익」행은 표시용 분기·연 실적.'
                 : '시총은 Yahoo(조회 시점). PER·POR은 분기 이익을 ×4 연율화한 값을 분모로 사용합니다(분기 실적을 1년으로 환산).「영업이익」「당기순이익」행은 해당 분기 금액.'}
             </Text>
+
+            <Text style={styles.sectionTitle}>잠정 분기 실적 ×4 환산 실적</Text>
+            <Text style={styles.scenarioSub}>
+              잠정(다음 분기) 분기 영업이익 숫자를 입력하고 조·억·천만·백만 단위를 고르세요. (×4 연율)÷현재 시총으로 POR을 봅니다. 매출·당기순이익은 사용하지 않습니다.
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator style={styles.tableScroll}>
+              <View style={styles.tableInner}>
+                <View style={styles.tableHeaderRow}>
+                  <Text style={[styles.th, styles.thScenarioLabel]}>항목</Text>
+                  {selectedRows.map((s) => (
+                    <Text
+                      key={`prov-h-${s.mockKey}`}
+                      style={[styles.th, styles.thStock, styles.scenarioStockCol]}
+                      numberOfLines={2}
+                    >
+                      {s.label}
+                    </Text>
+                  ))}
+                </View>
+                <View style={styles.tableBodyRow}>
+                  <Text style={[styles.td, styles.thScenarioLabel]}>분기 영업이익</Text>
+                  {selectedRows.map((s) => (
+                    <View key={`prov-op-${s.mockKey}`} style={[styles.thStock, styles.scenarioStockCol]}>
+                      <View style={styles.unitGrid}>
+                        {OP_SCENARIO_UNITS.map((u) => {
+                          const on = (provisionalOpUnitByKey[s.mockKey] ?? 'jo') === u.id;
+                          return (
+                            <TouchableOpacity
+                              key={u.id}
+                              style={[styles.unitChip, on && styles.unitChipOn]}
+                              onPress={() =>
+                                setProvisionalOpUnitByKey((p) => ({ ...p, [s.mockKey]: u.id }))
+                              }
+                              activeOpacity={0.85}
+                            >
+                              <Text style={[styles.unitChipText, on && styles.unitChipTextOn]}>
+                                {u.label}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                      <TextInput
+                        style={styles.scenarioInput}
+                        value={provisionalOpEokByKey[s.mockKey] ?? ''}
+                        onChangeText={(t) =>
+                          setProvisionalOpEokByKey((p) => ({ ...p, [s.mockKey]: t }))
+                        }
+                        placeholder="—"
+                        placeholderTextColor="#546E7A"
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                  ))}
+                </View>
+                <View style={styles.tableBodyRow}>
+                  <Text style={[styles.td, styles.thScenarioLabel]}>POR (×4)</Text>
+                  {selectedRows.map((s) => (
+                    <Text
+                      key={`prov-por-${s.mockKey}`}
+                      style={[styles.td, styles.thStock, styles.scenarioStockCol]}
+                    >
+                      {formatPorFromQuarterlyOpEok(
+                        marketCapWonByKey[s.mockKey] ?? null,
+                        parseScenarioToQuarterlyOpEok(
+                          provisionalOpEokByKey[s.mockKey] ?? '',
+                          provisionalOpUnitByKey[s.mockKey] ?? 'jo'
+                        )
+                      )}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+            </ScrollView>
+            <Text style={styles.tableHint}>
+              시총은 위 요약과 동일(조회 시점). 해외 종목도 숫자·단위만 맞추면 동일하게 환산됩니다.
+            </Text>
+
+            <Text style={styles.sectionTitle}>가이던스 분기 실적 ×4 환산 실적</Text>
+            <Text style={styles.scenarioSub}>
+              가이던스가 나온 분기(예: 차기 분기) 영업이익 숫자와 단위(조·억·천만·백만)를 입력하세요. PER은 계산하지 않고 POR만 표시합니다.
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator style={styles.tableScroll}>
+              <View style={styles.tableInner}>
+                <View style={styles.tableHeaderRow}>
+                  <Text style={[styles.th, styles.thScenarioLabel]}>항목</Text>
+                  {selectedRows.map((s) => (
+                    <Text
+                      key={`guide-h-${s.mockKey}`}
+                      style={[styles.th, styles.thStock, styles.scenarioStockCol]}
+                      numberOfLines={2}
+                    >
+                      {s.label}
+                    </Text>
+                  ))}
+                </View>
+                <View style={styles.tableBodyRow}>
+                  <Text style={[styles.td, styles.thScenarioLabel]}>분기 영업이익</Text>
+                  {selectedRows.map((s) => (
+                    <View key={`guide-op-${s.mockKey}`} style={[styles.thStock, styles.scenarioStockCol]}>
+                      <View style={styles.unitGrid}>
+                        {OP_SCENARIO_UNITS.map((u) => {
+                          const on = (guidanceOpUnitByKey[s.mockKey] ?? 'jo') === u.id;
+                          return (
+                            <TouchableOpacity
+                              key={u.id}
+                              style={[styles.unitChip, on && styles.unitChipOn]}
+                              onPress={() =>
+                                setGuidanceOpUnitByKey((p) => ({ ...p, [s.mockKey]: u.id }))
+                              }
+                              activeOpacity={0.85}
+                            >
+                              <Text style={[styles.unitChipText, on && styles.unitChipTextOn]}>
+                                {u.label}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                      <TextInput
+                        style={styles.scenarioInput}
+                        value={guidanceOpEokByKey[s.mockKey] ?? ''}
+                        onChangeText={(t) =>
+                          setGuidanceOpEokByKey((p) => ({ ...p, [s.mockKey]: t }))
+                        }
+                        placeholder="—"
+                        placeholderTextColor="#546E7A"
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                  ))}
+                </View>
+                <View style={styles.tableBodyRow}>
+                  <Text style={[styles.td, styles.thScenarioLabel]}>POR (×4)</Text>
+                  {selectedRows.map((s) => (
+                    <Text
+                      key={`guide-por-${s.mockKey}`}
+                      style={[styles.td, styles.thStock, styles.scenarioStockCol]}
+                    >
+                      {formatPorFromQuarterlyOpEok(
+                        marketCapWonByKey[s.mockKey] ?? null,
+                        parseScenarioToQuarterlyOpEok(
+                          guidanceOpEokByKey[s.mockKey] ?? '',
+                          guidanceOpUnitByKey[s.mockKey] ?? 'jo'
+                        )
+                      )}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+            </ScrollView>
+            <Text style={styles.tableHint}>잠정과 동일 공식: POR = 현재 시총 ÷ (분기 영업이익 억 × 10⁸ × 4).</Text>
           </>
         )}
       </ScrollView>
@@ -1393,5 +1634,63 @@ const styles = StyleSheet.create({
     color: '#78909C',
     fontSize: 11,
     lineHeight: 16,
+  },
+  scenarioSub: {
+    marginTop: -4,
+    marginBottom: 8,
+    color: '#90A4AE',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  thScenarioLabel: {
+    width: 118,
+    textAlign: 'left',
+    paddingRight: 8,
+  },
+  scenarioStockCol: {
+    width: 120,
+    alignItems: 'stretch',
+  },
+  unitGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  unitChip: {
+    width: '48%',
+    marginBottom: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+  },
+  unitChipOn: {
+    backgroundColor: 'rgba(66, 165, 245, 0.22)',
+    borderColor: 'rgba(66, 165, 245, 0.55)',
+  },
+  unitChipText: {
+    color: '#B0BEC5',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  unitChipTextOn: {
+    color: '#E3F2FD',
+  },
+  scenarioInput: {
+    width: '100%',
+    minHeight: 36,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.35)',
+    color: '#ECEFF1',
+    fontSize: 13,
+    textAlign: 'center',
   },
 });
