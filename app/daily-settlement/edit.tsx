@@ -40,6 +40,10 @@ function formatAmountInput(n: number): string {
   return addCommas(String(n));
 }
 
+/** 안드로이드에서 금액 입력 시 숫자 패드 우선 */
+const AMOUNT_KEYBOARD_TYPE =
+  Platform.OS === 'android' ? ('numeric' as const) : ('numbers-and-punctuation' as const);
+
 /** 입력: 숫자·앞쪽 -·콤마 */
 function handleSignedAmountChange(text: string, setField: (s: string) => void) {
   let cleaned = text.replace(/[^0-9,\-]/g, '');
@@ -59,6 +63,22 @@ function handleSignedAmountChange(text: string, setField: (s: string) => void) {
   }
   const formatted = addCommas(String(n));
   setField(minus ? `-${formatted}` : formatted);
+}
+
+/** 숫자 패드에는 − 가 없음 → ± 로 부호 전환 */
+function toggleAmountSign(current: string, setField: (s: string) => void) {
+  const trimmed = current.trim();
+  if (trimmed === '') {
+    setField('-');
+    return;
+  }
+  if (trimmed === '-') {
+    setField('');
+    return;
+  }
+  const n = parseSignedAmountString(current);
+  const flipped = -n;
+  setField(flipped === 0 ? '' : formatAmountInput(flipped));
 }
 
 export default function DailySettlementEditScreen() {
@@ -314,14 +334,26 @@ export default function DailySettlementEditScreen() {
           {mode === 'summary' ? (
             <>
               <Text style={styles.label}>오늘 손익 (원)</Text>
-              <TextInput
-                style={styles.input}
-                value={summaryText}
-                onChangeText={(t) => handleSignedAmountChange(t, setSummaryText)}
-                keyboardType="numbers-and-punctuation"
-                placeholder="예: -50,000"
-                placeholderTextColor="#666"
-              />
+              <View style={styles.summaryAmtRow}>
+                <TextInput
+                  style={[styles.input, styles.summaryAmtInput]}
+                  value={summaryText}
+                  onChangeText={(t) => handleSignedAmountChange(t, setSummaryText)}
+                  keyboardType={AMOUNT_KEYBOARD_TYPE}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder="예: -50,000"
+                  placeholderTextColor="#666"
+                />
+                <TouchableOpacity
+                  style={styles.signToggleBtn}
+                  onPress={() => toggleAmountSign(summaryText, setSummaryText)}
+                  activeOpacity={0.75}
+                  accessibilityLabel="부호 바꾸기"
+                >
+                  <Text style={styles.signToggleText}>±</Text>
+                </TouchableOpacity>
+              </View>
             </>
           ) : (
             <>
@@ -333,40 +365,68 @@ export default function DailySettlementEditScreen() {
               </View>
               {lines.map((line, idx) => (
                 <View key={idx} style={styles.lineBlock}>
-                  <View style={styles.lineAmtRow}>
-                    <TextInput
-                      style={[styles.input, styles.lineAmtInput]}
-                      value={lineAmountTexts[idx] ?? ''}
-                      onChangeText={(t) => {
-                        handleSignedAmountChange(t, (v) => {
-                          setLineAmountTexts((prev) => {
-                            const next = [...prev];
-                            next[idx] = v;
-                            return next;
-                          });
-                        });
-                      }}
-                      keyboardType="numbers-and-punctuation"
-                      placeholder="금액"
-                      placeholderTextColor="#666"
-                    />
-                    {lines.length > 1 ? (
-                      <TouchableOpacity onPress={() => removeLine(idx)} style={styles.removeLineBtn}>
-                        <Text style={styles.removeLineText}>−</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <View style={styles.removeLinePlaceholder} />
-                    )}
+                  <View style={styles.lineRowOuter}>
+                    <Text style={styles.lineNum}>{idx + 1}</Text>
+                    <View style={styles.lineRightCol}>
+                      <View style={styles.lineAmtRow}>
+                        <TextInput
+                          style={[styles.input, styles.lineAmtInput]}
+                          value={lineAmountTexts[idx] ?? ''}
+                          onChangeText={(t) => {
+                            handleSignedAmountChange(t, (v) => {
+                              setLineAmountTexts((prev) => {
+                                const next = [...prev];
+                                next[idx] = v;
+                                return next;
+                              });
+                            });
+                          }}
+                          keyboardType={AMOUNT_KEYBOARD_TYPE}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          placeholder="금액"
+                          placeholderTextColor="#666"
+                        />
+                        <TouchableOpacity
+                          style={styles.signToggleBtn}
+                          onPress={() =>
+                            toggleAmountSign(lineAmountTexts[idx] ?? '', (v) => {
+                              setLineAmountTexts((prev) => {
+                                const next = [...prev];
+                                next[idx] = v;
+                                return next;
+                              });
+                            })
+                          }
+                          activeOpacity={0.75}
+                          accessibilityLabel="부호 바꾸기"
+                        >
+                          <Text style={styles.signToggleText}>±</Text>
+                        </TouchableOpacity>
+                        {lines.length > 1 ? (
+                          <TouchableOpacity onPress={() => removeLine(idx)} style={styles.removeLineBtn}>
+                            <Text style={styles.removeLineText}>−</Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <View style={styles.removeLinePlaceholder} />
+                        )}
+                      </View>
+                      <TextInput
+                        style={[styles.input, styles.memoInput]}
+                        value={line.memo}
+                        onChangeText={(t) => updateLineMemo(idx, t)}
+                        placeholder="줄 메모"
+                        placeholderTextColor="#666"
+                      />
+                    </View>
                   </View>
-                  <TextInput
-                    style={[styles.input, styles.memoInput]}
-                    value={line.memo}
-                    onChangeText={(t) => updateLineMemo(idx, t)}
-                    placeholder="줄 메모"
-                    placeholderTextColor="#666"
-                  />
                 </View>
               ))}
+              <View style={styles.linesFooter}>
+                <TouchableOpacity onPress={addLine} activeOpacity={0.8}>
+                  <Text style={styles.addLine}>+ 줄 추가</Text>
+                </TouchableOpacity>
+              </View>
             </>
           )}
 
@@ -479,6 +539,30 @@ const styles = StyleSheet.create({
   modeChipTextOn: {
     color: '#FFFFFF',
   },
+  summaryAmtRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  summaryAmtInput: {
+    flex: 1,
+    minWidth: 0,
+  },
+  signToggleBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2a3544',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#3d4d62',
+  },
+  signToggleText: {
+    color: '#90CAF9',
+    fontSize: 18,
+    fontWeight: '700',
+  },
   input: {
     backgroundColor: '#1E1E1E',
     borderRadius: 10,
@@ -499,6 +583,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
   },
+  linesFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 4,
+    paddingBottom: 4,
+  },
   addLine: {
     color: '#42A5F5',
     fontSize: 14,
@@ -506,6 +597,23 @@ const styles = StyleSheet.create({
   },
   lineBlock: {
     marginBottom: 12,
+  },
+  lineRowOuter: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  lineNum: {
+    width: 22,
+    paddingTop: 14,
+    color: '#757575',
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'right',
+  },
+  lineRightCol: {
+    flex: 1,
+    minWidth: 0,
   },
   lineAmtRow: {
     flexDirection: 'row',

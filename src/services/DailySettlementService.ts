@@ -25,6 +25,28 @@ export function computeDayTotal(s: DailySettlement): number {
   }, 0);
 }
 
+/** 영문 등 라틴 문자열은 대소문자 구분 없이 부분 일치 */
+function memoIncludesQuery(text: string, queryTrimmed: string): boolean {
+  return text.toLowerCase().includes(queryTrimmed.toLowerCase());
+}
+
+/** 메모 부분 검색: 빈 문자열이면 전체 합과 동일. 상세는 줄 메모, 요약은 일별 메모만 매칭 */
+function computeFilteredDayTotal(s: DailySettlement, memoQueryTrimmed: string): number {
+  if (!memoQueryTrimmed) return computeDayTotal(s);
+  const q = memoQueryTrimmed;
+  if (s.mode === 'summary') {
+    const dm = s.dailyMemo ?? '';
+    return memoIncludesQuery(dm, q) ? computeDayTotal(s) : 0;
+  }
+  return (s.lines ?? []).reduce((acc, l) => {
+    const memo = l.memo ?? '';
+    if (!memoIncludesQuery(memo, q)) return acc;
+    const raw = l.amount;
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    return acc + (Number.isFinite(n) ? n : 0);
+  }, 0);
+}
+
 export function formatDateKey(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -49,6 +71,22 @@ export function currentYearRange(): { start: string; end: string } {
     start: `${y}-01-01`,
     end: `${y}-12-31`,
   };
+}
+
+/** 오늘 하루 (시작=종료) */
+export function todayDateRange(): { start: string; end: string } {
+  const k = formatDateKey(new Date());
+  return { start: k, end: k };
+}
+
+/** 직전 달력 달 1일~말일 */
+export function lastMonthRange(): { start: string; end: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const start = formatDateKey(new Date(y, m - 1, 1));
+  const end = formatDateKey(new Date(y, m, 0));
+  return { start, end };
 }
 
 async function fetchLines(settlementId: number): Promise<DailySettlementLine[]> {
@@ -187,23 +225,48 @@ async function loadAllInRange(start: string, end: string): Promise<DailySettleme
   return out;
 }
 
+export async function sumForRangeWithMemoFilter(
+  start: string,
+  end: string,
+  memoQuery: string
+): Promise<number> {
+  let a = start;
+  let b = end;
+  if (a > b) [a, b] = [b, a];
+  const items = await loadAllInRange(a, b);
+  const q = memoQuery.trim();
+  return items.reduce((s, x) => s + computeFilteredDayTotal(x, q), 0);
+}
+
 export async function sumForRange(start: string, end: string): Promise<number> {
-  const items = await loadAllInRange(start, end);
-  return items.reduce((s, x) => s + computeDayTotal(x), 0);
+  return sumForRangeWithMemoFilter(start, end, '');
 }
 
 /** 시작~종료 날짜(포함) 목록 — 문자열은 YYYY-MM-DD, 순서 바뀌어도 자동 교정 */
-export async function listForDateRange(start: string, end: string): Promise<DailySettlementListItem[]> {
+export async function listForDateRangeWithMemoFilter(
+  start: string,
+  end: string,
+  memoQuery: string
+): Promise<DailySettlementListItem[]> {
   let a = start;
   let b = end;
   if (a > b) [a, b] = [b, a];
   const full = await loadAllInRange(a, b);
-  return full.map((s) => ({
+  const q = memoQuery.trim();
+  const mapped = full.map((s) => ({
     date: s.date,
-    total: computeDayTotal(s),
+    total: computeFilteredDayTotal(s, q),
     mode: s.mode,
     memoPreview: memoPreviewFrom(s),
   }));
+  if (q) {
+    return mapped.filter((row) => row.total !== 0);
+  }
+  return mapped;
+}
+
+export async function listForDateRange(start: string, end: string): Promise<DailySettlementListItem[]> {
+  return listForDateRangeWithMemoFilter(start, end, '');
 }
 
 export async function sumForPeriod(tab: PeriodTab, filterYear?: number): Promise<number> {

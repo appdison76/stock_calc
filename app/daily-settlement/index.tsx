@@ -10,6 +10,7 @@ import {
   Modal,
   Alert,
   Platform,
+  TextInput,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -24,12 +25,14 @@ import {
   exportDailySettlementBackupJson,
   formatDateKey,
   getYearsWithData,
-  listForDateRange,
+  lastMonthRange,
+  listForDateRangeWithMemoFilter,
   listForPeriod,
   parseDailySettlementBackupJson,
   replaceAllDailySettlementsFromBackup,
   sumForPeriod,
-  sumForRange,
+  sumForRangeWithMemoFilter,
+  todayDateRange,
 } from '../../src/services/DailySettlementService';
 import type { DailySettlementBackupPayload } from '../../src/models/DailySettlement';
 import { addCommas } from '../../src/utils/formatUtils';
@@ -74,6 +77,8 @@ export default function DailySettlementListScreen() {
   const initRangeRef = React.useMemo(() => initialRangeDates(), []);
   const [rangeStart, setRangeStart] = useState(initRangeRef.start);
   const [rangeEnd, setRangeEnd] = useState(initRangeRef.end);
+  /** 기간 탭: 줄 메모·일별 메모 부분 검색(비우면 전체 합계) */
+  const [rangeMemoQuery, setRangeMemoQuery] = useState('');
   const rangePickerTargetRef = useRef<'start' | 'end' | null>(null);
   const [pickerDate, setPickerDate] = useState(() => new Date());
   const [showIosRangePicker, setShowIosRangePicker] = useState(false);
@@ -86,47 +91,50 @@ export default function DailySettlementListScreen() {
   /** 월 키(YYYY-MM)가 Set에 있으면 해당 월 섹션이 접힘 */
   const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set());
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      await initDatabase();
-      const ys = await getYearsWithData();
-      setYears(ys);
+  const load = useCallback(
+    async (opts?: { range?: { start: string; end: string } }) => {
+      setLoading(true);
+      try {
+        await initDatabase();
+        const ys = await getYearsWithData();
+        setYears(ys);
 
-      if (listTab === 'range') {
-        let s = rangeStart;
-        let e = rangeEnd;
-        if (s > e) [s, e] = [e, s];
-        const sum = await sumForRange(s, e);
-        const list = await listForDateRange(s, e);
+        if (listTab === 'range') {
+          let s = opts?.range?.start ?? rangeStart;
+          let e = opts?.range?.end ?? rangeEnd;
+          if (s > e) [s, e] = [e, s];
+          const sum = await sumForRangeWithMemoFilter(s, e, rangeMemoQuery);
+          const list = await listForDateRangeWithMemoFilter(s, e, rangeMemoQuery);
+          setTotal(sum);
+          setItems(list);
+          return;
+        }
+
+        let effectiveYear = filterYear;
+        if (listTab === 'all') {
+          if (ys.length > 0 && !ys.includes(filterYear)) {
+            effectiveYear = ys[0];
+            setFilterYear(effectiveYear);
+          }
+        }
+        const sum = await sumForPeriod(
+          listTab,
+          listTab === 'all' ? effectiveYear : undefined
+        );
+        const list = await listForPeriod(
+          listTab,
+          listTab === 'all' ? effectiveYear : undefined
+        );
         setTotal(sum);
         setItems(list);
-        return;
+      } catch (e) {
+        console.error('일일 정산 목록 로드 오류:', e);
+      } finally {
+        setLoading(false);
       }
-
-      let effectiveYear = filterYear;
-      if (listTab === 'all') {
-        if (ys.length > 0 && !ys.includes(filterYear)) {
-          effectiveYear = ys[0];
-          setFilterYear(effectiveYear);
-        }
-      }
-      const sum = await sumForPeriod(
-        listTab,
-        listTab === 'all' ? effectiveYear : undefined
-      );
-      const list = await listForPeriod(
-        listTab,
-        listTab === 'all' ? effectiveYear : undefined
-      );
-      setTotal(sum);
-      setItems(list);
-    } catch (e) {
-      console.error('일일 정산 목록 로드 오류:', e);
-    } finally {
-      setLoading(false);
-    }
-  }, [listTab, filterYear, rangeStart, rangeEnd]);
+    },
+    [listTab, filterYear, rangeStart, rangeEnd, rangeMemoQuery]
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -358,6 +366,43 @@ export default function DailySettlementListScreen() {
                 <Text style={styles.rangeDateVal}>{rangeEnd}</Text>
               </TouchableOpacity>
             </View>
+            <View style={styles.rangeQuickRow}>
+              <TouchableOpacity
+                style={styles.rangeQuickChip}
+                onPress={() => {
+                  const r = todayDateRange();
+                  setRangeStart(r.start);
+                  setRangeEnd(r.end);
+                  void load({ range: r });
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.rangeQuickChipText}>오늘</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.rangeQuickChip}
+                onPress={() => {
+                  const r = lastMonthRange();
+                  setRangeStart(r.start);
+                  setRangeEnd(r.end);
+                  void load({ range: r });
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.rangeQuickChipText}>지난달</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles.rangeMemoInput}
+              value={rangeMemoQuery}
+              onChangeText={setRangeMemoQuery}
+              placeholder="메모 포함 검색 (상세=줄 메모, 요약=일별 메모)"
+              placeholderTextColor="#666"
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+              onSubmitEditing={() => void load()}
+            />
             <TouchableOpacity style={styles.rangeApplyBtn} onPress={() => void load()} activeOpacity={0.85}>
               <Text style={styles.rangeApplyText}>조회</Text>
             </TouchableOpacity>
@@ -633,8 +678,37 @@ const styles = StyleSheet.create({
   rangeDatesRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
     gap: 8,
+  },
+  rangeQuickRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  rangeQuickChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#252b38',
+    borderWidth: 1,
+    borderColor: '#3d4a5c',
+  },
+  rangeQuickChipText: {
+    color: '#B0BEC5',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  rangeMemoInput: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    color: '#FFFFFF',
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: '#333',
+    marginBottom: 10,
   },
   rangeDateChip: {
     flex: 1,
