@@ -2,10 +2,13 @@
  * 기업 실적 비교 화면 — 기간 유틸·라벨·티커 정규화 (실제 숫자는 DART/Yahoo/네이버 API).
  */
 
-/** `false`로 두면 릴리즈 빌드에서 더보기 메뉴가 숨겨집니다. */
-export const SHOW_FUNDAMENTALS_COMPARE_MENU = __DEV__;
+/** `false`로 두면 더보기·홈 헤더에서 기업 실적 비교 진입이 숨겨집니다. */
+export const SHOW_FUNDAMENTALS_COMPARE_MENU = true;
 
-/** 해외 시총 USD 표시 → KRW 환산용 (환경변수 `EXPO_PUBLIC_USD_KRW_RATE`로 덮어쓰기 가능) */
+/**
+ * 해외 USD 환산 폴백(실적 비교 화면은 Yahoo USDKRW=X 조회를 우선함).
+ * 환경변수 `EXPO_PUBLIC_USD_KRW_RATE`가 있으면 그 역할은 “실시간 조회 실패 시”에 가깝게 쓰임.
+ */
 export const FUNDAMENTALS_USD_KRW_RATE = (() => {
   const n = Number(process.env.EXPO_PUBLIC_USD_KRW_RATE);
   return Number.isFinite(n) && n > 0 ? n : 1380;
@@ -45,7 +48,7 @@ export function fundamentalsMockKey(ticker: string): string {
   return t.toUpperCase();
 }
 
-/** 기간 한 행 (레이블·키만 사용; 셀 값은 DART 그리드에서 조회) */
+/** 기간 한 행 (레이블·키만 사용; 셀 값은 국내 DART / 해외 Yahoo 그리드에서 조회) */
 export interface MockFundamentalsPeriodRow {
   periodKey: string;
   label: string;

@@ -56,6 +56,122 @@ function yahooRequestHeaders(symbol: string): HeadersInit {
   };
 }
 
+/** v10 응답이 `quoteSummary` 또는 `finance` 키로 올 수 있음(에러·레거시). */
+export function extractYahooQuoteSummaryResult0(data: unknown): Record<string, unknown> | undefined {
+  if (data == null || typeof data !== 'object') return undefined;
+  const d = data as {
+    quoteSummary?: { result?: unknown[] };
+    finance?: { result?: unknown[] };
+  };
+  const r0 = d.quoteSummary?.result?.[0] ?? d.finance?.result?.[0];
+  if (r0 != null && typeof r0 === 'object') return r0 as Record<string, unknown>;
+  return undefined;
+}
+
+export const YAHOO_QUERY_HOSTS = ['query1.finance.yahoo.com', 'query2.finance.yahoo.com'] as const;
+
+const YAHOO_CRUMB_TTL_MS = 3 * 60 * 1000;
+
+type YahooCrumbCache = { crumb: string; cookie: string; expiresAt: number };
+let yahooCrumbCache: YahooCrumbCache | null = null;
+
+/** 병렬 getStockQuote 여러 개가 동시에 crumb을 요청할 때 fc.yahoo·getcrumb이 N배로 나가는 것 방지 */
+let yahooCrumbSessionInFlight: Promise<{ crumb: string; cookie: string } | null> | null = null;
+
+export function invalidateYahooCrumbSession(): void {
+  yahooCrumbCache = null;
+  yahooCrumbSessionInFlight = null;
+}
+
+/** fc.yahoo.com 응답에서 Set-Cookie → `Cookie` 헤더 문자열 */
+function cookieHeaderFromPrimeResponse(res: Response): string {
+  const rawHeaders = res.headers as unknown as { getSetCookie?: () => string[] };
+  if (typeof rawHeaders.getSetCookie === 'function') {
+    const parts = rawHeaders.getSetCookie().map((line) => line.split(';')[0]?.trim()).filter(Boolean);
+    return parts.join('; ');
+  }
+  const sc = res.headers.get('set-cookie');
+  if (!sc) return '';
+  return sc
+    .split(/,(?=\s*[A-Za-z0-9_.]+=)/)
+    .map((chunk) => chunk.split(';')[0]?.trim())
+    .filter(Boolean)
+    .join('; ');
+}
+
+/**
+ * quoteSummary 401 방지 — Yahoo 비공식 API가 crumb·세션 쿠키를 요구하는 경우가 많음(RN·모바일).
+ * @see https://query1.finance.yahoo.com/v1/test/getcrumb
+ */
+export async function yahooGetCrumbSession(symbolForReferer: string): Promise<{
+  crumb: string;
+  cookie: string;
+} | null> {
+  if (yahooCrumbCache && Date.now() < yahooCrumbCache.expiresAt) {
+    return { crumb: yahooCrumbCache.crumb, cookie: yahooCrumbCache.cookie };
+  }
+  if (yahooCrumbSessionInFlight) {
+    return yahooCrumbSessionInFlight;
+  }
+
+  yahooCrumbSessionInFlight = (async (): Promise<{ crumb: string; cookie: string } | null> => {
+    try {
+      const prime = await fetch('https://fc.yahoo.com/', {
+        method: 'GET',
+        headers: {
+          'User-Agent': YAHOO_UA,
+          Accept: '*/*',
+          Referer: 'https://finance.yahoo.com/',
+        },
+      });
+      const cookie = cookieHeaderFromPrimeResponse(prime);
+
+      const crumbRes = await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb', {
+        headers: {
+          'User-Agent': YAHOO_UA,
+          Accept: 'text/plain,*/*',
+          Referer: `https://finance.yahoo.com/quote/${encodeURIComponent(symbolForReferer)}/`,
+          ...(cookie ? { Cookie: cookie } : {}),
+        },
+      });
+      if (!crumbRes.ok) {
+        return null;
+      }
+      const crumb = (await crumbRes.text()).trim();
+      if (!crumb || crumb.includes('<') || crumb.toLowerCase().includes('invalid')) {
+        return null;
+      }
+
+      yahooCrumbCache = {
+        crumb,
+        cookie,
+        expiresAt: Date.now() + YAHOO_CRUMB_TTL_MS,
+      };
+      return { crumb, cookie };
+    } catch {
+      return null;
+    } finally {
+      yahooCrumbSessionInFlight = null;
+    }
+  })();
+
+  return yahooCrumbSessionInFlight;
+}
+
+/** `/path?a=1` → crumb 쿼리 추가 */
+export function appendYahooCrumbQuery(pathWithLeadingSlashAndQuery: string, crumb: string | null): string {
+  if (!crumb) return pathWithLeadingSlashAndQuery;
+  if (pathWithLeadingSlashAndQuery.includes('crumb=')) return pathWithLeadingSlashAndQuery;
+  const sep = pathWithLeadingSlashAndQuery.includes('?') ? '&' : '?';
+  return `${pathWithLeadingSlashAndQuery}${sep}crumb=${encodeURIComponent(crumb)}`;
+}
+
+export function yahooRequestHeadersWithCookie(symbol: string, cookie: string | undefined): Record<string, string> {
+  const h = { ...(yahooRequestHeaders(symbol) as Record<string, string>) };
+  if (cookie) h.Cookie = cookie;
+  return h;
+}
+
 /** Metro·adb: `[YAHOO_QUOTE]` — 시총·chart 실패 원인 (필터용) */
 function yahooQuoteTrace(message: string, data?: Record<string, unknown>): void {
   if (data !== undefined) {
@@ -139,31 +255,44 @@ function marketCapFromChartMetaShares(meta: Record<string, unknown>, price: numb
  */
 async function fetchYahooQuoteForNormalizedSymbol(normalizedTicker: string): Promise<StockQuote | null> {
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
-      normalizedTicker
-    )}?interval=1d&range=1d`;
-
-    const response = await fetch(url, { headers: yahooRequestHeaders(normalizedTicker) });
-    if (!response.ok) {
-      yahooQuoteTrace('chart_http_error', {
-        symbol: normalizedTicker,
-        status: response.status,
-        statusText: response.statusText,
-      });
-      return null;
-    }
-
-    const data = await response.json();
-
-    if (!data.chart || !data.chart.result || data.chart.result.length === 0) {
+    type ChartResultRow = { meta?: Record<string, unknown> };
+    let result: ChartResultRow | undefined;
+    let chartJson: { chart?: { result?: unknown[]; error?: unknown } } = {};
+    for (const host of YAHOO_QUERY_HOSTS) {
+      const url = `https://${host}/v8/finance/chart/${encodeURIComponent(
+        normalizedTicker
+      )}?interval=1d&range=1d`;
+      const response = await fetch(url, { headers: yahooRequestHeaders(normalizedTicker) });
+      if (!response.ok) {
+        yahooQuoteTrace('chart_http_error', {
+          symbol: normalizedTicker,
+          host,
+          status: response.status,
+          statusText: response.statusText,
+        });
+        continue;
+      }
+      chartJson = await response.json();
+      if (chartJson.chart?.result && chartJson.chart.result.length > 0) {
+        result = chartJson.chart.result[0] as ChartResultRow;
+        break;
+      }
+      const chErr = chartJson.chart?.error as { description?: string } | undefined;
       yahooQuoteTrace('chart_empty_result', {
         symbol: normalizedTicker,
-        chartError: data?.chart?.error?.description ?? data?.chart?.error,
+        host,
+        chartError: chErr?.description ?? chartJson.chart?.error,
       });
-      return null;
     }
 
-    const result = data.chart.result[0];
+    if (!result) {
+      yahooQuoteTrace('chart_empty_all_hosts', { symbol: normalizedTicker });
+      return null;
+    }
+    if (result.meta == null || typeof result.meta !== 'object') {
+      yahooQuoteTrace('chart_no_price_meta', { symbol: normalizedTicker, hasMeta: false });
+      return null;
+    }
     const meta = result.meta as Record<string, unknown> & {
       regularMarketPrice?: number;
       shortName?: string;
@@ -172,15 +301,20 @@ async function fetchYahooQuoteForNormalizedSymbol(normalizedTicker: string): Pro
       currency?: string;
     };
 
-    if (!meta || meta.regularMarketPrice == null) {
-      yahooQuoteTrace('chart_no_price_meta', { symbol: normalizedTicker, hasMeta: !!meta });
+    const currentPrice =
+      typeof meta.regularMarketPrice === 'number' && Number.isFinite(meta.regularMarketPrice)
+        ? meta.regularMarketPrice
+        : null;
+    if (currentPrice == null) {
+      yahooQuoteTrace('chart_no_price_meta', { symbol: normalizedTicker, hasMeta: true });
       return null;
     }
 
     const previousClose = meta.previousClose || meta.regularMarketPreviousClose || meta.chartPreviousClose;
-    const currentPrice = meta.regularMarketPrice;
-    const change = previousClose ? currentPrice - previousClose : undefined;
-    const changePercent = previousClose ? ((currentPrice - previousClose) / previousClose) * 100 : undefined;
+    const prevN =
+      typeof previousClose === 'number' && Number.isFinite(previousClose) ? previousClose : undefined;
+    const change = prevN != null ? currentPrice - prevN : undefined;
+    const changePercent = prevN != null ? ((currentPrice - prevN) / prevN) * 100 : undefined;
 
     let finalMarketCap =
       readYahooNumericField(meta.marketCap) ??
@@ -204,52 +338,67 @@ async function fetchYahooQuoteForNormalizedSymbol(normalizedTicker: string): Pro
       finalMarketCap == null || !Number.isFinite(finalMarketCap) || finalMarketCap <= 0;
 
     if (needSummary) {
-      const summaryUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(
+      const summaryPathBase = `/v10/finance/quoteSummary/${encodeURIComponent(
         normalizedTicker
       )}?modules=summaryDetail,defaultKeyStatistics,price`;
 
-      for (let attempt = 0; attempt < 2; attempt++) {
+      const runSummaryOnHost = async (host: string, session: { crumb: string; cookie: string } | null) => {
+        const pathQ = appendYahooCrumbQuery(summaryPathBase, session?.crumb ?? null);
+        const summaryUrl = `https://${host}${pathQ}`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const summaryResponse = await fetch(summaryUrl, {
+          headers: yahooRequestHeadersWithCookie(normalizedTicker, session?.cookie),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        return summaryResponse;
+      };
+
+      for (const host of YAHOO_QUERY_HOSTS) {
         if (finalMarketCap != null && Number.isFinite(finalMarketCap) && finalMarketCap > 0) break;
-        const timeoutMs = attempt === 0 ? 7000 : 10000;
+        let session = await yahooGetCrumbSession(normalizedTicker);
         try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-          const summaryResponse = await fetch(summaryUrl, {
-            headers: yahooRequestHeaders(normalizedTicker),
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
+          let summaryResponse = await runSummaryOnHost(host, session);
           summaryHttpStatus = summaryResponse.status;
+
+          if (summaryResponse.status === 401) {
+            invalidateYahooCrumbSession();
+            session = await yahooGetCrumbSession(normalizedTicker);
+            yahooQuoteTrace('summary_401_retry_crumb', { symbol: normalizedTicker, host, retried: true });
+            summaryResponse = await runSummaryOnHost(host, session);
+            summaryHttpStatus = summaryResponse.status;
+          }
 
           if (summaryResponse.ok) {
             const summaryData = await summaryResponse.json();
-            const r0 = summaryData.quoteSummary?.result?.[0] as Record<string, unknown> | undefined;
+            const r0 = extractYahooQuoteSummaryResult0(summaryData);
             if (!r0) {
-              yahooQuoteTrace('summary_empty_result', { symbol: normalizedTicker, attempt });
-            } else {
-              const fromSummary =
-                readYahooNumericField((r0.summaryDetail as { marketCap?: unknown } | undefined)?.marketCap) ??
-                readYahooNumericField(
-                  (r0.defaultKeyStatistics as { marketCap?: unknown } | undefined)?.marketCap
-                );
-              if (fromSummary != null) {
-                finalMarketCap = fromSummary;
-                summaryGotCap = true;
-                break;
-              }
-              const est = marketCapFromSharesAndPrice(r0, currentPrice);
-              if (est != null) {
-                finalMarketCap = est;
-                sharesEstimateUsed = true;
-                break;
-              }
+              yahooQuoteTrace('summary_empty_result', { symbol: normalizedTicker, host });
+              continue;
+            }
+            const fromSummary =
+              readYahooNumericField((r0.summaryDetail as { marketCap?: unknown } | undefined)?.marketCap) ??
+              readYahooNumericField(
+                (r0.defaultKeyStatistics as { marketCap?: unknown } | undefined)?.marketCap
+              );
+            if (fromSummary != null) {
+              finalMarketCap = fromSummary;
+              summaryGotCap = true;
+              break;
+            }
+            const est = marketCapFromSharesAndPrice(r0, currentPrice);
+            if (est != null) {
+              finalMarketCap = est;
+              sharesEstimateUsed = true;
+              break;
             }
           } else {
             yahooQuoteTrace('summary_http_error', {
               symbol: normalizedTicker,
+              host,
               status: summaryResponse.status,
               statusText: summaryResponse.statusText,
-              attempt,
             });
           }
         } catch (e: unknown) {
@@ -257,7 +406,7 @@ async function fetchYahooQuoteForNormalizedSymbol(normalizedTicker: string): Pro
           yahooQuoteTrace('summary_fetch_failed', {
             symbol: normalizedTicker,
             aborted,
-            attempt,
+            host,
             message: e instanceof Error ? e.message : String(e),
           });
         }

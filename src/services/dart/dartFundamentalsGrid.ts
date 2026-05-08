@@ -18,6 +18,8 @@ export type DartCellBundle = {
   netIncomeWon?: number | null;
   /** 해당 기간 영업이익(원) — POR 계산용 */
   operatingIncomeWon?: number | null;
+  /** 해외 Yahoo: 공시 기간 표시(예: 시작 ~ 종료, 또는 ~ 종료) */
+  fsPeriodLabel?: string;
 };
 
 /** periodKey → tickerKey(6자리) → 셀 묶음 */

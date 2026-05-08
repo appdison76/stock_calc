@@ -105,8 +105,8 @@ function buildMoreMenuItems(): MoreMenuItem[] {
     return [...moreMenuItemsBase];
   }
   const items = [...moreMenuItemsBase];
-  const stockChartIdx = items.findIndex((x) => x.route === '/stock-chart');
-  const idx = stockChartIdx >= 0 ? stockChartIdx + 1 : items.length;
+  const dailyIdx = items.findIndex((x) => x.route === '/daily-settlement');
+  const idx = dailyIdx >= 0 ? dailyIdx + 1 : items.length;
   items.splice(idx, 0, fundamentalsCompareMenuItem);
   return items;
 }
