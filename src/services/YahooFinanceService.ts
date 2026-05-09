@@ -807,6 +807,17 @@ export async function searchStocks(query: string, marketFilter: 'all' | 'kr' | '
         if (aIsKorean && !bIsKorean) return -1;
         if (!aIsKorean && bIsKorean) return 1;
       } else if (marketFilter === 'us') {
+        // 검색어·한국 매핑·미국 별칭 티커와 정확히 일치하는 항목 우선(전체 탭과 동일)
+        const aIsExactMatch =
+          a.symbol === trimmedQuery ||
+          a.symbol === koreanStockTicker ||
+          a.symbol === usStockTicker;
+        const bIsExactMatch =
+          b.symbol === trimmedQuery ||
+          b.symbol === koreanStockTicker ||
+          b.symbol === usStockTicker;
+        if (aIsExactMatch && !bIsExactMatch) return -1;
+        if (!aIsExactMatch && bIsExactMatch) return 1;
         const aIsKorean = isKoreanStock(a.symbol);
         const bIsKorean = isKoreanStock(b.symbol);
         if (!aIsKorean && bIsKorean) return -1;
@@ -858,17 +869,14 @@ export async function searchStocks(query: string, marketFilter: 'all' | 'kr' | '
         }
       }
       
-      // 필터에 따른 정렬
+      // 필터에 따른 정렬 (이 블록은 marketFilter가 us가 아닐 때만 실행됨)
       finalResults.sort((a: StockSearchResult, b: StockSearchResult) => {
         const aIsKorean = isKoreanStock(a.symbol);
         const bIsKorean = isKoreanStock(b.symbol);
-        
+
         if (marketFilter === 'kr') {
           if (aIsKorean && !bIsKorean) return -1;
           if (!aIsKorean && bIsKorean) return 1;
-        } else if (marketFilter === 'us') {
-          if (!aIsKorean && bIsKorean) return -1;
-          if (aIsKorean && !bIsKorean) return 1;
         } else {
           // 'all'인 경우 한국 주식 우선
           if (aIsKorean && !bIsKorean) return -1;

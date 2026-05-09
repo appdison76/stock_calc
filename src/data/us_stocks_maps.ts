@@ -17,6 +17,8 @@ export const US_STOCK_MAP: Record<string, string> = {
   'Tesla': 'TSLA',
   '엔비디아': 'NVDA',
   'NVIDIA': 'NVDA',
+  // 대만 TSMC 미국 상장 ADR 티커는 TSM (회사 약어 TSMC 검색용)
+  'TSMC': 'TSM',
   '메타': 'META',
   'Meta': 'META',
   '페이스북': 'META',
