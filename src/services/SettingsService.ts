@@ -23,6 +23,9 @@ const KEY_SHOW_RECOMMENDED_SHORTCUTS = 'show_recommended_shortcuts';
 const KEY_PORTFOLIO_SORT_OPTION = 'portfolio_sort_option';
 const KEY_PORTFOLIO_FILTER_OPTION = 'portfolio_filter_option';
 
+/** 기업 실적 비교 — 종목 열 순서(mockKey 배열 JSON) */
+const KEY_FUNDAMENTALS_COMPARE_COLUMN_ORDER = 'fundamentals_compare_column_order';
+
 // 알림 설정 키
 const KEY_ENABLE_NEWS_NOTIFICATIONS = 'enable_news_notifications';
 const KEY_ENABLE_STOCK_NOTIFICATIONS = 'enable_stock_notifications';
@@ -242,6 +245,28 @@ export class SettingsService {
   /// 종목 목록 필터 옵션 저장하기
   static async setPortfolioFilterOption(value: 'all' | 'krw' | 'usd'): Promise<void> {
     await AsyncStorage.setItem(KEY_PORTFOLIO_FILTER_OPTION, value);
+  }
+
+  /// 기업 실적 비교 종목 열 순서 (저장 없으면 null)
+  static async getFundamentalsCompareColumnOrder(): Promise<string[] | null> {
+    try {
+      const raw = await AsyncStorage.getItem(KEY_FUNDAMENTALS_COMPARE_COLUMN_ORDER);
+      if (raw == null || raw === '') return null;
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return null;
+      const keys = parsed.filter((x): x is string => typeof x === 'string');
+      return keys.length > 0 ? keys : null;
+    } catch {
+      return null;
+    }
+  }
+
+  static async setFundamentalsCompareColumnOrder(keys: string[]): Promise<void> {
+    await AsyncStorage.setItem(KEY_FUNDAMENTALS_COMPARE_COLUMN_ORDER, JSON.stringify(keys));
+  }
+
+  static async clearFundamentalsCompareColumnOrder(): Promise<void> {
+    await AsyncStorage.removeItem(KEY_FUNDAMENTALS_COMPARE_COLUMN_ORDER);
   }
 
   // ===== 세계시간 및 기준금리 표시 설정 =====

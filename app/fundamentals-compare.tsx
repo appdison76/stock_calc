@@ -52,6 +52,8 @@ import {
   type StockQuote,
 } from '../src/services/YahooFinanceService';
 import { buildYahooFundamentalsGridColumn } from '../src/services/yahooFundamentalsGrid';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SettingsService } from '../src/services/SettingsService';
 
 /** Metro·adb logcat에서 `[CAP_PER]`로 필터링 (시총·PER 진단) */
 function capPerTrace(message: string, data?: Record<string, unknown>): void {
@@ -283,6 +285,25 @@ interface DedupedStockRow {
   label: string;
 }
 
+/** 저장된 열 순서가 있으면 그 순으로, 나머지·신규 종목은 뒤에 유지 */
+function applySavedFundamentalsColumnOrder(rows: DedupedStockRow[], saved: string[] | null): DedupedStockRow[] {
+  if (saved == null || saved.length === 0) return rows;
+  const byKey = new Map(rows.map((r) => [r.mockKey, r]));
+  const out: DedupedStockRow[] = [];
+  const used = new Set<string>();
+  for (const k of saved) {
+    const row = byKey.get(k);
+    if (row) {
+      out.push(row);
+      used.add(k);
+    }
+  }
+  for (const r of rows) {
+    if (!used.has(r.mockKey)) out.push(r);
+  }
+  return out;
+}
+
 export default function FundamentalsCompareScreen() {
   const router = useRouter();
   const pathname = usePathname();
@@ -360,8 +381,10 @@ export default function FundamentalsCompareScreen() {
         }
       }
       const list = Array.from(byKey.values());
-      setDeduped(list);
-      setSelectedKeys(new Set(list.map((x) => x.mockKey)));
+      const savedOrder = await SettingsService.getFundamentalsCompareColumnOrder();
+      const ordered = applySavedFundamentalsColumnOrder(list, savedOrder);
+      setDeduped(ordered);
+      setSelectedKeys(new Set(ordered.map((x) => x.mockKey)));
     } catch (e) {
       console.error('[FundamentalsCompare] 포트폴리오 종목 로드 실패:', e);
       setDeduped([]);
@@ -1356,13 +1379,32 @@ export default function FundamentalsCompareScreen() {
     });
   };
 
+  const handleResetFundamentalsColumnOrder = useCallback(async () => {
+    await SettingsService.clearFundamentalsCompareColumnOrder();
+    await loadPortfolioStocks();
+  }, [loadPortfolioStocks]);
+
+  const moveDedupedRow = useCallback((fromIndex: number, toIndex: number) => {
+    setDeduped((prev) => {
+      if (toIndex < 0 || toIndex >= prev.length || fromIndex === toIndex) return prev;
+      const next = [...prev];
+      const [row] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, row);
+      void SettingsService.setFundamentalsCompareColumnOrder(next.map((r) => r.mockKey));
+      return next;
+    });
+  }, []);
+
   return (
-    <View style={styles.root}>
+    <GestureHandlerRootView style={styles.flexOne}>
+      <View style={styles.root}>
       <LinearGradient colors={['#000000', '#121212', '#1A1A1A']} style={StyleSheet.absoluteFill} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+        keyboardShouldPersistTaps="handled"
       >
         <View style={[styles.banner, { marginTop: insets.top + 8 }]}>
           <Text style={styles.bannerTitle}>실적·시총 조회</Text>
@@ -1395,9 +1437,18 @@ export default function FundamentalsCompareScreen() {
           <Text style={[styles.sectionTitle, styles.sectionTitleInline]}>
             비교 종목 (전 포트폴리오 합집합 · 중복 제거)
           </Text>
-          <TouchableOpacity style={styles.addStockBtn} onPress={handleAddStock} activeOpacity={0.85}>
-            <Text style={styles.addStockBtnText}>+ 종목 추가</Text>
-          </TouchableOpacity>
+          <View style={styles.sectionHeaderActions}>
+            <TouchableOpacity
+              style={styles.resetOrderBtn}
+              onPress={() => void handleResetFundamentalsColumnOrder()}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.resetOrderBtnText}>순서 초기화</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.addStockBtn} onPress={handleAddStock} activeOpacity={0.85}>
+              <Text style={styles.addStockBtnText}>+ 종목 추가</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         {loading ? (
           <View style={styles.loadingBox}>
@@ -1413,30 +1464,62 @@ export default function FundamentalsCompareScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.checkList}>
-            {deduped.map((row) => {
-              const on = selectedKeys.has(row.mockKey);
-              return (
-                <Pressable
-                  key={row.mockKey}
-                  style={({ pressed }) => [styles.checkRow, pressed && { opacity: 0.85 }]}
-                  onPress={() => toggleKey(row.mockKey)}
-                >
-                  <View style={[styles.checkbox, on && styles.checkboxOn]}>
-                    {on ? <Text style={styles.checkMark}>✓</Text> : null}
+          <>
+            <Text style={styles.compareOrderHint}>
+              왼쪽 체크로 표에 포함할 종목을 고르고, 오른쪽 ↑↓으로 순서를 바꿉니다. 순서는 저장됩니다.
+            </Text>
+            <View style={styles.checkList}>
+              {deduped.map((item, index) => {
+                const on = selectedKeys.has(item.mockKey);
+                return (
+                  <View key={item.mockKey} style={styles.checkRow}>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.checkRowMain,
+                        pressed && { opacity: 0.88 },
+                      ]}
+                      onPress={() => toggleKey(item.mockKey)}
+                    >
+                      <View style={[styles.checkbox, on && styles.checkboxOn]}>
+                        {on ? <Text style={styles.checkMark}>✓</Text> : null}
+                      </View>
+                      <View style={styles.checkTextCol}>
+                        <Text style={styles.checkLabel} numberOfLines={1}>
+                          {item.label}
+                        </Text>
+                        <Text style={styles.checkTicker} numberOfLines={1}>
+                          {item.displayTicker}
+                        </Text>
+                      </View>
+                    </Pressable>
+                    <View style={styles.reorderStepper}>
+                      <TouchableOpacity
+                        style={[styles.reorderStepBtn, index === 0 && styles.reorderStepBtnDisabled]}
+                        onPress={() => moveDedupedRow(index, index - 1)}
+                        disabled={index === 0}
+                        accessibilityLabel="한 칸 위로"
+                        activeOpacity={0.75}
+                      >
+                        <Text style={styles.reorderStepBtnText}>↑</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.reorderStepBtn,
+                          index >= deduped.length - 1 && styles.reorderStepBtnDisabled,
+                        ]}
+                        onPress={() => moveDedupedRow(index, index + 1)}
+                        disabled={index >= deduped.length - 1}
+                        accessibilityLabel="한 칸 아래로"
+                        activeOpacity={0.75}
+                      >
+                        <Text style={styles.reorderStepBtnText}>↓</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <View style={styles.checkTextCol}>
-                    <Text style={styles.checkLabel} numberOfLines={1}>
-                      {row.label}
-                    </Text>
-                    <Text style={styles.checkTicker} numberOfLines={1}>
-                      {row.displayTicker}
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
+                );
+              })}
+            </View>
+          </>
         )}
 
         {!dartApiKeyPresent ? (
@@ -1801,10 +1884,14 @@ export default function FundamentalsCompareScreen() {
         )}
       </ScrollView>
     </View>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
+  flexOne: {
+    flex: 1,
+  },
   root: {
     flex: 1,
     backgroundColor: '#121212',
@@ -1947,6 +2034,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 10,
   },
+  sectionHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  resetOrderBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  resetOrderBtnText: {
+    color: '#B0BEC5',
+    fontWeight: '600',
+    fontSize: 12,
+  },
   sectionTitleInline: {
     flex: 1,
     marginTop: 0,
@@ -2076,6 +2182,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
   },
+  compareOrderHint: {
+    color: '#78909C',
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
   checkList: {
     borderRadius: 12,
     overflow: 'hidden',
@@ -2085,9 +2197,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 12,
+    paddingLeft: 12,
+    paddingRight: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  checkRowMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+  },
+  reorderStepper: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingRight: 6,
+    gap: 6,
+  },
+  reorderStepBtn: {
+    minWidth: 40,
+    minHeight: 32,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  reorderStepBtnDisabled: {
+    opacity: 0.35,
+  },
+  reorderStepBtnText: {
+    color: '#90CAF9',
+    fontSize: 16,
+    fontWeight: '700',
   },
   checkbox: {
     width: 22,
