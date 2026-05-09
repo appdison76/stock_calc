@@ -22,6 +22,7 @@ import {
 import type { DailySettlementLine, DailySettlementMode } from '../../src/models/DailySettlement';
 import { addCommas } from '../../src/utils/formatUtils';
 import { initDatabase } from '../../src/services/DatabaseService';
+import { AdmobNativeAd } from '../../src/components/AdmobNativeAd';
 
 function parseDateKey(key: string): Date {
   const [y, m, d] = key.split('-').map((x) => parseInt(x, 10));
@@ -261,8 +262,6 @@ export default function DailySettlementEditScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.hint}>금액·메모·일별 요약</Text>
-
           <Text style={styles.label}>날짜</Text>
           <TouchableOpacity style={styles.dateBtn} onPress={openDatePicker} activeOpacity={0.8}>
             <Text style={styles.dateBtnText}>{dateKey}</Text>
@@ -447,6 +446,8 @@ export default function DailySettlementEditScreen() {
           <TouchableOpacity style={styles.deleteBtn} onPress={confirmDelete} activeOpacity={0.85}>
             <Text style={styles.deleteBtnText}>이 날짜 삭제</Text>
           </TouchableOpacity>
+
+          <AdmobNativeAd style={styles.nativeAdBottom} />
         </ScrollView>
       </KeyboardAvoidingView>
     </>
@@ -456,11 +457,9 @@ export default function DailySettlementEditScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: '#121212' },
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 48 },
-  hint: {
-    color: '#9E9E9E',
-    fontSize: 13,
-    marginBottom: 16,
+  scrollContent: { padding: 16, paddingBottom: 32 },
+  nativeAdBottom: {
+    marginTop: 20,
   },
   label: {
     color: '#BDBDBD',

@@ -39,6 +39,7 @@ import {
 } from '../../src/services/DailySettlementService';
 import type { DailySettlementBackupPayload } from '../../src/models/DailySettlement';
 import { addCommas } from '../../src/utils/formatUtils';
+import { AdmobNativeAd } from '../../src/components/AdmobNativeAd';
 
 function formatSignedKrw(n: number): string {
   const abs = addCommas(Math.abs(Math.round(n)).toString());
@@ -321,8 +322,6 @@ export default function DailySettlementListScreen() {
         }}
       />
       <View style={[styles.root, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <Text style={styles.subtitle}>금액·메모·일별 요약</Text>
-
         <View style={styles.tabBarRow}>
           <View style={styles.tabChipsWrap}>
             {LIST_TABS.map(({ key: t, label }) => {
@@ -481,6 +480,7 @@ export default function DailySettlementListScreen() {
                 </TouchableOpacity>
               ))
             )}
+            <AdmobNativeAd style={styles.nativeAdBottom} />
           </ScrollView>
         ) : (
           <ScrollView style={styles.listScroll} contentContainerStyle={styles.listContent}>
@@ -536,6 +536,7 @@ export default function DailySettlementListScreen() {
                 );
               })
             )}
+            <AdmobNativeAd style={styles.nativeAdBottom} />
           </ScrollView>
         )}
 
@@ -619,11 +620,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#121212',
     paddingHorizontal: 16,
     paddingTop: 8,
-  },
-  subtitle: {
-    color: '#9E9E9E',
-    fontSize: 13,
-    marginBottom: 12,
   },
   headerBtn: {
     marginRight: 8,
@@ -856,6 +852,9 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 32,
+  },
+  nativeAdBottom: {
+    marginTop: 8,
   },
   empty: {
     color: '#757575',
