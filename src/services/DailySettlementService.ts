@@ -79,6 +79,14 @@ export function todayDateRange(): { start: string; end: string } {
   return { start: k, end: k };
 }
 
+/** 어제 하루 (시작=종료) */
+export function yesterdayDateRange(): { start: string; end: string } {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  const k = formatDateKey(d);
+  return { start: k, end: k };
+}
+
 /** 직전 달력 달 1일~말일 */
 export function lastMonthRange(): { start: string; end: string } {
   const now = new Date();

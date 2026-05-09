@@ -22,6 +22,8 @@ import { initDatabase } from '../../src/services/DatabaseService';
 import type { DailySettlementListTab } from '../../src/models/DailySettlement';
 import type { DailySettlementListItem } from '../../src/models/DailySettlement';
 import {
+  currentMonthRange,
+  currentYearRange,
   exportDailySettlementBackupJson,
   formatDateKey,
   getYearsWithData,
@@ -33,6 +35,7 @@ import {
   sumForPeriod,
   sumForRangeWithMemoFilter,
   todayDateRange,
+  yesterdayDateRange,
 } from '../../src/services/DailySettlementService';
 import type { DailySettlementBackupPayload } from '../../src/models/DailySettlement';
 import { addCommas } from '../../src/utils/formatUtils';
@@ -367,30 +370,29 @@ export default function DailySettlementListScreen() {
               </TouchableOpacity>
             </View>
             <View style={styles.rangeQuickRow}>
-              <TouchableOpacity
-                style={styles.rangeQuickChip}
-                onPress={() => {
-                  const r = todayDateRange();
-                  setRangeStart(r.start);
-                  setRangeEnd(r.end);
-                  void load({ range: r });
-                }}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.rangeQuickChipText}>오늘</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.rangeQuickChip}
-                onPress={() => {
-                  const r = lastMonthRange();
-                  setRangeStart(r.start);
-                  setRangeEnd(r.end);
-                  void load({ range: r });
-                }}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.rangeQuickChipText}>지난달</Text>
-              </TouchableOpacity>
+              {(
+                [
+                  { label: '오늘', r: todayDateRange },
+                  { label: '어제', r: yesterdayDateRange },
+                  { label: '이번 달', r: currentMonthRange },
+                  { label: '지난 달', r: lastMonthRange },
+                  { label: '올해', r: currentYearRange },
+                ] as const
+              ).map(({ label, r }) => (
+                <TouchableOpacity
+                  key={label}
+                  style={styles.rangeQuickChip}
+                  onPress={() => {
+                    const range = r();
+                    setRangeStart(range.start);
+                    setRangeEnd(range.end);
+                    void load({ range });
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.rangeQuickChipText}>{label}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
             <TextInput
               style={styles.rangeMemoInput}
@@ -683,6 +685,7 @@ const styles = StyleSheet.create({
   },
   rangeQuickRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginBottom: 10,
   },
