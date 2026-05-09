@@ -25,6 +25,7 @@ import { CalculationResultCard } from '../src/components/CalculationResultCard';
 import { SharedResultSection } from '../src/components/SharedResultSection';
 import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
 import { formatCurrency, formatNumber, getKrwEquivalent, addCommas } from '../src/utils/formatUtils';
+import { toggleProfitCalculatorPercentSign } from '../src/utils/percentSignToggle';
 import { Share } from 'react-native';
 
 export default function ProfitCalculatorView() {
@@ -591,18 +592,32 @@ export default function ProfitCalculatorView() {
               수익률: {profitRate}%
               </Text>
             )}
-          <TextInput
-            style={styles.input}
-            placeholder="수익률 (%)"
-            placeholderTextColor="#757575"
-            value={profitRate}
-            onChangeText={(text) => handleProfitRateInputChange(text, setProfitRate)}
-            keyboardType={Platform.select({
-              ios: 'numbers-and-punctuation',
-              android: 'decimal-pad',
-              default: 'decimal-pad',
-            })}
-          />
+          <View style={styles.percentRow}>
+            <TextInput
+              style={[styles.input, styles.percentInput]}
+              placeholder="수익률 (%)"
+              placeholderTextColor="#757575"
+              value={profitRate}
+              onChangeText={(text) => handleProfitRateInputChange(text, setProfitRate)}
+              keyboardType={Platform.select({
+                ios: 'numbers-and-punctuation',
+                android: 'decimal-pad',
+                default: 'decimal-pad',
+              })}
+            />
+            <TouchableOpacity
+              style={styles.signToggleBtn}
+              onPress={() =>
+                toggleProfitCalculatorPercentSign(profitRate, (next) => {
+                  void handleProfitRateInputChange(next, setProfitRate);
+                })
+              }
+              activeOpacity={0.75}
+              accessibilityLabel="부호 바꾸기"
+            >
+              <Text style={styles.signToggleText}>±</Text>
+            </TouchableOpacity>
+          </View>
 
           <TextInput
             style={styles.input}
@@ -759,6 +774,32 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 17,
     marginBottom: 16,
+  },
+  percentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  percentInput: {
+    flex: 1,
+    minWidth: 0,
+    marginBottom: 0,
+  },
+  signToggleBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(42, 53, 68, 0.95)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.35)',
+  },
+  signToggleText: {
+    color: '#90CAF9',
+    fontSize: 18,
+    fontWeight: '700',
   },
   helperText: {
     fontSize: 12,

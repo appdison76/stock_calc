@@ -24,6 +24,7 @@ import { CalculationResultCard } from '../src/components/CalculationResultCard';
 import { SharedResultSection } from '../src/components/SharedResultSection';
 import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
 import { formatCurrency, formatNumber, getKrwEquivalent, addCommas } from '../src/utils/formatUtils';
+import { togglePlainPercentSign } from '../src/utils/percentSignToggle';
 import { Share } from 'react-native';
 
 interface TargetPriceCalculation {
@@ -376,14 +377,28 @@ export default function TargetPriceCalculatorView() {
               </Text>
             )}
 
-          <TextInput
-            style={styles.input}
-            placeholder="목표 수익률 (%)"
-            placeholderTextColor="#757575"
-            value={targetProfitRate}
-            onChangeText={(text) => handleProfitRateInputChange(text, setTargetProfitRate)}
-            keyboardType="numeric"
-          />
+          <View style={styles.percentRow}>
+            <TextInput
+              style={[styles.input, styles.percentInput]}
+              placeholder="목표 수익률 (%)"
+              placeholderTextColor="#757575"
+              value={targetProfitRate}
+              onChangeText={(text) => handleProfitRateInputChange(text, setTargetProfitRate)}
+              keyboardType="numeric"
+            />
+            <TouchableOpacity
+              style={styles.signToggleBtn}
+              onPress={() =>
+                togglePlainPercentSign(targetProfitRate, (next) =>
+                  handleProfitRateInputChange(next, setTargetProfitRate)
+                )
+              }
+              activeOpacity={0.75}
+              accessibilityLabel="부호 바꾸기"
+            >
+              <Text style={styles.signToggleText}>±</Text>
+            </TouchableOpacity>
+          </View>
           <Text style={styles.helperText}>예: 10 (10% 수익률), -5 (-5% 손실률)</Text>
 
           <TextInput
@@ -569,6 +584,32 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 17,
     marginBottom: 16,
+  },
+  percentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  percentInput: {
+    flex: 1,
+    minWidth: 0,
+    marginBottom: 0,
+  },
+  signToggleBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(42, 53, 68, 0.95)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.35)',
+  },
+  signToggleText: {
+    color: '#90CAF9',
+    fontSize: 18,
+    fontWeight: '700',
   },
   helperText: {
     fontSize: 12,
