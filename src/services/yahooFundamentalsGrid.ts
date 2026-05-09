@@ -1,6 +1,6 @@
 /**
- * 해외(미국 등) 종목 실적 — Yahoo quoteSummary `incomeStatementHistory*` 모듈.
- * 금액은 USD 기준으로 받아 원화 환산 후 DART 그리드와 동일한 DartCellBundle 형태로 맞춥니다.
+ * 해외 종목 실적 — Yahoo quoteSummary `incomeStatementHistory*` 모듈.
+ * 금액은 Yahoo `financialCurrency`(예: USD, TWD) 단위로 오며, 1 단위당 원화 비율을 구해 DART 그리드와 동일한 DartCellBundle로 맞춥니다.
  *
  * 분기 키(`YYYYQx`): 손익 `endDate` **UTC 달력 분기** — 1~3월→YQ1, 4~6→YQ2, 7~9→YQ3, 10~12→YQ4.
  * (미국 회사 회계 분기·FY 명칭과 숫자가 다를 수 있음.)
@@ -10,6 +10,7 @@ import { formatWonShortKr } from './dart/dartFormatKr';
 import {
   appendYahooCrumbQuery,
   extractYahooQuoteSummaryResult0,
+  getStockQuote,
   invalidateYahooCrumbSession,
   YAHOO_QUERY_HOSTS,
   yahooGetCrumbSession,
@@ -279,18 +280,194 @@ function extractUsdLine(row: Record<string, unknown>): {
   };
 }
 
-function bundleFromUsd(
-  revenueUsd: number | null,
-  operatingUsd: number | null,
-  netUsd: number | null,
-  usdKrwRate: number,
+/** 연결 재무제표가 표시하는 통화(ADR라도 본사 결산 통화가 TWD 등일 수 있음) */
+function extractStatementReportingCurrency(r0: Record<string, unknown> | undefined): string {
+  if (r0 == null) return 'USD';
+  const dks = r0.defaultKeyStatistics as Record<string, unknown> | undefined;
+  const sd = r0.summaryDetail as Record<string, unknown> | undefined;
+  const raw =
+    (typeof dks?.financialCurrency === 'string' && dks.financialCurrency.trim()) ||
+    (typeof sd?.financialCurrency === 'string' && sd.financialCurrency.trim()) ||
+    '';
+  return raw ? raw.toUpperCase() : 'USD';
+}
+
+/** Yahoo가 ADR에 USD만 적어줘도 실제 손익은 본사 통화인 경우 (손익 환산용). 티커 베이스(예: TSM, ASML) */
+const STATEMENT_CURRENCY_OVERRIDE: Record<string, string> = {
+  /** TSMC ADR: 손익은 대개 TWD 연결 기준 */
+  TSM: 'TWD',
+};
+
+function statementCurrencyBaseTicker(yahooSymbol: string): string {
+  const u = yahooSymbol.trim().toUpperCase();
+  const dot = u.indexOf('.');
+  return dot >= 0 ? u.slice(0, dot) : u;
+}
+
+/** API financialCurrency + 알려진 ADR 예외 */
+function resolveStatementCurrencyFromQuote(yahooSymbol: string, r0: Record<string, unknown> | undefined): string {
+  const fromApi = extractStatementReportingCurrency(r0);
+  const base = statementCurrencyBaseTicker(yahooSymbol);
+  const forced = STATEMENT_CURRENCY_OVERRIDE[base];
+  if (forced != null && forced !== '') {
+    if (forced !== fromApi.toUpperCase()) {
+      yahooFsTrace('stmt_currency_override', { yahooSymbol, fromApi, forced });
+    }
+    return forced.toUpperCase();
+  }
+  return fromApi;
+}
+
+async function tryFxPrice(
+  pairSymbol: string,
+  minPrice: number,
+  maxPrice: number
+): Promise<number | undefined> {
+  try {
+    const q = await getStockQuote(pairSymbol);
+    if (
+      q != null &&
+      Number.isFinite(q.price) &&
+      q.price > minPrice &&
+      q.price < maxPrice
+    ) {
+      return q.price;
+    }
+  } catch {
+    /* ignore */
+  }
+  return undefined;
+}
+
+/**
+ * 손익 `raw` 숫자 1 단위당 원화.
+ * - 우선 `통화코드KRW=X` 직접 환율
+ * - 없으면 통화별 USD 브리지(EURUSD·USDJPY·USDTWD 등)
+ */
+async function resolveKrwPerStatementUnit(stmtCurrency: string, usdKrwRate: number): Promise<number> {
+  const c = stmtCurrency.trim().toUpperCase();
+  if (c === 'USD' || c === 'US$') return usdKrwRate;
+
+  const direct = await tryFxPrice(`${c}KRW=X`, 1e-8, 1e8);
+  if (direct != null) {
+    yahooFsTrace('stmt_fx', { pair: `${c}KRW=X`, krwPerStmtUnit: direct });
+    return direct;
+  }
+
+  /** TWD: TWDKRW 실패 시 USDTWD (TWD/USD) */
+  if (c === 'TWD') {
+    const usdTwd = await tryFxPrice('USDTWD=X', 1, 1000);
+    if (usdTwd != null) {
+      const krwPerTwd = usdKrwRate / usdTwd;
+      yahooFsTrace('stmt_fx', {
+        pair: 'USDTWD=X',
+        twdPerUsd: usdTwd,
+        krwPerTwd,
+      });
+      return krwPerTwd;
+    }
+    yahooFsTrace('stmt_fx_twd_fallback', { stmtCurrency: c });
+    return usdKrwRate / 32;
+  }
+
+  /** EUR·GBP·AUD·NZD: EURUSD 등 = USD per 1 단위 → × USDKRW */
+  const usdPerUnitMap: Record<string, string> = {
+    EUR: 'EURUSD=X',
+    GBP: 'GBPUSD=X',
+    AUD: 'AUDUSD=X',
+    NZD: 'NZDUSD=X',
+  };
+  const usdPair = usdPerUnitMap[c];
+  if (usdPair != null) {
+    const usdPerUnit = await tryFxPrice(usdPair, 1e-4, 1e4);
+    if (usdPerUnit != null) {
+      const k = usdPerUnit * usdKrwRate;
+      yahooFsTrace('stmt_fx', { pair: usdPair, bridge: 'usdPerUnit_x_usdkrw', krwPerStmtUnit: k });
+      return k;
+    }
+  }
+
+  /** JPY: USDJPY = 엔/USD → 원/엔 = USDKRW / USDJPY */
+  if (c === 'JPY') {
+    const usdjpy = await tryFxPrice('USDJPY=X', 50, 400);
+    if (usdjpy != null) {
+      const k = usdKrwRate / usdjpy;
+      yahooFsTrace('stmt_fx', { pair: 'USDJPY=X', bridge: 'inverse_jpy', krwPerStmtUnit: k });
+      return k;
+    }
+  }
+
+  /** CAD: USDCAD = CAD/USD → 원/CAD = USDKRW / USDCAD */
+  if (c === 'CAD') {
+    const usdcad = await tryFxPrice('USDCAD=X', 0.5, 4);
+    if (usdcad != null) {
+      const k = usdKrwRate / usdcad;
+      yahooFsTrace('stmt_fx', { pair: 'USDCAD=X', krwPerStmtUnit: k });
+      return k;
+    }
+  }
+
+  /** CNY·CNH: 미국 달러당 위안 → 원/위안 */
+  if (c === 'CNY' || c === 'CNH') {
+    const pair = c === 'CNH' ? 'USDCNH=X' : 'USDCNY=X';
+    const usdCny = await tryFxPrice(pair, 4, 15);
+    if (usdCny != null) {
+      const k = usdKrwRate / usdCny;
+      yahooFsTrace('stmt_fx', { pair, krwPerStmtUnit: k });
+      return k;
+    }
+  }
+
+  /** HKD, SGD, INR: USD당 해당통화 */
+  const usdPerLocalMap: Record<string, string> = {
+    HKD: 'USDHKD=X',
+    SGD: 'USDSGD=X',
+    INR: 'USDINR=X',
+    MXN: 'USDMXN=X',
+    BRL: 'USDBRL=X',
+    SEK: 'USDSEK=X',
+    NOK: 'USDNOK=X',
+    DKK: 'USDDKK=X',
+    PLN: 'USDPLN=X',
+    TRY: 'USDTRY=X',
+    ZAR: 'USDZAR=X',
+  };
+  const ul = usdPerLocalMap[c];
+  if (ul != null) {
+    const rate = await tryFxPrice(ul, 1e-4, 1e6);
+    if (rate != null) {
+      const k = usdKrwRate / rate;
+      yahooFsTrace('stmt_fx', { pair: ul, krwPerStmtUnit: k });
+      return k;
+    }
+  }
+
+  /** CHF: USDCHF = CHF/USD 구간이 많음 → 원/CHF = USDKRW / USDCHF */
+  if (c === 'CHF') {
+    const usdchf = await tryFxPrice('USDCHF=X', 0.3, 5);
+    if (usdchf != null) {
+      const k = usdKrwRate / usdchf;
+      yahooFsTrace('stmt_fx', { pair: 'USDCHF=X', krwPerStmtUnit: k });
+      return k;
+    }
+  }
+
+  yahooFsTrace('stmt_fx_unknown_currency', { stmtCurrency: c });
+  return usdKrwRate;
+}
+
+function bundleFromStatementCurrency(
+  revenueStmt: number | null,
+  operatingStmt: number | null,
+  netStmt: number | null,
+  krwPerStmtUnit: number,
   fsPeriodLabel?: string | null
 ): DartCellBundle {
-  const toWon = (usd: number | null) =>
-    usd != null && Number.isFinite(usd) ? usd * usdKrwRate : null;
-  const revWon = toWon(revenueUsd);
-  const opWon = toWon(operatingUsd);
-  const netWon = toWon(netUsd);
+  const toWon = (raw: number | null) =>
+    raw != null && Number.isFinite(raw) ? raw * krwPerStmtUnit : null;
+  const revWon = toWon(revenueStmt);
+  const opWon = toWon(operatingStmt);
+  const netWon = toWon(netStmt);
 
   return {
     revenueKr: revWon != null ? formatWonShortKr(revWon) : '—',
@@ -468,19 +645,19 @@ async function fetchYahooFundamentalsTimeseriesMaps(symbol: string): Promise<Yah
 function mergeFundamentalsTimeseriesIntoParsed(
   parsed: ParsedMaps,
   ts: YahooFundamentalsTimeseriesPayload,
-  usdKrwRate: number,
+  krwPerStmtUnit: number,
   logSymbol?: string
 ): void {
-  const mergeOp = (b: DartCellBundle, opUsd: number): DartCellBundle => {
-    const opWon = opUsd * usdKrwRate;
+  const mergeOp = (b: DartCellBundle, opStmt: number): DartCellBundle => {
+    const opWon = opStmt * krwPerStmtUnit;
     return {
       ...b,
       operatingIncomeKr: formatWonShortKr(opWon),
       operatingIncomeWon: opWon,
     };
   };
-  const mergeRev = (b: DartCellBundle, revUsd: number): DartCellBundle => {
-    const revWon = revUsd * usdKrwRate;
+  const mergeRev = (b: DartCellBundle, revStmt: number): DartCellBundle => {
+    const revWon = revStmt * krwPerStmtUnit;
     return {
       ...b,
       revenueKr: formatWonShortKr(revWon),
@@ -508,7 +685,7 @@ function mergeFundamentalsTimeseriesIntoParsed(
     /** quoteSummary에 해당 분기 행이 없어도 시계열이 있으면 채움 — 분기 모드에서 해외 종목 첫 표가 비는 주 원인 */
     for (const [pk, v] of best) {
       const existing = parsed.quarterlyByPeriod.get(pk);
-      const base = existing ?? bundleFromUsd(null, null, null, usdKrwRate);
+      const base = existing ?? bundleFromStatementCurrency(null, null, null, krwPerStmtUnit);
       const picked = pick(base, v.raw);
       const tsLabel = `~ ${v.asOfDate}`;
       parsed.quarterlyByPeriod.set(pk, {
@@ -570,7 +747,7 @@ function mergeFundamentalsTimeseriesIntoParsed(
 
 function parseIncomeHistoryModules(
   r0: Record<string, unknown> | undefined,
-  usdKrwRate: number,
+  krwPerStmtUnit: number,
   logSymbol?: string
 ): ParsedMaps {
   const annualByYear = new Map<string, DartCellBundle>();
@@ -592,7 +769,13 @@ function parseIncomeHistoryModules(
     const yearKey = annualYearKeyFromIncomeStatementRow(row);
     if (yearKey == null || yearKey === '') continue;
     const { revenue, operating, net } = extractUsdLine(row);
-    const bundle = bundleFromUsd(revenue, operating, net, usdKrwRate, fsPeriodLabelFromIncomeRow(row));
+    const bundle = bundleFromStatementCurrency(
+      revenue,
+      operating,
+      net,
+      krwPerStmtUnit,
+      fsPeriodLabelFromIncomeRow(row)
+    );
     const prev = annualBest.get(yearKey);
     if (!prev || sec >= prev.sec) {
       annualBest.set(yearKey, { sec, bundle, revenueUsd: revenue });
@@ -623,7 +806,13 @@ function parseIncomeHistoryModules(
     if (sec == null) continue;
     const quarterKey = yahooQuarterPeriodKeyFromEndDateUnix(sec);
     const { revenue, operating, net } = extractUsdLine(row);
-    const bundle = bundleFromUsd(revenue, operating, net, usdKrwRate, fsPeriodLabelFromIncomeRow(row));
+    const bundle = bundleFromStatementCurrency(
+      revenue,
+      operating,
+      net,
+      krwPerStmtUnit,
+      fsPeriodLabelFromIncomeRow(row)
+    );
     const endDateFmt = endDateFmtForLog(row.endDate);
     const prev = quarterBest.get(quarterKey);
     if (!prev || sec >= prev.sec) {
@@ -637,7 +826,7 @@ function parseIncomeHistoryModules(
       symbol: logSymbol,
       annualRowsFromApi: annualRows.length,
       quarterlyRowsFromApi: qRows.length,
-      usdKrwRate,
+      krwPerStmtUnit,
     });
     const annualSummary = [...annualBest.entries()]
       .sort(([a], [b]) => b.localeCompare(a))
@@ -728,9 +917,17 @@ export async function fetchYahooIncomeStatementModules(
         }
         yahooFsTrace('fetch_ok', { symbol: normalizedSymbol, host, status: res.status });
         const capMeta = extractQuoteSummaryCapMeta(r0);
-        const parsed = parseIncomeHistoryModules(r0, usdKrwRate, normalizedSymbol);
+        const stmtCurrency = resolveStatementCurrencyFromQuote(normalizedSymbol, r0);
+        const krwPerStmt = await resolveKrwPerStatementUnit(stmtCurrency, usdKrwRate);
+        yahooFsTrace('fetch_stmt_currency', {
+          symbol: normalizedSymbol,
+          stmtCurrency,
+          krwPerStmt,
+          usdKrwForRef: usdKrwRate,
+        });
+        const parsed = parseIncomeHistoryModules(r0, krwPerStmt, normalizedSymbol);
         const tsMaps = await tsPromise;
-        mergeFundamentalsTimeseriesIntoParsed(parsed, tsMaps, usdKrwRate, normalizedSymbol);
+        mergeFundamentalsTimeseriesIntoParsed(parsed, tsMaps, krwPerStmt, normalizedSymbol);
         return {
           parsed,
           marketCap: capMeta.marketCap,
