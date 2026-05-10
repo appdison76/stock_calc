@@ -70,6 +70,19 @@ function readYahooNumericField(v: unknown): number | undefined {
   return undefined;
 }
 
+/** 손익 행에서 숫자 읽기 — 값이 **정확히 0**이면 다음 키로 (Yahoo 미공시·자리표시 0으로 `??` fallback이 막히는 문제 방지) */
+function readFirstNumericFromRowSkipZero(
+  row: Record<string, unknown>,
+  keys: readonly string[]
+): number | undefined {
+  for (const k of keys) {
+    const v = row[k];
+    const n = readYahooNumericField(v);
+    if (n != null && Number.isFinite(n) && n !== 0) return n;
+  }
+  return undefined;
+}
+
 /** 손익 행에서 Yahoo·타임시리즈 명칭 차이(파스칼/카멜)로 같은 값이 다른 키에 붙는 경우 */
 function readFirstNumericFromRow(row: Record<string, unknown>, keys: readonly string[]): number | undefined {
   for (const k of keys) {
@@ -95,7 +108,8 @@ function impliedGrossProfitUsd(row: Record<string, unknown>): number | undefined
 /** 일부 미국 종목(MU 등)은 operatingIncome 비우고 매출·비용만 줄 때가 있음 → 매출총이익 − 영업비용 성격 항목으로 근사 */
 function deriveOperatingUsdFromComponents(row: Record<string, unknown>): number | null {
   const gp = impliedGrossProfitUsd(row);
-  const toe = readFirstNumericFromRow(row, [
+  /** totalOperatingExpenses 가 raw 0만 오면 gp−0으로 과대·0 왜곡 → 0은 비용 없음으로 보지 않음 */
+  const toe = readFirstNumericFromRowSkipZero(row, [
     'totalOperatingExpenses',
     'totalOperatingExpense',
     'operatingExpense',
@@ -122,8 +136,8 @@ function deriveOperatingUsdFromComponents(row: Record<string, unknown>): number 
 
 /** operatingIncome·구성 항목이 모두 비었을 때: EBITDA − 감가·상각 (Yahoo에만 있을 수 있음) */
 function operatingFromEbitdaLessDa(row: Record<string, unknown>): number | null {
-  const e = readFirstNumericFromRow(row, ['ebitda', 'normalizedEBITDA', 'EBITDA', 'NormalizedEBITDA']);
-  const d = readFirstNumericFromRow(row, [
+  const e = readFirstNumericFromRowSkipZero(row, ['ebitda', 'normalizedEBITDA', 'EBITDA', 'NormalizedEBITDA']);
+  const d = readFirstNumericFromRowSkipZero(row, [
     'reconciledDepreciation',
     'depreciationAndAmortization',
     'depreciation',
@@ -232,6 +246,36 @@ function yahooQuarterPeriodKeyFromEndDateUnix(sec: number): string {
   return `${y}Q${q}`;
 }
 
+/** Yahoo 손익 행에서 영업이익(USD 등 표시 통화) — 키 순서·0 처리·fallback 순서가 결과에 큰 영향 */
+const OPERATING_INCOME_ROW_KEYS = [
+  'reconciledOperatingIncome',
+  'operatingIncome',
+  'OperatingIncome',
+  'totalOperatingIncome',
+  'TotalOperatingIncome',
+  'totalOperatingIncomeAsReported',
+  'TotalOperatingIncomeAsReported',
+  'operatingIncomeLoss',
+  'OperatingIncomeLoss',
+  'ebit',
+  'EBIT',
+  'normalizedEBIT',
+  'NormalizedEBIT',
+  'normalizedOperatingIncome',
+  'NormalizedOperatingIncome',
+] as const;
+
+/** `??`는 0을 통과시켜 EBITDA 등으로 못 넘어가는 문제 방지 — 단계마다 0이면 다음 후보 */
+function pickOperatingUsdFromIncomeRow(row: Record<string, unknown>): number | null {
+  const a = readFirstNumericFromRowSkipZero(row, OPERATING_INCOME_ROW_KEYS);
+  if (a != null && a !== 0) return a;
+  const b = deriveOperatingUsdFromComponents(row);
+  if (b != null && b !== 0) return b;
+  const c = operatingFromEbitdaLessDa(row);
+  if (c != null && c !== 0) return c;
+  return null;
+}
+
 function extractUsdLine(row: Record<string, unknown>): {
   revenue: number | null;
   operating: number | null;
@@ -245,26 +289,8 @@ function extractUsdLine(row: Record<string, unknown>): {
       'OperatingRevenue',
       'totalRevenueRaw',
     ]) ?? null;
-  /** quoteSummary 행만으로는 MU 등에서 영업이익이 비거나 0으로만 옴 → 별도 timeseries 병합 */
-  const operating =
-    readFirstNumericFromRow(row, [
-      'totalOperatingIncomeAsReported',
-      'TotalOperatingIncomeAsReported',
-      'reconciledOperatingIncome',
-      'totalOperatingIncome',
-      'TotalOperatingIncome',
-      'operatingIncome',
-      'OperatingIncome',
-      'operatingIncomeLoss',
-      'OperatingIncomeLoss',
-      'ebit',
-      'EBIT',
-      'normalizedEBIT',
-      'NormalizedEBIT',
-    ]) ??
-    deriveOperatingUsdFromComponents(row) ??
-    operatingFromEbitdaLessDa(row) ??
-    null;
+  /** quoteSummary: 키 순서·0 무시·구성/EBITDA 순으로 (TSM·AMD 등 `??`가 0에서 멈추는 경우) */
+  const operating = pickOperatingUsdFromIncomeRow(row);
   const net =
     readFirstNumericFromRow(row, [
       'netIncome',
@@ -649,6 +675,8 @@ function mergeFundamentalsTimeseriesIntoParsed(
   logSymbol?: string
 ): void {
   const mergeOp = (b: DartCellBundle, opStmt: number): DartCellBundle => {
+    /** 시계열 영업이익 raw 0은 자리표시인 경우가 많아 손익표 값을 덮어쓰지 않음 */
+    if (opStmt === 0) return b;
     const opWon = opStmt * krwPerStmtUnit;
     return {
       ...b,
@@ -666,12 +694,14 @@ function mergeFundamentalsTimeseriesIntoParsed(
 
   const accumulateQuarterly = (
     entries: TsPointEntry[],
-    pick: (b: DartCellBundle, raw: number) => DartCellBundle
+    pick: (b: DartCellBundle, raw: number) => DartCellBundle,
+    opts?: { skipZeroRaw?: boolean }
   ): Map<string, { sec: number; raw: number; asOfDate: string }> => {
     const best = new Map<string, { sec: number; raw: number; asOfDate: string }>();
     for (const entry of entries) {
       const raw = entry.reportedValue?.raw;
       if (typeof raw !== 'number' || !Number.isFinite(raw)) continue;
+      if (opts?.skipZeroRaw && raw === 0) continue;
       const ad = entry.asOfDate;
       if (typeof ad !== 'string') continue;
       const sec = Math.floor(
@@ -729,7 +759,7 @@ function mergeFundamentalsTimeseriesIntoParsed(
     return best;
   };
 
-  const qOp = accumulateQuarterly(ts.quarterlyOperating, mergeOp);
+  const qOp = accumulateQuarterly(ts.quarterlyOperating, mergeOp, { skipZeroRaw: true });
   const qRev = accumulateQuarterly(ts.quarterlyRevenue, mergeRev);
   const aOp = accumulateAnnual(ts.annualOperating, mergeOp);
   const aRev = accumulateAnnual(ts.annualRevenue, mergeRev);

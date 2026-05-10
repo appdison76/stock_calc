@@ -1226,14 +1226,23 @@ export default function FundamentalsCompareScreen() {
   const displayCell = useCallback(
     (tab: FundamentalsPeriodMetricTab, row: MockFundamentalsPeriodRow, mockKey: string): string => {
       const isDomestic = /^\d{6}$/.test(mockKey);
-      const bundle = isDomestic
-        ? dartGrid?.[row.periodKey]?.[mockKey]
-        : yahooGrid?.[row.periodKey]?.[mockKey];
-      const fromDart = pickDartCellDisplay(tab, bundle);
-      if (fromDart !== '—') return fromDart;
+      const grid = isDomestic ? dartGrid : yahooGrid;
+      if (!grid) return '—';
+
+      const tryPick = (bundle: DartCellBundle | undefined) => pickDartCellDisplay(tab, bundle);
+      /** 아래 시총·PER·POR 요약 표와 동일: 해당 행 기간 우선, 비면 `perNetIncomeSearchPeriodKeys`로 폴백 */
+      const periodKeysForMetric =
+        tab === 'revenue' || tab === 'operatingIncome' || tab === 'netIncome'
+          ? [row.periodKey, ...perNetIncomeSearchPeriodKeys.filter((pk) => pk !== row.periodKey)]
+          : [row.periodKey];
+
+      for (const pk of periodKeysForMetric) {
+        const s = tryPick(grid[pk]?.[mockKey]);
+        if (s !== '—') return s;
+      }
       return '—';
     },
-    [dartGrid, yahooGrid]
+    [dartGrid, yahooGrid, perNetIncomeSearchPeriodKeys]
   );
 
   const capPerTableCell = useCallback(
@@ -1466,7 +1475,7 @@ export default function FundamentalsCompareScreen() {
         ) : (
           <>
             <Text style={styles.compareOrderHint}>
-              왼쪽 체크로 표에 포함할 종목을 고르고, 오른쪽 ↑↓으로 순서를 바꿉니다. 순서는 저장됩니다.
+              왼쪽 체크로 표에 포함할 종목을 고르고, 오른쪽 ↑↓ 옆에서 맨 위·맨 아래로 순서를 바꿉니다. 순서는 저장됩니다.
             </Text>
             <View style={styles.checkList}>
               {deduped.map((item, index) => {
@@ -1493,27 +1502,52 @@ export default function FundamentalsCompareScreen() {
                       </View>
                     </Pressable>
                     <View style={styles.reorderStepper}>
-                      <TouchableOpacity
-                        style={[styles.reorderStepBtn, index === 0 && styles.reorderStepBtnDisabled]}
-                        onPress={() => moveDedupedRow(index, index - 1)}
-                        disabled={index === 0}
-                        accessibilityLabel="한 칸 위로"
-                        activeOpacity={0.75}
-                      >
-                        <Text style={styles.reorderStepBtnText}>↑</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.reorderStepBtn,
-                          index >= deduped.length - 1 && styles.reorderStepBtnDisabled,
-                        ]}
-                        onPress={() => moveDedupedRow(index, index + 1)}
-                        disabled={index >= deduped.length - 1}
-                        accessibilityLabel="한 칸 아래로"
-                        activeOpacity={0.75}
-                      >
-                        <Text style={styles.reorderStepBtnText}>↓</Text>
-                      </TouchableOpacity>
+                      <View style={styles.reorderArrowsCol}>
+                        <TouchableOpacity
+                          style={[styles.reorderStepBtn, index === 0 && styles.reorderStepBtnDisabled]}
+                          onPress={() => moveDedupedRow(index, index - 1)}
+                          disabled={index === 0}
+                          accessibilityLabel="한 칸 위로"
+                          activeOpacity={0.75}
+                        >
+                          <Text style={styles.reorderStepBtnText}>↑</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.reorderStepBtn,
+                            index >= deduped.length - 1 && styles.reorderStepBtnDisabled,
+                          ]}
+                          onPress={() => moveDedupedRow(index, index + 1)}
+                          disabled={index >= deduped.length - 1}
+                          accessibilityLabel="한 칸 아래로"
+                          activeOpacity={0.75}
+                        >
+                          <Text style={styles.reorderStepBtnText}>↓</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <View style={styles.reorderJumpCol}>
+                        <TouchableOpacity
+                          style={[styles.reorderJumpBtn, index === 0 && styles.reorderStepBtnDisabled]}
+                          onPress={() => moveDedupedRow(index, 0)}
+                          disabled={index === 0}
+                          accessibilityLabel="맨 위로"
+                          activeOpacity={0.75}
+                        >
+                          <Text style={styles.reorderJumpBtnText}>맨 위</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.reorderJumpBtn,
+                            index >= deduped.length - 1 && styles.reorderStepBtnDisabled,
+                          ]}
+                          onPress={() => moveDedupedRow(index, deduped.length - 1)}
+                          disabled={index >= deduped.length - 1}
+                          accessibilityLabel="맨 아래로"
+                          activeOpacity={0.75}
+                        >
+                          <Text style={styles.reorderJumpBtnText}>맨 아래</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
                 );
@@ -2209,10 +2243,21 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   reorderStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 6,
+    gap: 8,
+  },
+  reorderArrowsCol: {
     flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingRight: 6,
+    gap: 6,
+  },
+  reorderJumpCol: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'stretch',
     gap: 6,
   },
   reorderStepBtn: {
@@ -2230,6 +2275,23 @@ const styles = StyleSheet.create({
   reorderStepBtnText: {
     color: '#90CAF9',
     fontSize: 16,
+    fontWeight: '700',
+  },
+  reorderJumpBtn: {
+    minWidth: 52,
+    minHeight: 28,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: 'rgba(66, 165, 245, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(66, 165, 245, 0.25)',
+  },
+  reorderJumpBtnText: {
+    color: '#90CAF9',
+    fontSize: 11,
     fontWeight: '700',
   },
   checkbox: {
