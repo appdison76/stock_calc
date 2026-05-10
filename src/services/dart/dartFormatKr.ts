@@ -11,6 +11,26 @@ export function dartFnlttNumericToWon(raw: number): number {
   return raw * 1000;
 }
 
+/**
+ * 같은 공시의 매출과 스케일을 맞춤. 일부 종목은 영업이익·당기순이익만 원 단위(10¹¹ 규모)로 오는데,
+ * `dartFnlttNumericToWon`만 쓰면 ×1000 해서 매출보다 수백 배 커진다(삼성SDI 분기 등).
+ */
+export function dartFnlttNumericToWonWithRevenue(
+  metricRaw: number | null,
+  revenueRaw: number | null
+): number | null {
+  if (metricRaw == null || !Number.isFinite(metricRaw)) return null;
+  if (revenueRaw == null || !Number.isFinite(revenueRaw)) {
+    return dartFnlttNumericToWon(metricRaw);
+  }
+  const revWon = dartFnlttNumericToWon(revenueRaw);
+  const metricWon = dartFnlttNumericToWon(metricRaw);
+  if (Math.abs(revWon) < 1e10) return metricWon;
+  if (Math.abs(metricWon) <= Math.abs(revWon) * 1.5) return metricWon;
+  if (Math.abs(metricRaw) >= THOUSAND_WON_MAX_PLAUSIBLE) return metricWon;
+  return metricRaw;
+}
+
 export function dartThousandWonToWon(thousandWon: number): number {
   return dartFnlttNumericToWon(thousandWon);
 }

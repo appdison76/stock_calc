@@ -1,11 +1,11 @@
 import type { FundamentalsMetricTab } from '../../data/fundamentalsCompareMock';
 import { DART_REPRT, fetchFnlttSinglAcntAll } from './dartFinancialClient';
+import { extractRevenueOperatingThousandWon, type DartFnlttRow } from './dartIncomeExtract';
 import {
-  extractRevenueOperatingThousandWon,
-  formatPairFromThousandWon,
-  type DartFnlttRow,
-} from './dartIncomeExtract';
-import { dartFnlttNumericToWon, formatWonShortKr } from './dartFormatKr';
+  dartFnlttNumericToWon,
+  dartFnlttNumericToWonWithRevenue,
+  formatWonShortKr,
+} from './dartFormatKr';
 import { resolveDartCorpCode } from './dartCorpCodeCache';
 import { dartTrace } from './dartLog';
 
@@ -74,10 +74,10 @@ function sjDivHistogram(rows: DartFnlttRow[]): Record<string, number> {
 
 function bundleFromRows(rows: DartFnlttRow[], ctx?: string): DartCellBundle {
   const ex = extractRevenueOperatingThousandWon(rows);
-  const netIncomeWon =
-    ex.netIncomeThousand == null ? null : dartFnlttNumericToWon(ex.netIncomeThousand);
-  const operatingIncomeWon =
-    ex.operatingThousand == null ? null : dartFnlttNumericToWon(ex.operatingThousand);
+  const revRaw = ex.revenueThousand;
+  const revWon = revRaw == null ? null : dartFnlttNumericToWon(revRaw);
+  const netIncomeWon = dartFnlttNumericToWonWithRevenue(ex.netIncomeThousand, revRaw);
+  const operatingIncomeWon = dartFnlttNumericToWonWithRevenue(ex.operatingThousand, revRaw);
   if (rows.length > 0 && ex.revenueThousand == null && dartDiagLogBudget > 0) {
     dartDiagLogBudget -= 1;
     const names = rows
@@ -91,8 +91,20 @@ function bundleFromRows(rows: DartFnlttRow[], ctx?: string): DartCellBundle {
       sampleCisIsAccounts: names,
     });
   }
-  const f = formatPairFromThousandWon(ex.revenueThousand, ex.operatingThousand);
-  return { ...f, marketCapKr: '—', per: '—', netIncomeWon, operatingIncomeWon };
+  const revenueKr =
+    revWon == null || !Number.isFinite(revWon) ? '—' : formatWonShortKr(revWon);
+  const operatingIncomeKr =
+    operatingIncomeWon == null || !Number.isFinite(operatingIncomeWon)
+      ? '—'
+      : formatWonShortKr(operatingIncomeWon);
+  return {
+    revenueKr,
+    operatingIncomeKr,
+    marketCapKr: '—',
+    per: '—',
+    netIncomeWon,
+    operatingIncomeWon,
+  };
 }
 
 /**
@@ -124,20 +136,43 @@ async function calendarQuarterBundle(
   ]);
   const ann = extractRevenueOperatingThousandWon(annRows);
   const m9Cum = extractRevenueOperatingThousandWon(q3Rows, { amountKey: 'thstrm_add_amount' });
-  let rTh =
+  /**
+   * 연간·누적은 각각 `dartFnlttNumericToWon`(천원/원 휴리스틱)을 거친 뒤 빼야 한다.
+   * 차이에만 TonW를 적용하면, 둘 다 ≥1e12(원)인데 분기 차이가 1e12 미만일 때 ×1000이 한 번 더 붙어
+   * 영업이익·당기순이익이 수백 조로 부풀어 오른다.
+   */
+  let rWon: number | null =
     ann.revenueThousand != null && m9Cum.revenueThousand != null
-      ? ann.revenueThousand - m9Cum.revenueThousand
+      ? dartFnlttNumericToWon(ann.revenueThousand) - dartFnlttNumericToWon(m9Cum.revenueThousand)
       : null;
-  let oTh =
-    ann.operatingThousand != null && m9Cum.operatingThousand != null
-      ? ann.operatingThousand - m9Cum.operatingThousand
-      : null;
-  let nTh =
-    ann.netIncomeThousand != null && m9Cum.netIncomeThousand != null
-      ? ann.netIncomeThousand - m9Cum.netIncomeThousand
-      : null;
+  let oWon: number | null = null;
+  if (ann.operatingThousand != null && m9Cum.operatingThousand != null) {
+    const annOpW = dartFnlttNumericToWonWithRevenue(ann.operatingThousand, ann.revenueThousand);
+    const m9OpW = dartFnlttNumericToWonWithRevenue(m9Cum.operatingThousand, m9Cum.revenueThousand);
+    if (
+      annOpW != null &&
+      m9OpW != null &&
+      Number.isFinite(annOpW) &&
+      Number.isFinite(m9OpW)
+    ) {
+      oWon = annOpW - m9OpW;
+    }
+  }
+  let nWon: number | null = null;
+  if (ann.netIncomeThousand != null && m9Cum.netIncomeThousand != null) {
+    const annNW = dartFnlttNumericToWonWithRevenue(ann.netIncomeThousand, ann.revenueThousand);
+    const m9NW = dartFnlttNumericToWonWithRevenue(m9Cum.netIncomeThousand, m9Cum.revenueThousand);
+    if (
+      annNW != null &&
+      m9NW != null &&
+      Number.isFinite(annNW) &&
+      Number.isFinite(m9NW)
+    ) {
+      nWon = annNW - m9NW;
+    }
+  }
   /** 누적 컬럼이 비어 있으면 연간 − (분기별 3개월 합) */
-  if (rTh == null || oTh == null || nTh == null) {
+  if (rWon == null || oWon == null || nWon == null) {
     const [q1Rows, h1Rows] = await Promise.all([
       cachedFnltt(apiKey, corp, year, DART_REPRT.Q1),
       cachedFnltt(apiKey, corp, year, DART_REPRT.HALF),
@@ -146,46 +181,77 @@ async function calendarQuarterBundle(
     const q2p = extractRevenueOperatingThousandWon(h1Rows);
     const q3p = extractRevenueOperatingThousandWon(q3Rows);
     if (
-      rTh == null &&
+      rWon == null &&
       ann.revenueThousand != null &&
       q1p.revenueThousand != null &&
       q2p.revenueThousand != null &&
       q3p.revenueThousand != null
     ) {
-      rTh = ann.revenueThousand - q1p.revenueThousand - q2p.revenueThousand - q3p.revenueThousand;
+      rWon =
+        dartFnlttNumericToWon(ann.revenueThousand) -
+        dartFnlttNumericToWon(q1p.revenueThousand) -
+        dartFnlttNumericToWon(q2p.revenueThousand) -
+        dartFnlttNumericToWon(q3p.revenueThousand);
     }
     if (
-      oTh == null &&
+      oWon == null &&
       ann.operatingThousand != null &&
       q1p.operatingThousand != null &&
       q2p.operatingThousand != null &&
       q3p.operatingThousand != null
     ) {
-      oTh =
-        ann.operatingThousand -
-        q1p.operatingThousand -
-        q2p.operatingThousand -
-        q3p.operatingThousand;
+      const ao = dartFnlttNumericToWonWithRevenue(ann.operatingThousand, ann.revenueThousand);
+      const o1 = dartFnlttNumericToWonWithRevenue(q1p.operatingThousand, q1p.revenueThousand);
+      const o2 = dartFnlttNumericToWonWithRevenue(q2p.operatingThousand, q2p.revenueThousand);
+      const o3 = dartFnlttNumericToWonWithRevenue(q3p.operatingThousand, q3p.revenueThousand);
+      if (
+        ao != null &&
+        o1 != null &&
+        o2 != null &&
+        o3 != null &&
+        Number.isFinite(ao) &&
+        Number.isFinite(o1) &&
+        Number.isFinite(o2) &&
+        Number.isFinite(o3)
+      ) {
+        oWon = ao - o1 - o2 - o3;
+      }
     }
     if (
-      nTh == null &&
+      nWon == null &&
       ann.netIncomeThousand != null &&
       q1p.netIncomeThousand != null &&
       q2p.netIncomeThousand != null &&
       q3p.netIncomeThousand != null
     ) {
-      nTh =
-        ann.netIncomeThousand -
-        q1p.netIncomeThousand -
-        q2p.netIncomeThousand -
-        q3p.netIncomeThousand;
+      const nn = dartFnlttNumericToWonWithRevenue(ann.netIncomeThousand, ann.revenueThousand);
+      const n1 = dartFnlttNumericToWonWithRevenue(q1p.netIncomeThousand, q1p.revenueThousand);
+      const n2 = dartFnlttNumericToWonWithRevenue(q2p.netIncomeThousand, q2p.revenueThousand);
+      const n3 = dartFnlttNumericToWonWithRevenue(q3p.netIncomeThousand, q3p.revenueThousand);
+      if (
+        nn != null &&
+        n1 != null &&
+        n2 != null &&
+        n3 != null &&
+        Number.isFinite(nn) &&
+        Number.isFinite(n1) &&
+        Number.isFinite(n2) &&
+        Number.isFinite(n3)
+      ) {
+        nWon = nn - n1 - n2 - n3;
+      }
     }
   }
-  const f = formatPairFromThousandWon(rTh, oTh);
-  const netIncomeWon = nTh == null ? null : dartFnlttNumericToWon(nTh);
-  const operatingIncomeWon = oTh == null ? null : dartFnlttNumericToWon(oTh);
+  const f = {
+    revenueKr:
+      rWon == null || !Number.isFinite(rWon) ? '—' : formatWonShortKr(rWon),
+    operatingIncomeKr:
+      oWon == null || !Number.isFinite(oWon) ? '—' : formatWonShortKr(oWon),
+  };
+  const netIncomeWon = nWon == null || !Number.isFinite(nWon) ? null : nWon;
+  const operatingIncomeWon = oWon == null || !Number.isFinite(oWon) ? null : oWon;
   if (
-    (rTh == null || f.revenueKr === '—') &&
+    (rWon == null || f.revenueKr === '—') &&
     (annRows.length > 0 || q3Rows.length > 0) &&
     dartDiagLogBudget > 0
   ) {
@@ -197,7 +263,7 @@ async function calendarQuarterBundle(
       q3Rows: q3Rows.length,
       annRev: ann.revenueThousand,
       m9CumRev: m9Cum.revenueThousand,
-      rTh,
+      rWon,
     });
   }
   return { ...f, marketCapKr: '—', per: '—', netIncomeWon, operatingIncomeWon };

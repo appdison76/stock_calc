@@ -530,8 +530,7 @@ export default function FundamentalsCompareScreen() {
 
   /**
    * 상단 시총·PER·실적 요약에 쓰는 실적 기준 기간(국내 DART / 해외 Yahoo 손익).
-   * 연도 모드 → 표 연도 칩 순서상 가장 최근 연도부터 순이익·실적 매칭.
-   * 분기 모드 → 최근 분기 후보 순으로 매칭.
+   * 연도·분기 모두 **매출이 있는 기간을 최우선**(손익보다 먼저 채워지는 경우가 많음) → 순이익 → 기타 실적.
    */
   const dartCapTableSnapshotPeriodKey = useMemo(() => {
     const yearFallback =
@@ -555,6 +554,14 @@ export default function FundamentalsCompareScreen() {
       return false;
     };
 
+    const hasRevenue = (pk: string): boolean => {
+      for (const row of selectedRows) {
+        const c = cellAt(pk, row.mockKey);
+        if (c?.revenueKr != null && c.revenueKr !== '—') return true;
+      }
+      return false;
+    };
+
     const hasAnyFs = (pk: string): boolean => {
       for (const row of selectedRows) {
         const c = cellAt(pk, row.mockKey);
@@ -572,6 +579,9 @@ export default function FundamentalsCompareScreen() {
 
     if (granularity === 'year') {
       for (const r of yearPeriodRows) {
+        if (hasRevenue(r.periodKey)) return r.periodKey;
+      }
+      for (const r of yearPeriodRows) {
         if (hasNetIncome(r.periodKey)) return r.periodKey;
       }
       for (const r of yearPeriodRows) {
@@ -580,6 +590,9 @@ export default function FundamentalsCompareScreen() {
       return yearFallback;
     }
 
+    for (const pk of latestQuarterCandidates) {
+      if (hasRevenue(pk)) return pk;
+    }
     for (const pk of latestQuarterCandidates) {
       if (hasNetIncome(pk)) return pk;
     }
@@ -606,6 +619,11 @@ export default function FundamentalsCompareScreen() {
       return c?.netIncomeWon != null && Number.isFinite(c.netIncomeWon);
     };
 
+    const hasRevenueOne = (pk: string, mockKey: string): boolean => {
+      const c = cellAt(pk, mockKey);
+      return c?.revenueKr != null && c.revenueKr !== '—';
+    };
+
     const hasAnyFsOne = (pk: string, mockKey: string): boolean => {
       const c = cellAt(pk, mockKey);
       return !!(
@@ -626,9 +644,17 @@ export default function FundamentalsCompareScreen() {
       if (granularity === 'year') {
         let pk: string | null = null;
         for (const r of yearPeriodRows) {
-          if (hasNetIncomeOne(r.periodKey, mk)) {
+          if (hasRevenueOne(r.periodKey, mk)) {
             pk = r.periodKey;
             break;
+          }
+        }
+        if (!pk) {
+          for (const r of yearPeriodRows) {
+            if (hasNetIncomeOne(r.periodKey, mk)) {
+              pk = r.periodKey;
+              break;
+            }
           }
         }
         if (!pk) {
@@ -643,9 +669,17 @@ export default function FundamentalsCompareScreen() {
       } else {
         let pk: string | null = null;
         for (const cand of latestQuarterCandidates) {
-          if (hasNetIncomeOne(cand, mk)) {
+          if (hasRevenueOne(cand, mk)) {
             pk = cand;
             break;
+          }
+        }
+        if (!pk) {
+          for (const cand of latestQuarterCandidates) {
+            if (hasNetIncomeOne(cand, mk)) {
+              pk = cand;
+              break;
+            }
           }
         }
         if (!pk) {
@@ -1245,9 +1279,8 @@ export default function FundamentalsCompareScreen() {
   }, [yahooLoadTicket, yahooQuoteLookupKey]);
 
   /**
-   * 기간별 표 셀
-   * - 해당 행·종목 분기에 실적 칸이 전혀 없으면(미공시 등) **이전 분기 값을 복사하지 않음** → 항상 —.
-   * - 같은 분기 칸에 매출 등 다른 지표는 있는데 이 지표만 비면 → 탐색 순으로만 폴백하고 칸 아래에 출처 표시.
+   * 기간별 표 셀 — **해당 행 periodKey의 그리드 칸만** 표시. 다른 분기 값을 끌어와 채우지 않음(미공시·파싱 누락이면 —).
+   * 시총·PER 요약 등은 `resolveCapSummaryTableCell`에서만 과거 분기 폴백·힌트 사용.
    */
   const resolvePeriodTableMetricCell = useCallback(
     (
@@ -1272,20 +1305,9 @@ export default function FundamentalsCompareScreen() {
         return { text: fromPrimary, hint: fs ? fs.trim() : null };
       }
 
-      for (const pk of perNetIncomeSearchPeriodKeys.filter((p) => p !== row.periodKey)) {
-        const bundle = grid[pk]?.[mockKey];
-        const s = tryPick(bundle);
-        if (s === '—') continue;
-
-        const foreignFs = !isDomestic && bundle?.fsPeriodLabel?.trim();
-        return {
-          text: s,
-          hint: foreignFs ? foreignFs.trim() : formatCapSummaryPeriodBadge(pk, granularity),
-        };
-      }
       return { text: '—', hint: null };
     },
-    [dartGrid, yahooGrid, perNetIncomeSearchPeriodKeys, granularity]
+    [dartGrid, yahooGrid]
   );
 
   const resolveCapSummaryTableCell = useCallback(

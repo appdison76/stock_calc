@@ -177,8 +177,8 @@ function gridHasAnyFundamentals(grid: DartFundamentalsGrid, mockKey: string): bo
 
 /**
  * 기업실적비교 `capSummaryPeriodKeyByStock`(종목 1개)·`dartCapTableSnapshotPeriodKey` 와 동일:
- * 연도 → 순이익 있는 연 우선, 없으면 매출·영업·순이익 중 하나라도 있는 연.
- * 분기 → 최근 분기 후보 순으로 순이익 우선, 없으면 실적 있는 분기.
+ * 연도·분기 모두 **매출이 있는 기간을 최우선**(손익보다 공시·파싱에서 먼저 채워지는 경우가 많음).
+ * 그다음 순이익 → 그다음 매출·영업·순이익 중 하나.
  */
 function pickSnapshotPeriodKey(
   grid: DartFundamentalsGrid,
@@ -187,6 +187,10 @@ function pickSnapshotPeriodKey(
   latestQuarterCandidates: string[],
   yearPeriodRows: Array<{ periodKey: string }>
 ): string | null {
+  const hasRevenue = (pk: string) => {
+    const r = cellAt(grid, pk, mockKey)?.revenueKr;
+    return r != null && r !== '—';
+  };
   const hasNet = (pk: string) => {
     const n = cellAt(grid, pk, mockKey)?.netIncomeWon;
     return n != null && Number.isFinite(n);
@@ -203,12 +207,18 @@ function pickSnapshotPeriodKey(
 
   if (granularity === 'year') {
     for (const r of yearPeriodRows) {
+      if (hasRevenue(r.periodKey)) return r.periodKey;
+    }
+    for (const r of yearPeriodRows) {
       if (hasNet(r.periodKey)) return r.periodKey;
     }
     for (const r of yearPeriodRows) {
       if (hasAnyFs(r.periodKey)) return r.periodKey;
     }
     return yearPeriodRows[0]?.periodKey ?? null;
+  }
+  for (const pk of latestQuarterCandidates) {
+    if (hasRevenue(pk)) return pk;
   }
   for (const pk of latestQuarterCandidates) {
     if (hasNet(pk)) return pk;
