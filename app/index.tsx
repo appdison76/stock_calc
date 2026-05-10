@@ -38,6 +38,7 @@ import { fetchGeneralNews, fetchStockNews, fetchGoogleNewsRSS } from '../src/ser
 import { NewsItem } from '../src/models/NewsItem';
 import { SettingsService } from '../src/services/SettingsService';
 import { US_ETF_TO_UNDERLYING_MAP } from '../src/data/us_etf_underlying_map';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import BottomNavigationBar from '../src/components/BottomNavigationBar';
 import {
   fetchIssueKeywords,
@@ -125,6 +126,8 @@ const CalculatorCard: React.FC<CalculatorCardProps> = ({
                 {/* 아래쪽 삼각형 - 빨간색 (손절) */}
                 <Text style={[styles.triangleIcon, { color: '#EF5350' }]}>▼</Text>
               </View>
+            ) : icon === 'mci-calculator-variant' ? (
+              <MaterialCommunityIcons name="calculator-variant" size={32} color={color} />
             ) : (
               <Text style={[styles.icon, { color }]}>{icon}</Text>
             )}
@@ -1172,7 +1175,7 @@ export default function MainScreen() {
                 </View>
               )}
 
-              {/* 원형 아이콘 그리드 (3x3) */}
+              {/* 원형 아이콘 그리드 (3×4) */}
               {showMiniBanners && (
               <View style={styles.iconGridContainer}>
                 {/* 첫 번째 줄 */}
@@ -1212,6 +1215,39 @@ export default function MainScreen() {
                 <View style={styles.iconGridRow}>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(0, 137, 123, 0.85)' }]}
+                      onPress={() => router.push('/daily-settlement')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.circularIconText}>📒</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.circularIconLabel}>일일 정산</Text>
+                  </View>
+                  <View style={styles.iconItemContainer}>
+                    <TouchableOpacity
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(103, 58, 183, 0.85)' }]}
+                      onPress={() => router.push('/fundamentals-compare')}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialCommunityIcons name="scale-balance" size={28} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <Text style={styles.circularIconLabel}>기업실적 비교</Text>
+                  </View>
+                  <View style={styles.iconItemContainer}>
+                    <TouchableOpacity
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(126, 87, 194, 0.85)' }]}
+                      onPress={() => router.push('/cap-per-por-calculator')}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialCommunityIcons name="calculator-variant" size={28} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <Text style={styles.circularIconLabel} numberOfLines={2}>시총·PER·POR 계산기</Text>
+                  </View>
+                </View>
+                {/* 세 번째 줄 */}
+                <View style={styles.iconGridRow}>
+                  <View style={styles.iconItemContainer}>
+                    <TouchableOpacity
                       style={[styles.circularIconCard, { backgroundColor: 'rgba(171, 71, 188, 0.85)' }]}
                       onPress={() => router.push('/news')}
                       activeOpacity={0.8}
@@ -1241,7 +1277,7 @@ export default function MainScreen() {
                     <Text style={styles.circularIconLabel}>종목 추가</Text>
                   </View>
                 </View>
-                {/* 세 번째 줄 */}
+                {/* 네 번째 줄 */}
                 <View style={styles.iconGridRow}>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
@@ -1850,7 +1886,7 @@ export default function MainScreen() {
             <CalculatorCard
               title="시총·PER·POR 계산기"
               description={['종목 시총·실적 기준 PER/POR과', '주가 시나리오·잠정·가이던스를 시뮬레이션합니다']}
-              icon="◎"
+              icon="mci-calculator-variant"
               color="#7E57C2"
               onPress={() => router.push('/cap-per-por-calculator')}
             />

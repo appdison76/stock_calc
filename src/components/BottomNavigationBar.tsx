@@ -64,7 +64,7 @@ const calculatorItems: CalculatorItem[] = [
   { label: '물타기 계산기', icon: '💧', route: '/averaging', description: '평단가 계산' },
   { label: '목표가 계산기', icon: '🎯', route: '/target-price', description: '목표가와 예상 수익 계산' },
   { label: '손절/익절 계산기', icon: '▲▼', route: '/stop-loss-take-profit', description: '목표가와 손절가 계산' },
-  { label: '시총·PER·POR 계산기', icon: '◎', route: '/cap-per-por-calculator', description: '시총·실적 기준 PER/POR과 주가 시나리오' },
+  { label: '시총·PER·POR 계산기', icon: '🧮', route: '/cap-per-por-calculator', description: '시총·실적 기준 PER/POR과 주가 시나리오' },
   { label: '정기 매수 계산기', icon: '📆', route: '/regular-purchase-simulator', description: '정기 매수 평균 매수가 계산' },
   { label: '배당금 계산기', icon: '💵', route: '/dividend', description: '연간 배당금과 배당 수익률 계산' },
   { label: '양도소득세 계산기', icon: '💰', route: '/capital-gains-tax', description: '한국/미국 주식 양도소득세 계산' },
@@ -82,7 +82,7 @@ interface MoreMenuItem {
 }
 
 const moreMenuItemsBase: MoreMenuItem[] = [
-  { label: '일일 정산', icon: '📝', route: '/daily-settlement', description: '금액·메모·일별 요약' },
+  { label: '일일 정산', icon: '📒', route: '/daily-settlement', description: '금액·메모·일별 요약' },
   { label: '포트폴리오', icon: '📊', route: '/portfolios', description: '내 포트폴리오 관리' },
   { label: '매매기록', icon: '📉', route: '/visualization', description: '매매 기록 차트' },
   { label: '종목차트', icon: '📈', route: '/stock-chart', description: '종목 가격 차트' },
@@ -256,7 +256,9 @@ export default function BottomNavigationBar() {
                     activeOpacity={0.7}
                   >
                     <View style={styles.menuItemIconContainer}>
-                      {calculator.icon === '▲▼' ? (
+                      {calculator.route === '/cap-per-por-calculator' ? (
+                        <MaterialCommunityIcons name="calculator-variant" size={28} color="#FFFFFF" />
+                      ) : calculator.icon === '▲▼' ? (
                         <View style={styles.triangleIconContainer}>
                           <Text style={[styles.triangleIcon, { color: '#4CAF50' }]}>▲</Text>
                           <Text style={[styles.triangleIcon, { color: '#EF5350' }]}>▼</Text>
