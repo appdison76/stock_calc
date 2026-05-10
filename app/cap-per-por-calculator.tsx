@@ -765,34 +765,46 @@ export default function CapPerPorCalculatorScreen() {
             <View style={styles.card}>
               <Text style={styles.mono}>{mockKeyResolved}</Text>
               {stockDisplayName ? <Text style={styles.stockNameLine}>{stockDisplayName}</Text> : null}
-              <Text style={styles.line}>실적 기준: {periodKeyUsed ? formatCapBadge(periodKeyUsed, granularity) : '—'}</Text>
+              <Text style={styles.line}>
+                <Text style={styles.summaryLblMuted}>실적 기준: </Text>
+                <Text style={styles.summaryVal}>
+                  {periodKeyUsed ? formatCapBadge(periodKeyUsed, granularity) : '—'}
+                </Text>
+              </Text>
               {fsPeriodLabel ? <Text style={styles.fsLabel}>{fsPeriodLabel}</Text> : null}
               <Text style={styles.line}>
-                현재가:{' '}
-                {price != null
-                  ? `${quoteCurrency === 'USD' ? '$' : ''}${price.toLocaleString('ko-KR', { maximumFractionDigits: quoteCurrency === 'USD' ? 2 : 0 })}${quoteCurrency === 'USD' ? '' : ' 원'}`
-                  : '—'}
+                <Text style={styles.summaryLblPrice}>현재가: </Text>
+                <Text style={styles.summaryVal}>
+                  {price != null
+                    ? `${quoteCurrency === 'USD' ? '$' : ''}${price.toLocaleString('ko-KR', { maximumFractionDigits: quoteCurrency === 'USD' ? 2 : 0 })}${quoteCurrency === 'USD' ? '' : ' 원'}`
+                    : '—'}
+                </Text>
               </Text>
               <Text style={styles.line}>
-                시가총액:{' '}
-                {capWon != null
-                  ? formatWonShortKr(capWon, { maxAbsWon: FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS })
-                  : '—'}
+                <Text style={styles.summaryLblCap}>시가총액: </Text>
+                <Text style={styles.summaryValStrong}>
+                  {capWon != null
+                    ? formatWonShortKr(capWon, { maxAbsWon: FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS })
+                    : '—'}
+                </Text>
               </Text>
-              <Text style={styles.line}>
-                매출 ({fsAmountPeriodLabel}): {displayRevenueKr ?? '—'}
+              <Text style={styles.metricRow}>
+                <Text style={styles.metricLblRev}>매출 ({fsAmountPeriodLabel}): </Text>
+                <Text style={styles.metricVal}>{displayRevenueKr ?? '—'}</Text>
                 {revenuePeriodSuffix ? (
                   <Text style={styles.metricPeriodInline}>{` · ${revenuePeriodSuffix}`}</Text>
                 ) : null}
               </Text>
-              <Text style={styles.line}>
-                영업이익 ({fsAmountPeriodLabel}): {displayOperatingIncomeKr ?? '—'}
+              <Text style={styles.metricRow}>
+                <Text style={styles.metricLblOp}>영업이익 ({fsAmountPeriodLabel}): </Text>
+                <Text style={styles.metricVal}>{displayOperatingIncomeKr ?? '—'}</Text>
                 {operatingPeriodSuffix ? (
                   <Text style={styles.metricPeriodInline}>{` · ${operatingPeriodSuffix}`}</Text>
                 ) : null}
               </Text>
-              <Text style={styles.line}>
-                당기순이익 ({fsAmountPeriodLabel}): {displayNetIncomeKr ?? '—'}
+              <Text style={styles.metricRow}>
+                <Text style={styles.metricLblNet}>당기순이익 ({fsAmountPeriodLabel}): </Text>
+                <Text style={styles.metricVal}>{displayNetIncomeKr ?? '—'}</Text>
                 {netIncomePeriodSuffix ? (
                   <Text style={styles.metricPeriodInline}>{` · ${netIncomePeriodSuffix}`}</Text>
                 ) : null}
@@ -823,16 +835,20 @@ export default function CapPerPorCalculatorScreen() {
             </View>
             <View style={styles.card}>
               <Text style={styles.line}>
-                목표 주가:{' '}
-                {scenarioPrice != null
-                  ? `${quoteCurrency === 'USD' ? '$' : ''}${scenarioPrice.toLocaleString('ko-KR', { maximumFractionDigits: quoteCurrency === 'USD' ? 2 : 0 })}`
-                  : '—'}
+                <Text style={styles.summaryLblPrice}>목표 주가: </Text>
+                <Text style={styles.summaryVal}>
+                  {scenarioPrice != null
+                    ? `${quoteCurrency === 'USD' ? '$' : ''}${scenarioPrice.toLocaleString('ko-KR', { maximumFractionDigits: quoteCurrency === 'USD' ? 2 : 0 })}`
+                    : '—'}
+                </Text>
               </Text>
               <Text style={styles.line}>
-                시나리오 시총:{' '}
-                {scenarioCapWon != null
-                  ? formatWonShortKr(scenarioCapWon, { maxAbsWon: FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS })
-                  : '—'}
+                <Text style={styles.summaryLblCap}>시나리오 시총: </Text>
+                <Text style={styles.summaryValStrong}>
+                  {scenarioCapWon != null
+                    ? formatWonShortKr(scenarioCapWon, { maxAbsWon: FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS })
+                    : '—'}
+                </Text>
               </Text>
               <Text style={styles.perPorNote}>{perPorBasisFootnote}</Text>
               <Text style={styles.emRow}>
@@ -862,8 +878,16 @@ export default function CapPerPorCalculatorScreen() {
               onChangeText={setProvisionalOpEok}
             />
             <View style={styles.card}>
-              <Text style={styles.line}>현재 시총 기준 POR: {formatPorFromQuarterlyOpEok(capWon, provisionalQOp)}</Text>
-              <Text style={styles.line}>시나리오 시총 기준 POR: {formatPorFromQuarterlyOpEok(scenarioCapWon, provisionalQOp)}</Text>
+              <Text style={styles.line}>
+                <Text style={styles.summaryLblPrice}>현재 시총 기준 POR: </Text>
+                <Text style={styles.summaryValStrong}>{formatPorFromQuarterlyOpEok(capWon, provisionalQOp)}</Text>
+              </Text>
+              <Text style={styles.line}>
+                <Text style={styles.summaryLblCap}>시나리오 시총 기준 POR: </Text>
+                <Text style={styles.summaryValStrong}>
+                  {formatPorFromQuarterlyOpEok(scenarioCapWon, provisionalQOp)}
+                </Text>
+              </Text>
             </View>
 
             <Text style={styles.sectionTitle}>가이던스 분기 영업이익 ×4 (선택)</Text>
@@ -887,8 +911,14 @@ export default function CapPerPorCalculatorScreen() {
               onChangeText={setGuidanceOpEok}
             />
             <View style={styles.card}>
-              <Text style={styles.line}>현재 시총 기준 POR: {formatPorFromQuarterlyOpEok(capWon, guidanceQOp)}</Text>
-              <Text style={styles.line}>시나리오 시총 기준 POR: {formatPorFromQuarterlyOpEok(scenarioCapWon, guidanceQOp)}</Text>
+              <Text style={styles.line}>
+                <Text style={styles.summaryLblPrice}>현재 시총 기준 POR: </Text>
+                <Text style={styles.summaryValStrong}>{formatPorFromQuarterlyOpEok(capWon, guidanceQOp)}</Text>
+              </Text>
+              <Text style={styles.line}>
+                <Text style={styles.summaryLblCap}>시나리오 시총 기준 POR: </Text>
+                <Text style={styles.summaryValStrong}>{formatPorFromQuarterlyOpEok(scenarioCapWon, guidanceQOp)}</Text>
+              </Text>
             </View>
           </>
         ) : null}
@@ -1023,6 +1053,16 @@ const styles = StyleSheet.create({
   mono: { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', color: '#81d4fa', marginBottom: 6 },
   stockNameLine: { color: '#eceff1', fontSize: 18, marginBottom: 8, fontWeight: '600', letterSpacing: -0.2 },
   line: { color: '#eceff1', marginBottom: 6, fontSize: 15 },
+  summaryLblMuted: { color: '#90a4ae', fontSize: 15 },
+  summaryLblPrice: { color: '#64b5f6', fontSize: 15, fontWeight: '600' },
+  summaryLblCap: { color: '#ffb74d', fontSize: 15, fontWeight: '600' },
+  summaryVal: { color: '#eceff1', fontSize: 15 },
+  summaryValStrong: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  metricRow: { marginBottom: 8, fontSize: 15 },
+  metricLblRev: { color: '#4db6ac', fontSize: 15, fontWeight: '600' },
+  metricLblOp: { color: '#ba68c8', fontSize: 15, fontWeight: '600' },
+  metricLblNet: { color: '#81c784', fontSize: 15, fontWeight: '600' },
+  metricVal: { color: '#fafafa', fontSize: 15, fontWeight: '600' },
   fsLabel: { color: '#90caf9', fontSize: 13, marginBottom: 8 },
   /** PER/POR 분모(연율화 등) 설명 — emRow 바로 위 */
   perPorNote: {
