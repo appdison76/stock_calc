@@ -71,7 +71,7 @@
 | PER | 시가총액 ÷ **당기순이익(원화)** |
 | 매출·영업이익·당기순이익 | 같은 스냅샷·폴백 순서로 가져온 **표시용 문자열** |
 
-화면에 **PER/POR 용어 설명**과 **연·분기 모드별 분모 규칙** 문구가 함께 나옵니다.
+표 아래에 **PER/POR 요약 안내**(연·분기 모드별 분모 규칙)가 나옵니다. 화면 상단에는 **적용 환율(1 USD = …원)** 칩이 보이지만, **조회 실패 시 어떤 값으로 대체하는지** 같은 세부는 아래 **6.1절**만 참고합니다.
 
 ### 5.2 연도 모드
 
@@ -92,7 +92,19 @@
 ## 6. 환경·설정
 
 - **DART API 키**: `app.config.js`의 `extra.dartApiKey` ← 보통 `DART_API_KEY` 환경변수. 없으면 국내 실적 표가 비거나 안내가 나올 수 있습니다.
-- **USD/KRW**: `USDKRW=X` 조회 실패 시 `.env`의 `EXPO_PUBLIC_USD_KRW_RATE` 또는 코드 내 기본값.
+- **USD/KRW**: 화면에는 **적용 환율 숫자**(기업 실적 비교 상단 칩, 시총·PER·POR 계산기 기간 칩 옆)만 표시합니다. **폴백 순서·환경 변수 이름** 등은 **6.1절**에만 적습니다.
+
+### 6.1 해외 금액의 원화(USD/KRW) — 적용 순서·폴백(참고)
+
+해외 시가총액·손익을 원화로 맞출 때 적용 순서는 다음과 같습니다(`resolveFundamentalsUsdKrwRate`, `resolveUsdKrwRate`, `yahooFundamentalsGrid`의 `usdKrwRate` 전달과 일치).
+
+1. **우선**: Yahoo에서 **USD/KRW 스팟**(`USDKRW=X` 등) 조회.
+2. **실패 시**: 환경 변수 `EXPO_PUBLIC_USD_KRW_RATE`(빌드에 심은 값).
+3. **그다음**: 코드 내 기본값(예: 1380, 상수 `FUNDAMENTALS_USD_KRW_RATE`).
+
+같은 화면에서 시총 조회와 손익 그리드가 거의 동시에 돌아가도 **짧은 TTL 캐시**로 환율 요청을 한 번 묶어 씁니다. 손익이 USD가 아닌 다른 표시 통화인 종목은 **해당 통화→원** 변환 로직이 `yahooFundamentalsGrid`에 따로 있습니다(티커·재무 통화별 분기).
+
+**관련 화면**: `app/fundamentals-compare.tsx`(상단 **적용 환율** 칩·짧은 출처 문구), `app/cap-per-por-calculator.tsx`(기간 칩 옆 **`1 USD = …원`**). 표시 숫자와 위 폴백 로직은 동일 출처입니다.
 
 ---
 
@@ -110,6 +122,7 @@
 | 해외 분기/연 매핑·FROM–TO | `src/services/yahooFundamentalsGrid.ts` |
 | 국내 그리드 | `src/services/dart/dartFundamentalsGrid.ts` |
 | 화면·PER/POR 문구 | `app/fundamentals-compare.tsx` |
+| 시총·PER·POR 단일 종목 계산기 | `app/cap-per-por-calculator.tsx` |
 
 ---
 

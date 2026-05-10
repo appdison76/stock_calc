@@ -388,7 +388,6 @@ export default function CapPerPorCalculatorScreen() {
   const [guidanceOpEok, setGuidanceOpEok] = useState('');
   const [guidanceUnit, setGuidanceUnit] = useState<OpScenarioUnit>('jo');
 
-  /** 해외 원화 환산에 쓰는 USD/KRW — 기업실적비교와 동일 출처( USDKRW=X → 실패 시 기본값 ) */
   const [usdKrwApplied, setUsdKrwApplied] = useState(FUNDAMENTALS_USD_KRW_RATE);
 
   const quarterYearChoices = useMemo(

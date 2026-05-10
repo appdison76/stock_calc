@@ -148,13 +148,8 @@ function quarterPeriodKeyForChipYear(
 function initFundamentalsPeriodState(): { periodKey: string; quarterYear: number } {
   const d = new Date();
   const yChoices = fundamentalsQuarterYearChoices(d, FUNDAMENTALS_CALENDAR_YEAR_SPAN);
-  const yearRows = buildYearPeriodRowsForChoices(yChoices);
-  const yearKey = fundamentalsPickYearPeriodKeyForTarget(
-    fundamentalsDefaultPreviousCalendarYear(d),
-    yearRows
-  );
   const qInit = fundamentalsDefaultQuarterWithinChoices(d, yChoices);
-  return { periodKey: yearKey, quarterYear: qInit.quarterYear };
+  return { periodKey: qInit.periodKey, quarterYear: qInit.quarterYear };
 }
 
 function formatFundamentalsMarketCapKr(q: StockQuote | null, usdKrw: number): string {
@@ -331,7 +326,7 @@ export default function FundamentalsCompareScreen() {
   const [loading, setLoading] = useState(true);
   const [deduped, setDeduped] = useState<DedupedStockRow[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
-  const [granularity, setGranularity] = useState<'year' | 'quarter'>('year');
+  const [granularity, setGranularity] = useState<'year' | 'quarter'>('quarter');
   const initPeriod = useMemo(() => initFundamentalsPeriodState(), []);
   const [periodKey, setPeriodKey] = useState<string>(() => initPeriod.periodKey);
   const [quarterYear, setQuarterYear] = useState<number>(() => initPeriod.quarterYear);
@@ -352,7 +347,7 @@ export default function FundamentalsCompareScreen() {
   const [yahooLoadTicket, setYahooLoadTicket] = useState(0);
   /** 시총(국내: 네이버→Yahoo, 해외: Yahoo) 수동 재조회 — 조회 버튼 */
   const [quoteRefreshKey, setQuoteRefreshKey] = useState(0);
-  /** 화면에 표시·해외 USD 환산에 쓰는 1USD원화 (Yahoo USDKRW=X → 실패 시 env/기본) */
+  /** 상단 칩 — 해외 원화 환산에 쓰는 1USD 원화 */
   const [fundamentalsUsdKrwLive, setFundamentalsUsdKrwLive] = useState(FUNDAMENTALS_USD_KRW_RATE);
   const [marketCapKrByKey, setMarketCapKrByKey] = useState<Record<string, string>>({});
   const [marketCapWonByKey, setMarketCapWonByKey] = useState<Record<string, number | null>>({});
@@ -1009,7 +1004,7 @@ export default function FundamentalsCompareScreen() {
 
   const dartFetchRef = useRef({
     selectedRows,
-    granularity: 'year' as 'year' | 'quarter',
+    granularity: 'quarter' as 'year' | 'quarter',
     tablePeriodKeys: [] as string[],
   });
   dartFetchRef.current = {
@@ -1020,7 +1015,7 @@ export default function FundamentalsCompareScreen() {
 
   const yahooFetchRef = useRef({
     selectedRows: [] as DedupedStockRow[],
-    granularity: 'year' as 'year' | 'quarter',
+    granularity: 'quarter' as 'year' | 'quarter',
     tablePeriodKeys: [] as string[],
   });
   yahooFetchRef.current = {
@@ -1249,110 +1244,180 @@ export default function FundamentalsCompareScreen() {
     };
   }, [yahooLoadTicket, yahooQuoteLookupKey]);
 
-  const displayCell = useCallback(
-    (tab: FundamentalsPeriodMetricTab, row: MockFundamentalsPeriodRow, mockKey: string): string => {
+  /**
+   * 기간별 표 셀
+   * - 해당 행·종목 분기에 실적 칸이 전혀 없으면(미공시 등) **이전 분기 값을 복사하지 않음** → 항상 —.
+   * - 같은 분기 칸에 매출 등 다른 지표는 있는데 이 지표만 비면 → 탐색 순으로만 폴백하고 칸 아래에 출처 표시.
+   */
+  const resolvePeriodTableMetricCell = useCallback(
+    (
+      tab: FundamentalsPeriodMetricTab,
+      row: MockFundamentalsPeriodRow,
+      mockKey: string
+    ): { text: string; hint: string | null } => {
       const isDomestic = /^\d{6}$/.test(mockKey);
       const grid = isDomestic ? dartGrid : yahooGrid;
-      if (!grid) return '—';
+      if (!grid) return { text: '—', hint: null };
 
       const tryPick = (bundle: DartCellBundle | undefined) => pickDartCellDisplay(tab, bundle);
-      /** 아래 시총·PER·POR 요약 표와 동일: 해당 행 기간 우선, 비면 `perNetIncomeSearchPeriodKeys`로 폴백 */
-      const periodKeysForMetric =
-        tab === 'revenue' || tab === 'operatingIncome' || tab === 'netIncome'
-          ? [row.periodKey, ...perNetIncomeSearchPeriodKeys.filter((pk) => pk !== row.periodKey)]
-          : [row.periodKey];
+      const primary = grid[row.periodKey]?.[mockKey];
 
-      for (const pk of periodKeysForMetric) {
-        const s = tryPick(grid[pk]?.[mockKey]);
-        if (s !== '—') return s;
+      if (!dartCellHasFundamentals(primary)) {
+        return { text: '—', hint: null };
       }
-      return '—';
+
+      const fromPrimary = tryPick(primary);
+      if (fromPrimary !== '—') {
+        const fs = !isDomestic && primary?.fsPeriodLabel?.trim();
+        return { text: fromPrimary, hint: fs ? fs.trim() : null };
+      }
+
+      for (const pk of perNetIncomeSearchPeriodKeys.filter((p) => p !== row.periodKey)) {
+        const bundle = grid[pk]?.[mockKey];
+        const s = tryPick(bundle);
+        if (s === '—') continue;
+
+        const foreignFs = !isDomestic && bundle?.fsPeriodLabel?.trim();
+        return {
+          text: s,
+          hint: foreignFs ? foreignFs.trim() : formatCapSummaryPeriodBadge(pk, granularity),
+        };
+      }
+      return { text: '—', hint: null };
     },
-    [dartGrid, yahooGrid, perNetIncomeSearchPeriodKeys]
+    [dartGrid, yahooGrid, perNetIncomeSearchPeriodKeys, granularity]
   );
 
-  const capPerTableCell = useCallback(
-    (rowId: 'cap' | 'por' | 'per' | 'net' | 'op' | 'rev', s: DedupedStockRow): string => {
+  const resolveCapSummaryTableCell = useCallback(
+    (
+      rowId: 'cap' | 'por' | 'per' | 'net' | 'op' | 'rev',
+      s: DedupedStockRow
+    ): { text: string; hint: string | null } => {
       const k = s.mockKey;
       const isDomestic = /^\d{6}$/.test(k);
-      const dCell = isDomestic
-        ? dartGrid?.[dartCapTableSnapshotPeriodKey]?.[k]
-        : yahooGrid?.[dartCapTableSnapshotPeriodKey]?.[k];
+      const grid = isDomestic ? dartGrid : yahooGrid;
+      const portfolioSnap = dartCapTableSnapshotPeriodKey;
+      const search = perNetIncomeSearchPeriodKeys;
+      /** 열 헤더와 동일한 종목별 대표 기간 — 전역 스냅샷만 쓰면 이 종목 칸이 비고 당기순이익만 안 나오는 경우가 있음 */
+      const refPk = capSummaryPeriodKeyByStock[k];
+      const headlinePk = refPk ?? portfolioSnap;
+      const orderedKeys = [...new Set([headlinePk, portfolioSnap, ...search])];
+      const headlineBundle = grid?.[headlinePk]?.[k];
+      /** 헤더 분기 칸에 매출·영업·순 중 하나도 없으면 과거 분기로 채우지 않음 */
+      const headlineHasAny = dartCellHasFundamentals(headlineBundle);
       const capWon = marketCapWonByKey[k] ?? null;
 
-      /** 상단 요약 표 제목의 기준 분기·연도와 같은 칸(`dartCapTableSnapshotPeriodKey`)을 우선 — 예전엔 순이익만 다른 분기를 집어와 매출·영업과 불일치했음 */
-      const netIncomeWonForPer = (): number | null => {
-        const snap = dCell?.netIncomeWon;
-        if (snap != null && Number.isFinite(snap)) return snap;
-        if (isDomestic) {
-          if (!dartGrid) return null;
-          for (const pk of perNetIncomeSearchPeriodKeys) {
-            const n = dartGrid[pk]?.[k]?.netIncomeWon;
-            if (n != null && Number.isFinite(n)) return n;
-          }
-          return null;
+      const hintIfDifferent = (usedPk: string | null): string | null => {
+        if (usedPk == null) return null;
+        const baseline = refPk ?? headlinePk;
+        if (usedPk === baseline) return null;
+        if (!isDomestic && grid) {
+          const fs = grid[usedPk]?.[k]?.fsPeriodLabel?.trim();
+          if (fs) return fs;
         }
-        if (!yahooGrid) return null;
-        for (const pk of perNetIncomeSearchPeriodKeys) {
-          const n = yahooGrid[pk]?.[k]?.netIncomeWon;
+        return formatCapSummaryPeriodBadge(usedPk, granularity);
+      };
+
+      const pickRevPk = (): string | null => {
+        if (!grid) return null;
+        const rH = headlineBundle?.revenueKr;
+        if (rH != null && rH !== '—') return headlinePk;
+        if (!headlineHasAny) return null;
+        for (const pk of orderedKeys) {
+          if (pk === headlinePk) continue;
+          const r = grid[pk]?.[k]?.revenueKr;
+          if (r != null && r !== '—') return pk;
+        }
+        return null;
+      };
+
+      const pickOpWonPk = (): string | null => {
+        if (!grid) return null;
+        const oH = headlineBundle?.operatingIncomeWon;
+        if (oH != null && Number.isFinite(oH)) return headlinePk;
+        if (!headlineHasAny) return null;
+        for (const pk of orderedKeys) {
+          if (pk === headlinePk) continue;
+          const o = grid[pk]?.[k]?.operatingIncomeWon;
+          if (o != null && Number.isFinite(o)) return pk;
+        }
+        return null;
+      };
+
+      /** 영업이익 행 문자열과 동일 탐색 순서 — POR 분모(won)와 다른 분기일 수 있음 */
+      const pickOpKrPk = (): string | null => {
+        if (!grid) return null;
+        const oH = headlineBundle?.operatingIncomeKr;
+        if (oH != null && oH !== '—') return headlinePk;
+        if (!headlineHasAny) return null;
+        for (const pk of orderedKeys) {
+          if (pk === headlinePk) continue;
+          const o = grid[pk]?.[k]?.operatingIncomeKr;
+          if (o != null && o !== '—') return pk;
+        }
+        return null;
+      };
+
+      const pickNetPk = (): string | null => {
+        if (!grid) return null;
+        const nH = headlineBundle?.netIncomeWon;
+        if (nH != null && Number.isFinite(nH)) return headlinePk;
+        if (!headlineHasAny) return null;
+        for (const pk of orderedKeys) {
+          if (pk === headlinePk) continue;
+          const n = grid[pk]?.[k]?.netIncomeWon;
+          if (n != null && Number.isFinite(n)) return pk;
+        }
+        return null;
+      };
+
+      const netIncomeWonForPer = (): number | null => {
+        if (!grid) return null;
+        const nH = headlineBundle?.netIncomeWon;
+        if (nH != null && Number.isFinite(nH)) return nH;
+        if (!headlineHasAny) return null;
+        for (const pk of orderedKeys) {
+          if (pk === headlinePk) continue;
+          const n = grid[pk]?.[k]?.netIncomeWon;
           if (n != null && Number.isFinite(n)) return n;
         }
         return null;
       };
 
       const operatingIncomeWonForPor = (): number | null => {
-        const snap = dCell?.operatingIncomeWon;
-        if (snap != null && Number.isFinite(snap)) return snap;
-        if (isDomestic) {
-          if (!dartGrid) return null;
-          for (const pk of perNetIncomeSearchPeriodKeys) {
-            const o = dartGrid[pk]?.[k]?.operatingIncomeWon;
-            if (o != null && Number.isFinite(o)) return o;
-          }
-          return null;
-        }
-        if (!yahooGrid) return null;
-        for (const pk of perNetIncomeSearchPeriodKeys) {
-          const o = yahooGrid[pk]?.[k]?.operatingIncomeWon;
+        if (!grid) return null;
+        const oH = headlineBundle?.operatingIncomeWon;
+        if (oH != null && Number.isFinite(oH)) return oH;
+        if (!headlineHasAny) return null;
+        for (const pk of orderedKeys) {
+          if (pk === headlinePk) continue;
+          const o = grid[pk]?.[k]?.operatingIncomeWon;
           if (o != null && Number.isFinite(o)) return o;
         }
         return null;
       };
 
-      /** 스냅샷 한 칸만 보면 해외·국내 중 한쪽만 채워진 분기로 잡혀 반대쪽 매출·영업 문자열이 비는 경우가 있음 → 순이익과 같은 기간 탐색 순서로 폴백 */
       const revenueKrForSummary = (): string => {
-        const snap = dCell?.revenueKr;
-        if (snap != null && snap !== '—') return snap;
-        if (isDomestic) {
-          if (!dartGrid) return '—';
-          for (const pk of perNetIncomeSearchPeriodKeys) {
-            const r = dartGrid[pk]?.[k]?.revenueKr;
-            if (r != null && r !== '—') return r;
-          }
-          return '—';
-        }
-        if (!yahooGrid) return '—';
-        for (const pk of perNetIncomeSearchPeriodKeys) {
-          const r = yahooGrid[pk]?.[k]?.revenueKr;
+        if (!grid) return '—';
+        const rH = headlineBundle?.revenueKr;
+        if (rH != null && rH !== '—') return rH;
+        if (!headlineHasAny) return '—';
+        for (const pk of orderedKeys) {
+          if (pk === headlinePk) continue;
+          const r = grid[pk]?.[k]?.revenueKr;
           if (r != null && r !== '—') return r;
         }
         return '—';
       };
 
       const operatingIncomeKrForSummary = (): string => {
-        const snap = dCell?.operatingIncomeKr;
-        if (snap != null && snap !== '—') return snap;
-        if (isDomestic) {
-          if (!dartGrid) return '—';
-          for (const pk of perNetIncomeSearchPeriodKeys) {
-            const o = dartGrid[pk]?.[k]?.operatingIncomeKr;
-            if (o != null && o !== '—') return o;
-          }
-          return '—';
-        }
-        if (!yahooGrid) return '—';
-        for (const pk of perNetIncomeSearchPeriodKeys) {
-          const o = yahooGrid[pk]?.[k]?.operatingIncomeKr;
+        if (!grid) return '—';
+        const oH = headlineBundle?.operatingIncomeKr;
+        if (oH != null && oH !== '—') return oH;
+        if (!headlineHasAny) return '—';
+        for (const pk of orderedKeys) {
+          if (pk === headlinePk) continue;
+          const o = grid[pk]?.[k]?.operatingIncomeKr;
           if (o != null && o !== '—') return o;
         }
         return '—';
@@ -1360,26 +1425,46 @@ export default function FundamentalsCompareScreen() {
 
       switch (rowId) {
         case 'cap':
-          return marketCapLoading && selectedRows.length > 0 ? '불러오는 중…' : (marketCapKrByKey[k] ?? '—');
+          return {
+            text:
+              marketCapLoading && selectedRows.length > 0
+                ? '불러오는 중…'
+                : (marketCapKrByKey[k] ?? '—'),
+            hint: null,
+          };
         case 'por': {
           const opWon = annualizeIncomeForPerPor(operatingIncomeWonForPor(), granularity);
-          return opWon != null ? formatPorFromCapAndOp(capWon, opWon) : '—';
+          return {
+            text: opWon != null ? formatPorFromCapAndOp(capWon, opWon) : '—',
+            hint: hintIfDifferent(pickOpWonPk()),
+          };
         }
         case 'per': {
           const net = annualizeIncomeForPerPor(netIncomeWonForPer(), granularity);
-          return net != null ? formatPerFromCapAndNet(capWon, net) : '—';
+          const netPk = pickNetPk();
+          return {
+            text: net != null ? formatPerFromCapAndNet(capWon, net) : '—',
+            hint: hintIfDifferent(netPk),
+          };
         }
         case 'net': {
           const net = netIncomeWonForPer();
-          if (net == null || !Number.isFinite(net)) return '—';
-          return formatWonShortKr(net);
+          const netPk = pickNetPk();
+          if (net == null || !Number.isFinite(net)) return { text: '—', hint: null };
+          return { text: formatWonShortKr(net), hint: hintIfDifferent(netPk) };
         }
         case 'op':
-          return operatingIncomeKrForSummary();
+          return {
+            text: operatingIncomeKrForSummary(),
+            hint: hintIfDifferent(pickOpKrPk()),
+          };
         case 'rev':
-          return revenueKrForSummary();
+          return {
+            text: revenueKrForSummary(),
+            hint: hintIfDifferent(pickRevPk()),
+          };
         default:
-          return '—';
+          return { text: '—', hint: null };
       }
     },
     [
@@ -1392,6 +1477,7 @@ export default function FundamentalsCompareScreen() {
       dartCapTableSnapshotPeriodKey,
       perNetIncomeSearchPeriodKeys,
       granularity,
+      capSummaryPeriodKeyByStock,
     ]
   );
 
@@ -1453,7 +1539,7 @@ export default function FundamentalsCompareScreen() {
           </View>
           <Text style={styles.bannerSub}>
             {dartApiKeyPresent
-              ? '국내(6자리) 실적은 DART, 미국 등 해외는 Yahoo Finance 손익(USD→원)입니다. 시총은 국내 6자리는 네이버 우선·없으면 Yahoo, 해외는 Yahoo. PER·POR은 연·분기 모드 규칙은 아래 힌트와 같습니다. 기간·종목을 바꾸면 자동으로 다시 불러옵니다.'
+              ? '국내(6자리) 실적은 DART, 해외는 Yahoo Finance 손익입니다. 시총은 국내는 네이버 우선·없으면 Yahoo, 해외는 Yahoo입니다. PER·POR 규칙은 아래 안내를 참고하세요. 기간·종목을 바꾸면 자동으로 다시 불러옵니다.'
               : '국내 실적(DART)은 DART_API_KEY가 필요합니다. 해외 실적·시총은 Yahoo를 사용합니다.'}
           </Text>
           <TouchableOpacity
@@ -1592,25 +1678,12 @@ export default function FundamentalsCompareScreen() {
           </Text>
         ) : null}
 
-        <Text style={styles.fxLine}>
-          해외 시총·손익 원화는 상단 적용 환율 기준입니다. Yahoo 조회 실패 시 EXPO_PUBLIC_USD_KRW_RATE·기본 1380.
-        </Text>
         {dartApiKeyPresent ? <Text style={styles.fxLine}>{DART_FUNDAMENTALS_DISCLOSURE}</Text> : null}
         {dartError ? <Text style={styles.dartErrorLine}>DART: {dartError}</Text> : null}
         {yahooError ? <Text style={styles.dartErrorLine}>Yahoo 실적: {yahooError}</Text> : null}
 
         <Text style={styles.sectionTitle}>기간 단위</Text>
         <View style={styles.chipRow}>
-          <TouchableOpacity
-            style={[styles.chip, granularity === 'year' && styles.chipOn]}
-            onPress={() => {
-              if (granularity === 'year') return;
-              setGranularity('year');
-            }}
-            activeOpacity={0.85}
-          >
-            <Text style={[styles.chipText, granularity === 'year' && styles.chipTextOn]}>연도</Text>
-          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.chip, granularity === 'quarter' && styles.chipOn]}
             onPress={() => {
@@ -1633,6 +1706,16 @@ export default function FundamentalsCompareScreen() {
             activeOpacity={0.85}
           >
             <Text style={[styles.chipText, granularity === 'quarter' && styles.chipTextOn]}>분기</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.chip, granularity === 'year' && styles.chipOn]}
+            onPress={() => {
+              if (granularity === 'year') return;
+              setGranularity('year');
+            }}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.chipText, granularity === 'year' && styles.chipTextOn]}>연도</Text>
           </TouchableOpacity>
         </View>
 
@@ -1704,20 +1787,13 @@ export default function FundamentalsCompareScreen() {
                     >
                       <Text style={[styles.td, styles.thPeriod]}>{r.label}</Text>
                       {selectedRows.map((s) => {
-                        const dom = /^\d{6}$/.test(s.mockKey);
-                        const bundle = dom
-                          ? dartGrid?.[r.periodKey]?.[s.mockKey]
-                          : yahooGrid?.[r.periodKey]?.[s.mockKey];
-                        const fsHint =
-                          !dom && bundle?.fsPeriodLabel && bundle.fsPeriodLabel.length > 0
-                            ? bundle.fsPeriodLabel
-                            : null;
+                        const cell = resolvePeriodTableMetricCell(metricTab, r, s.mockKey);
                         return (
                           <View key={`${r.periodKey}-${s.mockKey}`} style={[styles.thStock, styles.fsPeriodCellWrap]}>
-                            <Text style={[styles.td, styles.fsPeriodCellValue]}>{displayCell(metricTab, r, s.mockKey)}</Text>
-                            {fsHint != null ? (
+                            <Text style={[styles.td, styles.fsPeriodCellValue]}>{cell.text}</Text>
+                            {cell.hint != null && cell.hint.length > 0 ? (
                               <Text style={styles.fsPeriodCellHint} numberOfLines={3}>
-                                {fsHint}
+                                {cell.hint}
                               </Text>
                             ) : null}
                           </View>
@@ -1728,7 +1804,7 @@ export default function FundamentalsCompareScreen() {
                 </View>
               </ScrollView>
               <Text style={styles.tableHint}>
-                가로로 스크롤하여 열을 확인할 수 있습니다. 이 표만 연·분기 단위가 적용됩니다. 해외 종목은 행 라벨이 달력 분기·연도이며, 숫자 아래는 Yahoo 공시 구간입니다. 기간·종목 변경 또는 「조회」 시 최신 데이터가 반영됩니다.
+                가로로 스크롤하여 열을 확인할 수 있습니다. 이 표만 연·분기 단위가 적용됩니다. 숫자가 행 기준이 아닌 다른 공시 기간에서 가져온 경우(매출·영업·순이익 탐색 순), 칸 아래에 실적 기준 분기·연도 또는 해외 Yahoo 공시 구간(FROM ~ TO)을 표시합니다.
               </Text>
             </>
 
@@ -1739,7 +1815,7 @@ export default function FundamentalsCompareScreen() {
                 : '분기 단위: 매출·영업·순이익 행은 해당 분기 금액. PER·POR 분모는 분기 이익×4(연율).'}
             </Text>
             <Text style={styles.metricSectionSub}>
-              열마다 실적 기준을 표시합니다. 해외는 Yahoo가 주는 시작·종료일이 있으면 FROM ~ TO, 없으면 ~ 종료일 또는 연·분기 키입니다.
+              열 헤더는 종목별로 잡힌 대표 실적 기준입니다. 매출·영업·순이익·PER·POR 행은 데이터가 다른 분기·연에서 가져온 경우 숫자 아래에 실제 출처(FROM~TO 또는 연·분기)를 표시합니다.
               {hasForeignSelected ? ' 해외 Yahoo' : ''}
               {hasDomesticSelected ? ' · 국내 DART' : ''}
             </Text>
@@ -1747,7 +1823,12 @@ export default function FundamentalsCompareScreen() {
               · PER(주가수익비율): 시가총액을 당기순이익으로 나눈 값. 이 표는 시총÷당기순이익(원화)이며, 분모 이익은 위 연·분기 규칙과 같습니다.{'\n'}
               · POR: 시가총액을 영업이익으로 나눈 값(이 화면에서 시총÷영업이익, 원화). PER은 순이익, POR은 영업이익 기준으로 ‘몇 배 밸류’인지 볼 때 쓰는 지표입니다.
             </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator style={styles.tableScroll}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator
+              style={[styles.tableScroll, styles.capSummaryTableScroll]}
+              contentContainerStyle={styles.capSummaryTableScrollContent}
+            >
               <View style={styles.tableInner}>
                 <View style={styles.tableHeaderRow}>
                   <Text style={[styles.th, styles.thLabel]}>항목</Text>
@@ -1772,21 +1853,32 @@ export default function FundamentalsCompareScreen() {
                   ))}
                 </View>
                 {CAP_PER_TABLE_ROWS.map((rowDef) => (
-                  <View key={rowDef.id} style={styles.tableBodyRow}>
+                  <View key={rowDef.id} style={styles.capSummaryTableBodyRow}>
                     <Text style={[styles.td, styles.thLabel]}>{rowDef.label}</Text>
-                    {selectedRows.map((s) => (
-                      <Text key={`${rowDef.id}-${s.mockKey}`} style={[styles.td, styles.thStock]}>
-                        {capPerTableCell(rowDef.id, s)}
-                      </Text>
-                    ))}
+                    {selectedRows.map((s) => {
+                      const cell = resolveCapSummaryTableCell(rowDef.id, s);
+                      return (
+                        <View
+                          key={`${rowDef.id}-${s.mockKey}`}
+                          style={[styles.thStock, styles.fsPeriodCellWrapCapSummary]}
+                        >
+                          <Text style={[styles.td, styles.fsPeriodCellValue]}>{cell.text}</Text>
+                          {cell.hint != null && cell.hint.length > 0 ? (
+                            <Text style={styles.fsPeriodCellHint} numberOfLines={3}>
+                              {cell.hint}
+                            </Text>
+                          ) : null}
+                        </View>
+                      );
+                    })}
                   </View>
                 ))}
               </View>
             </ScrollView>
             <Text style={styles.tableHint}>
               {granularity === 'year'
-                ? '시총은 Yahoo(조회 시점). 이익 분모는 국내=DART·해외=Yahoo 손익을 원화 환산한 값입니다. POR=시총÷연간 영업이익, PER=시총÷연간 당기순이익.'
-                : '시총은 Yahoo(조회 시점). PER·POR은 분기 이익×4(연율). 이익은 국내 DART·해외 Yahoo 손익(원화).「영업이익」「당기순이익」행은 해당 분기 금액.'}
+                ? '시총은 조회 시점 기준입니다. POR=시총÷연간 영업이익, PER=시총÷연간 당기순이익.'
+                : '시총은 조회 시점 기준입니다. PER·POR은 분기 이익×4(연율).「영업이익」「당기순이익」행은 해당 분기 금액.'}
             </Text>
 
             <Text style={styles.sectionTitle}>잠정 분기 실적 ×4 환산 실적</Text>
@@ -1862,9 +1954,7 @@ export default function FundamentalsCompareScreen() {
                 </View>
               </View>
             </ScrollView>
-            <Text style={styles.tableHint}>
-              시총은 위 요약과 동일(조회 시점). 해외 종목도 숫자·단위만 맞추면 동일하게 환산됩니다.
-            </Text>
+            <Text style={styles.tableHint}>시총은 위 요약과 동일합니다(조회 시점).</Text>
 
             <Text style={styles.sectionTitle}>가이던스 분기 실적 ×4 환산 실적</Text>
             <Text style={styles.scenarioSub}>
@@ -2357,6 +2447,21 @@ const styles = StyleSheet.create({
     marginTop: 4,
     maxHeight: 320,
   },
+  /** 시총·PER·실적 요약: 6행 + 칸 아래 출처 힌트(최대 3줄) 시 기본 maxHeight(320)로 마지막 행(당기순이익)이 잘림 */
+  capSummaryTableScroll: {
+    maxHeight: 580,
+  },
+  capSummaryTableScrollContent: {
+    paddingBottom: 20,
+  },
+  /** 힌트 줄수가 행마다 달라도 숫자·라벨이 위에서 정렬되도록 */
+  capSummaryTableBodyRow: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'flex-start',
+  },
   /** 연도 모드 5행 + 해외 FROM~TO(최대 3줄) 시 기본 maxHeight로 마지막 행이 잘림 */
   periodTableScrollYearRows: {
     maxHeight: 540,
@@ -2421,6 +2526,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
     lineHeight: 12,
+  },
+  /** 시총·PER·실적 요약 전용 — 세로 중앙 정렬 시 마지막 행이 잘려 보이지 않게 상단 정렬 */
+  fsPeriodCellWrapCapSummary: {
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingVertical: 2,
   },
   capSummaryStockHead: {
     alignItems: 'center',
