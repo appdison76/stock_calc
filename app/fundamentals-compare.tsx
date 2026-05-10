@@ -37,6 +37,7 @@ import { dartTrace } from '../src/services/dart/dartLog';
 import {
   buildDartFundamentalsGrid,
   pickDartCellDisplay,
+  DART_FUNDAMENTALS_GRID_MAX_PERIOD_KEYS,
   type DartCellBundle,
   type DartFundamentalsGrid,
 } from '../src/services/dart/dartFundamentalsGrid';
@@ -55,6 +56,9 @@ import { buildYahooFundamentalsGridColumn } from '../src/services/yahooFundament
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SettingsService } from '../src/services/SettingsService';
 
+/** 해외 실적 컬럼 동시 조회 상한 — 무제한 병렬은 Yahoo 차단·메모리 스파이크 위험 */
+const YAHOO_FUNDAMENTALS_FOREIGN_CONCURRENCY = 4;
+
 /** Metro·adb logcat에서 `[CAP_PER]`로 필터링 (시총·PER 진단) */
 function capPerTrace(message: string, data?: Record<string, unknown>): void {
   if (data !== undefined) {
@@ -64,20 +68,34 @@ function capPerTrace(message: string, data?: Record<string, unknown>): void {
   }
 }
 
+/** 시총·Yahoo 실적이 같은 초에 각각 환율을 부르면 중복 요청이 되므로 짧게 재사용 */
+const FUNDAMENTALS_USD_KRW_CACHE_MS = 90_000;
+let fundamentalsUsdKrwRateCache: { value: number; readAtMs: number } | null = null;
+
 /**
  * 네이버 등 원화 시총과 비교 시 차이를 줄이기 위해 Yahoo USD/KRW 스팟(USDKRW=X)을 우선 사용.
  * 실패 시 `EXPO_PUBLIC_USD_KRW_RATE` 또는 기본 1380.
  */
 async function resolveFundamentalsUsdKrwRate(): Promise<number> {
+  const now = Date.now();
+  if (
+    fundamentalsUsdKrwRateCache != null &&
+    now - fundamentalsUsdKrwRateCache.readAtMs < FUNDAMENTALS_USD_KRW_CACHE_MS
+  ) {
+    return fundamentalsUsdKrwRateCache.value;
+  }
   try {
     const q = await getStockQuote('USDKRW=X');
     if (q != null && Number.isFinite(q.price) && q.price > 400 && q.price < 100_000) {
+      fundamentalsUsdKrwRateCache = { value: q.price, readAtMs: now };
       return q.price;
     }
   } catch {
     /* ignore */
   }
-  return FUNDAMENTALS_USD_KRW_RATE;
+  const fallback = FUNDAMENTALS_USD_KRW_RATE;
+  fundamentalsUsdKrwRateCache = { value: fallback, readAtMs: now };
+  return fallback;
 }
 
 /** 매출·영업·순이익 중 하나라도 있으면 ‘채워짐’ */
@@ -1048,27 +1066,32 @@ export default function FundamentalsCompareScreen() {
 
         /** 실패한 분기 그리드를 누적하지 않음 — 누적 시 빈 칸이 메인 표 동일 기간을 덮어씀 */
         const fetchLatestQuarterOverlay = async (): Promise<DartFundamentalsGrid> => {
-          for (const pk of overlayCandidates) {
+          const batchSize = DART_FUNDAMENTALS_GRID_MAX_PERIOD_KEYS;
+          for (let start = 0; start < overlayCandidates.length; start += batchSize) {
             if (cancelled) return {};
-            dartTrace('dart_latest_quarter_try', { periodKey: pk });
-            const g = await buildDartFundamentalsGrid({
+            const batch = overlayCandidates.slice(start, start + batchSize);
+            if (batch.length === 0) break;
+            dartTrace('dart_latest_quarter_batch', { periodKeys: batch, start });
+            const gridMaybe = await buildDartFundamentalsGrid({
               apiKey,
               domesticTickerKeys: tickerKeys,
-              periodKeys: [pk],
+              periodKeys: batch,
               granularity: 'quarter',
             });
-            const ok = tickerKeys.some((tk) => {
-              const b = g[pk]?.[tk];
-              return (
-                b &&
-                (b.revenueKr !== '—' ||
-                  (b.netIncomeWon != null && Number.isFinite(b.netIncomeWon)) ||
-                  b.operatingIncomeKr !== '—')
-              );
-            });
-            if (ok) {
-              dartTrace('dart_latest_quarter_resolved', { periodKey: pk });
-              return g;
+            for (const pk of batch) {
+              const ok = tickerKeys.some((tk) => {
+                const b = gridMaybe[pk]?.[tk];
+                return (
+                  b &&
+                  (b.revenueKr !== '—' ||
+                    (b.netIncomeWon != null && Number.isFinite(b.netIncomeWon)) ||
+                    b.operatingIncomeKr !== '—')
+                );
+              });
+              if (ok) {
+                dartTrace('dart_latest_quarter_resolved', { periodKey: pk });
+                return { [pk]: gridMaybe[pk] ?? {} };
+              }
             }
           }
           return {};
@@ -1164,18 +1187,21 @@ export default function FundamentalsCompareScreen() {
           g === 'quarter'
             ? [...new Set([...pks, ...buildDartLatestQuarterCandidates(new Date(), 24)])]
             : [...new Set([...pks, ...widenedYearKeys])];
-        /** 한 종목 실패 시 전체 Yahoo 그리드가 비지 않도록 개별 처리 */
-        const settled = await Promise.allSettled(
-          foreign.map((row) =>
-            buildYahooFundamentalsGridColumn({
+        /** 한 종목 실패 시 전체 Yahoo 그리드가 비지 않도록 개별 처리(순서 유지·동시성 제한) */
+        const settled = await mapWithConcurrency(foreign, YAHOO_FUNDAMENTALS_FOREIGN_CONCURRENCY, async (row) => {
+          try {
+            const value = await buildYahooFundamentalsGridColumn({
               yahooSymbol: yahooQuoteLookupKey(row),
               mockKey: row.mockKey,
               periodKeys: periodKeysForYahoo,
               granularity: g,
               usdKrwRate: usdKrw,
-            })
-          )
-        );
+            });
+            return { status: 'fulfilled' as const, value };
+          } catch (reason) {
+            return { status: 'rejected' as const, reason };
+          }
+        });
         if (cancelled) return;
         let merged: DartFundamentalsGrid = {};
         const capKrPatch: Record<string, string> = {};

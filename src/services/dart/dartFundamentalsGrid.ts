@@ -250,7 +250,13 @@ async function runPool<T>(items: T[], limit: number, worker: (item: T) => Promis
  * API 키 없음·해외 티커는 호출하지 않음.
  */
 /** 한 번에 너무 많은 기간을 치면 느려지므로 최근 N개만 DART 조회 */
-const MAX_DART_PERIOD_KEYS = 10;
+export const DART_FUNDAMENTALS_GRID_MAX_PERIOD_KEYS = 10;
+
+/** 분기 셀 조회 시 티커별 동시 DART 호출 상한(너무 높이면 API·앱이 불안정해질 수 있음) */
+const DART_TICKER_POOL_LIMIT = 2;
+
+/** 고유 종목코드 해석 동시성 — 해석만 병렬, 실적 fetch는 티커 풀에서 제한 */
+const DART_CORP_RESOLVE_POOL_LIMIT = 3;
 
 export async function buildDartFundamentalsGrid(params: {
   apiKey: string;
@@ -260,7 +266,7 @@ export async function buildDartFundamentalsGrid(params: {
   granularity: 'year' | 'quarter';
 }): Promise<DartFundamentalsGrid> {
   const { apiKey, domesticTickerKeys, granularity } = params;
-  fnlttCache.clear();
+  /** 호출마다 전역 캐시를 비우면 연 표 직후 오버레이 등에서 동일 (corp,연,분기) 재요청이 반복됨 — 키가 corp·연·보고서로 구분되므로 세션 내 재사용 */
   dartDiagLogBudget = 28;
   dartTrace('grid_build_start', {
     tickers: domesticTickerKeys,
@@ -269,13 +275,14 @@ export async function buildDartFundamentalsGrid(params: {
     periodsSample: params.periodKeys.slice(0, 6),
   });
   const periodKeys =
-    params.periodKeys.length > MAX_DART_PERIOD_KEYS
-      ? params.periodKeys.slice(-MAX_DART_PERIOD_KEYS)
+    params.periodKeys.length > DART_FUNDAMENTALS_GRID_MAX_PERIOD_KEYS
+      ? params.periodKeys.slice(-DART_FUNDAMENTALS_GRID_MAX_PERIOD_KEYS)
       : params.periodKeys;
   const grid: DartFundamentalsGrid = {};
 
   const corpByTicker = new Map<string, string>();
-  for (const tk of domesticTickerKeys) {
+  const uniqueTickerKeys = [...new Set(domesticTickerKeys)];
+  await runPool(uniqueTickerKeys, DART_CORP_RESOLVE_POOL_LIMIT, async (tk) => {
     try {
       const cc = await resolveDartCorpCode(apiKey, tk);
       if (cc) {
@@ -291,7 +298,7 @@ export async function buildDartFundamentalsGrid(params: {
     } catch (e) {
       dartTrace('corp_resolve_throw', { ticker: tk, error: e instanceof Error ? e.message : String(e) });
     }
-  }
+  });
 
   const tickersWithCorp = domesticTickerKeys.filter((tk) => corpByTicker.has(tk));
   if (tickersWithCorp.length === 0) {
@@ -310,7 +317,7 @@ export async function buildDartFundamentalsGrid(params: {
       continue;
     }
 
-    await runPool(tickersWithCorp, 1, async (tk) => {
+    await runPool(tickersWithCorp, DART_TICKER_POOL_LIMIT, async (tk) => {
       const corp = corpByTicker.get(tk);
       if (!corp) return;
       try {
