@@ -508,22 +508,18 @@ export default function CapPerPorCalculatorScreen() {
       }
 
       try {
-        const usdKrw = await resolveUsdKrwRate();
-        setUsdKrwApplied(usdKrw);
         const yahooSym = yahooLookupFromMockKey(mk);
-        const quote = await getStockQuote(yahooSym);
+        const [usdKrw, quote] = await Promise.all([
+          resolveUsdKrwRate(),
+          getStockQuote(yahooSym),
+        ]);
+        setUsdKrwApplied(usdKrw);
         if (quote != null && Number.isFinite(quote.price) && quote.price > 0) {
           setPrice(quote.price);
           setQuoteCurrency((quote.currency || 'KRW').toUpperCase());
         }
 
         let cap: number | null = null;
-        if (domestic) {
-          cap = await fetchDomesticMarketCapWonFromNaver(mk);
-          if (cap == null || !Number.isFinite(cap)) {
-            cap = marketCapWonFromQuote(quote, usdKrw);
-          }
-        }
 
         if (domestic) {
           const apiKey = getDartApiKey();
@@ -541,12 +537,20 @@ export default function CapPerPorCalculatorScreen() {
           ];
           const periodKeys = granularity === 'year' ? periodKeysYear : periodKeysQ;
 
-          const grid = await buildDartFundamentalsGrid({
-            apiKey,
-            domesticTickerKeys: [mk],
-            periodKeys,
-            granularity,
-          });
+          const [grid, naverCap] = await Promise.all([
+            buildDartFundamentalsGrid({
+              apiKey,
+              domesticTickerKeys: [mk],
+              periodKeys,
+              granularity,
+            }),
+            fetchDomesticMarketCapWonFromNaver(mk),
+          ]);
+
+          cap = naverCap;
+          if (cap == null || !Number.isFinite(cap)) {
+            cap = marketCapWonFromQuote(quote, usdKrw);
+          }
 
           const resolved = applyFundamentalsSnapshotFromGrid(
             grid,
