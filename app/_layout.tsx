@@ -371,6 +371,12 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="cap-per-por-calculator"
+          options={{
+            title: '시총·PER·POR 계산기',
+          }}
+        />
+        <Stack.Screen
           name="regular-purchase-simulator"
           options={{
             title: '정기 매수 계산기',

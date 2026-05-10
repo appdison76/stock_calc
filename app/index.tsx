@@ -1848,6 +1848,15 @@ export default function MainScreen() {
             <View style={styles.cardSpacer} />
 
             <CalculatorCard
+              title="시총·PER·POR 계산기"
+              description={['종목 시총·실적 기준 PER/POR과', '주가 시나리오·잠정·가이던스를 시뮬레이션합니다']}
+              icon="◎"
+              color="#7E57C2"
+              onPress={() => router.push('/cap-per-por-calculator')}
+            />
+            <View style={styles.cardSpacer} />
+
+            <CalculatorCard
               title="정기 매수 계산기"
               description={['정기 매수 금액과 주기를 입력하여', '평균 매수가와 최종 수익률을 계산합니다']}
               icon="📆"

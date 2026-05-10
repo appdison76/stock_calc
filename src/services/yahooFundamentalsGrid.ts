@@ -251,6 +251,8 @@ const OPERATING_INCOME_ROW_KEYS = [
   'reconciledOperatingIncome',
   'operatingIncome',
   'OperatingIncome',
+  'incomeFromOperations',
+  'IncomeFromOperations',
   'totalOperatingIncome',
   'TotalOperatingIncome',
   'totalOperatingIncomeAsReported',
