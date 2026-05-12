@@ -342,11 +342,7 @@ function mergeFundamentalsSelectedKeys(
   const snapSet = new Set(persisted.portfolioSnapshotMockKeys ?? []);
   const savedSel = (persisted.selectedMockKeys ?? []).filter((k) => oSet.has(k));
   const newcomers = orderedKeys.filter((k) => !snapSet.has(k));
-  const merged = new Set<string>([...savedSel, ...newcomers]);
-  if (merged.size === 0) {
-    merged.add(orderedKeys[0]);
-  }
-  return merged;
+  return new Set<string>([...savedSel, ...newcomers]);
 }
 
 export default function FundamentalsCompareScreen() {
@@ -1581,21 +1577,17 @@ export default function FundamentalsCompareScreen() {
       } else {
         next.add(key);
       }
-      if (next.size === 0 && deduped.length > 0) {
-        next.add(deduped[0].mockKey);
-      }
       return next;
     });
-  }, [deduped]);
+  }, []);
 
   const selectAllFundamentalsKeys = useCallback(() => {
     setSelectedKeys(new Set(deduped.map((x) => x.mockKey)));
   }, [deduped]);
 
   const deselectAllFundamentalsKeys = useCallback(() => {
-    if (deduped.length === 0) return;
-    setSelectedKeys(new Set([deduped[0].mockKey]));
-  }, [deduped]);
+    setSelectedKeys(new Set());
+  }, []);
 
   const handleResetFundamentalsColumnOrder = useCallback(async () => {
     await SettingsService.clearFundamentalsCompareColumnOrder();
@@ -1624,21 +1616,33 @@ export default function FundamentalsCompareScreen() {
         nestedScrollEnabled
         keyboardShouldPersistTaps="handled"
       >
-        <View style={[styles.banner, { marginTop: insets.top + 8 }]}>
-          <Text style={styles.bannerTitle}>실적·시총 조회</Text>
-          <View style={styles.bannerFxChip}>
-            <Text style={styles.bannerFxChipLabel}>적용 환율</Text>
-            <Text style={styles.bannerFxChipValue}>
-              1 USD ={' '}
-              {fundamentalsUsdKrwLive.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}원
-            </Text>
-            <Text style={styles.bannerFxChipSource}>Yahoo USDKRW=X · 조회 시 갱신</Text>
-          </View>
-          <Text style={styles.bannerSub}>
-            {dartApiKeyPresent
-              ? '국내 DART · 해외 Yahoo 실적, 시총은 네이버·Yahoo. 기간·종목을 바꾸면 자동으로 다시 불러옵니다.'
-              : '국내 DART는 API 키가 필요합니다. 해외·시총은 Yahoo를 사용합니다.'}
+        <LinearGradient
+          colors={['#1e3a5f', '#121212']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.hero}
+        >
+          <Text style={styles.heroTitle}>기업 실적 비교</Text>
+          <Text style={styles.heroSub}>
+            여러 종목을 선택해 연·분기 실적과 시총·PER을 비교하고, 잠정·가이던스 분기 영업이익으로 ×4 연율 기준 POR까지 시뮬레이션할 수 있습니다.
           </Text>
+        </LinearGradient>
+
+        <View style={[styles.sectionCard, styles.sectionCardAfterHero]}>
+          <Text style={styles.sectionHeading}>실적·시총 조회</Text>
+          <Text style={styles.fetchSourceNote}>
+            {dartApiKeyPresent
+              ? '국내 실적은 DART, 해외는 Yahoo 손익이며 시총은 네이버·Yahoo를 참고합니다. 기간·종목을 바꾸면 조회 시 다시 불러옵니다.'
+              : '해외 실적은 Yahoo이며, 국내 DART 표에는 API 키가 필요합니다. 시총은 네이버·Yahoo를 참고합니다. 기간·종목을 바꾸면 조회 시 다시 불러옵니다.'}
+          </Text>
+          <View style={styles.fetchToolbarRow}>
+            <View style={styles.fetchFxPill} accessibilityLabel="적용 달러 환율">
+              <Text style={styles.fetchFxPillText} numberOfLines={1}>
+                1 USD ={' '}
+                {fundamentalsUsdKrwLive.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}원
+              </Text>
+            </View>
+          </View>
           <TouchableOpacity
             style={[styles.primaryFetchBtn, isFundamentalsFetching && styles.dartLoadBtnDisabled]}
             onPress={handleFetchAll}
@@ -2161,6 +2165,23 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
   },
+  /** 시총·PER·POR 계산기 `hero`와 동일 패딩·타이포 (`cap-per-por-calculator.tsx`) */
+  hero: {
+    marginHorizontal: -16,
+    padding: 20,
+    marginBottom: 10,
+  },
+  heroTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  heroSub: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#b0bec5',
+    lineHeight: 20,
+  },
   /** 구역 구분 — 표·설명 덩어리 묶음 */
   sectionCard: {
     marginTop: 14,
@@ -2170,6 +2191,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#171b20',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.07)',
+  },
+  /** 히어로 직후 첫 카드 — 위 간격만 살짝 줄임 */
+  sectionCardAfterHero: {
+    marginTop: 8,
   },
   sectionHeading: {
     marginTop: 0,
@@ -2203,53 +2228,38 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
   },
-  banner: {
-    backgroundColor: 'rgba(66, 165, 245, 0.12)',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(66, 165, 245, 0.25)',
-  },
-  bannerTitle: {
-    color: '#90CAF9',
-    fontWeight: '700',
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  bannerFxChip: {
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.28)',
-    borderWidth: 1,
-    borderColor: 'rgba(129, 212, 250, 0.35)',
-  },
-  bannerFxChipLabel: {
-    color: '#81D4FA',
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-    marginBottom: 2,
-  },
-  bannerFxChipValue: {
-    color: '#E1F5FE',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  bannerFxChipSource: {
-    marginTop: 3,
-    color: '#78909C',
-    fontSize: 10,
-  },
-  bannerSub: {
-    color: '#B0BEC5',
+  /** 실적·시총 조회 카드 — 출처 안내(환율 블록 위) */
+  fetchSourceNote: {
+    marginTop: 0,
+    marginBottom: 10,
+    color: '#90A4AE',
     fontSize: 12,
     lineHeight: 18,
+    fontWeight: '500',
+  },
+  /** 실적·시총 조회 카드 — 환율은 시총·PER·POR 계산기 `fxPill`과 동일 톤 */
+  fetchToolbarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginBottom: 10,
+  },
+  fetchFxPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#263238',
+    borderWidth: 1,
+    borderColor: '#455a64',
+    maxWidth: '100%',
+  },
+  fetchFxPillText: {
+    color: '#90caf9',
+    fontSize: 13,
+    fontWeight: '600',
   },
   primaryFetchBtn: {
-    marginTop: 12,
+    marginTop: 0,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 12,

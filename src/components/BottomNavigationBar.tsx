@@ -95,7 +95,7 @@ const fundamentalsCompareMenuItem: MoreMenuItem = {
   label: '기업 실적 비교',
   icon: '\u2696', // 폴백(미사용 시)
   route: '/fundamentals-compare',
-  description: 'DART·Yahoo·네이버 — 실적·시총 비교',
+  description: '여러 종목 실적·시총 비교, 잠정·가이던스 POR 시뮬레이션',
   renderMenuIcon: () => (
     <MaterialCommunityIcons name="scale-balance" size={28} color="#FFFFFF" />
   ),

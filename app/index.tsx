@@ -1231,7 +1231,9 @@ export default function MainScreen() {
                     >
                       <MaterialCommunityIcons name="scale-balance" size={28} color="#FFFFFF" />
                     </TouchableOpacity>
-                    <Text style={styles.circularIconLabel}>기업실적 비교</Text>
+                    <Text style={styles.circularIconLabel} numberOfLines={2}>
+                      기업 실적 비교
+                    </Text>
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
