@@ -58,6 +58,37 @@ function annualizeIncomeForPerPor(baseWon: number | null, g: 'year' | 'quarter')
   return baseWon * 4;
 }
 
+/**
+ * 네이버 시총 대비 연율 손익이 비정형이면 DART 천원 스케일 과대(×1000 중복) 의심.
+ * 매출이 있으면 매출 우선, 없으면 영업이익(>0)·당기순이익(|·|) 순으로 같은 배수 기준 적용.
+ */
+const REV_ANNUALIZED_OVER_CAP_SUSPICIOUS = 10;
+
+function domesticDartIncomeToCapSuspicious(
+  capWon: number | null,
+  revenueWon: number | null,
+  operatingIncomeWon: number | null,
+  netIncomeWon: number | null,
+  granularity: 'year' | 'quarter'
+): boolean {
+  if (capWon == null || !Number.isFinite(capWon) || capWon <= 0) return false;
+  const thresh = capWon * REV_ANNUALIZED_OVER_CAP_SUSPICIOUS;
+
+  if (revenueWon != null && Number.isFinite(revenueWon) && revenueWon > 0) {
+    const a = annualizeIncomeForPerPor(revenueWon, granularity);
+    if (a != null && Number.isFinite(a) && a > thresh) return true;
+  }
+  if (operatingIncomeWon != null && Number.isFinite(operatingIncomeWon) && operatingIncomeWon > 0) {
+    const a = annualizeIncomeForPerPor(operatingIncomeWon, granularity);
+    if (a != null && Number.isFinite(a) && a > thresh) return true;
+  }
+  if (netIncomeWon != null && Number.isFinite(netIncomeWon) && netIncomeWon !== 0) {
+    const a = annualizeIncomeForPerPor(Math.abs(netIncomeWon), granularity);
+    if (a != null && Number.isFinite(a) && a > thresh) return true;
+  }
+  return false;
+}
+
 function formatPerFromCapAndNet(marketCapWon: number | null, netIncomeWon: number | null): string {
   if (marketCapWon == null || !Number.isFinite(marketCapWon)) return '—';
   if (netIncomeWon == null || !Number.isFinite(netIncomeWon)) return '—';
@@ -265,17 +296,25 @@ function resolveNetIncomeWon(
   return { value: null, periodKey: null };
 }
 
-/** `revenueKrForSummary` 와 동일 */
-function resolveRevenueKr(
+/** `revenueKrForSummary` 와 동일 분기·동일 셀 — 원 단위는 `revenueWon` */
+function resolveRevenue(
   grid: DartFundamentalsGrid,
   mockKey: string,
   searchKeys: string[]
-): { value: string | null; periodKey: string | null } {
+): { kr: string | null; won: number | null; periodKey: string | null } {
   for (const pk of searchKeys) {
-    const r = cellAt(grid, pk, mockKey)?.revenueKr;
-    if (r != null && r !== '—') return { value: r, periodKey: pk };
+    const b = cellAt(grid, pk, mockKey);
+    if (!b) continue;
+    if (b.revenueKr != null && b.revenueKr !== '—') {
+      const won = b.revenueWon;
+      return {
+        kr: b.revenueKr,
+        won: won != null && Number.isFinite(won) ? won : null,
+        periodKey: pk,
+      };
+    }
   }
-  return { value: null, periodKey: null };
+  return { kr: null, won: null, periodKey: null };
 }
 
 /** `operatingIncomeWonForPor` / `operatingIncomeKrForSummary` 와 동일 */
@@ -319,6 +358,7 @@ function applyFundamentalsSnapshotFromGrid(
   snapshotPk: string;
   netIncomeWon: number | null;
   operatingIncomeWon: number | null;
+  revenueWon: number | null;
   revenueKr: string;
   operatingIncomeKr: string;
   netIncomeKr: string;
@@ -339,12 +379,12 @@ function applyFundamentalsSnapshotFromGrid(
     yearPeriodRows
   );
   const net = resolveNetIncomeWon(grid, mockKey, searchKeys);
-  const rev = resolveRevenueKr(grid, mockKey, searchKeys);
+  const rev = resolveRevenue(grid, mockKey, searchKeys);
   const op = resolveOperatingIncome(grid, mockKey, searchKeys);
 
   const hasResolved =
     (net.value != null && Number.isFinite(net.value)) ||
-    (rev.value != null && rev.value !== '—') ||
+    (rev.kr != null && rev.kr !== '—') ||
     (op.won != null && Number.isFinite(op.won));
   if (!hasResolved) return null;
 
@@ -355,7 +395,8 @@ function applyFundamentalsSnapshotFromGrid(
     snapshotPk,
     netIncomeWon: net.value,
     operatingIncomeWon: op.won,
-    revenueKr: rev.value ?? '—',
+    revenueWon: rev.won,
+    revenueKr: rev.kr ?? '—',
     operatingIncomeKr: op.kr ?? '—',
     netIncomeKr: netKr,
     fsPeriodLabel: cellAt(grid, snapshotPk, mockKey)?.fsPeriodLabel ?? null,
@@ -393,6 +434,8 @@ export default function CapPerPorCalculatorScreen() {
   const [operatingIncomeWon, setOperatingIncomeWon] = useState<number | null>(null);
   /** 요약 카드 — 선택 실적 기간의 매출·영업이익(포맷 문자열), 당기순이익 표시용 */
   const [displayRevenueKr, setDisplayRevenueKr] = useState<string | null>(null);
+  /** 요약과 동일 스냅샷의 매출(원) — 시총 대비 이상치 경고 */
+  const [revenueWon, setRevenueWon] = useState<number | null>(null);
   const [displayOperatingIncomeKr, setDisplayOperatingIncomeKr] = useState<string | null>(null);
   const [displayNetIncomeKr, setDisplayNetIncomeKr] = useState<string | null>(null);
   /** 스냅샷과 다른 칸에서 채운 경우 숫자 옆 표시(해외는 Yahoo fsPeriodLabel 우선) */
@@ -428,14 +471,56 @@ export default function CapPerPorCalculatorScreen() {
 
   const latestQuarterCandidates = useMemo(() => buildDartLatestQuarterCandidates(new Date(), 12), []);
 
-  const perDenominator = useMemo(
-    () => annualizeIncomeForPerPor(netIncomeWon, granularity),
-    [netIncomeWon, granularity]
-  );
-  const porDenominator = useMemo(
-    () => annualizeIncomeForPerPor(operatingIncomeWon, granularity),
-    [operatingIncomeWon, granularity]
-  );
+  /** 국내: 시총 대비 연율 손익이 비정형이면 DART 손익을 동일 ÷1000 보정(천원 과대 스케일 가정) */
+  const dartWonScaleDown = useMemo(() => {
+    if (mockKeyResolved == null || !/^\d{6}$/.test(mockKeyResolved.trim())) return 1;
+    if (
+      !domesticDartIncomeToCapSuspicious(
+        capWon,
+        revenueWon,
+        operatingIncomeWon,
+        netIncomeWon,
+        granularity
+      )
+    ) {
+      return 1;
+    }
+    return 1e-3;
+  }, [mockKeyResolved, capWon, revenueWon, operatingIncomeWon, netIncomeWon, granularity]);
+
+  const perDenominator = useMemo(() => {
+    const n =
+      netIncomeWon != null && Number.isFinite(netIncomeWon) ? netIncomeWon * dartWonScaleDown : null;
+    return annualizeIncomeForPerPor(n, granularity);
+  }, [netIncomeWon, granularity, dartWonScaleDown]);
+  const porDenominator = useMemo(() => {
+    const o =
+      operatingIncomeWon != null && Number.isFinite(operatingIncomeWon)
+        ? operatingIncomeWon * dartWonScaleDown
+        : null;
+    return annualizeIncomeForPerPor(o, granularity);
+  }, [operatingIncomeWon, granularity, dartWonScaleDown]);
+
+  const displayRevenueKrEff = useMemo(() => {
+    if (revenueWon != null && Number.isFinite(revenueWon)) {
+      return formatWonShortKr(revenueWon * dartWonScaleDown);
+    }
+    return displayRevenueKr ?? '—';
+  }, [revenueWon, dartWonScaleDown, displayRevenueKr]);
+
+  const displayOperatingIncomeKrEff = useMemo(() => {
+    if (operatingIncomeWon != null && Number.isFinite(operatingIncomeWon)) {
+      return formatWonShortKr(operatingIncomeWon * dartWonScaleDown);
+    }
+    return displayOperatingIncomeKr ?? '—';
+  }, [operatingIncomeWon, dartWonScaleDown, displayOperatingIncomeKr]);
+
+  const displayNetIncomeKrEff = useMemo(() => {
+    if (netIncomeWon != null && Number.isFinite(netIncomeWon)) {
+      return formatWonShortKr(netIncomeWon * dartWonScaleDown);
+    }
+    return displayNetIncomeKr ?? '—';
+  }, [netIncomeWon, dartWonScaleDown, displayNetIncomeKr]);
 
   /** 요약·주가 시나리오 PER/POR가 분기 실적을 어떻게 쓰는지 안내 */
   const perPorBasisFootnote = useMemo(
@@ -529,6 +614,7 @@ export default function CapPerPorCalculatorScreen() {
         setDisplayRevenueKr(null);
         setDisplayOperatingIncomeKr(null);
         setDisplayNetIncomeKr(null);
+        setRevenueWon(null);
         setRevenuePeriodSuffix(null);
         setOperatingPeriodSuffix(null);
         setNetIncomePeriodSuffix(null);
@@ -589,6 +675,7 @@ export default function CapPerPorCalculatorScreen() {
           if (!resolved) {
             setError('해당 종목의 실적 데이터를 찾지 못했습니다.');
             setMockKeyResolved(mk);
+            setRevenueWon(null);
             if (cap != null) setCapWon(cap);
             recordRecentIfNeeded(labelFromPicker || (quote?.name && quote.name.trim()) || null);
             setLoading(false);
@@ -597,6 +684,7 @@ export default function CapPerPorCalculatorScreen() {
 
           setNetIncomeWon(resolved.netIncomeWon);
           setOperatingIncomeWon(resolved.operatingIncomeWon);
+          setRevenueWon(resolved.revenueWon ?? null);
           setDisplayRevenueKr(resolved.revenueKr);
           setDisplayOperatingIncomeKr(resolved.operatingIncomeKr);
           setDisplayNetIncomeKr(resolved.netIncomeKr);
@@ -640,6 +728,7 @@ export default function CapPerPorCalculatorScreen() {
           if (!resolved) {
             setError('해당 종목의 실적 데이터를 찾지 못했습니다.');
             setMockKeyResolved(mk);
+            setRevenueWon(null);
             recordRecentIfNeeded(labelFromPicker || (quote?.name && quote.name.trim()) || null);
             setLoading(false);
             return;
@@ -647,6 +736,7 @@ export default function CapPerPorCalculatorScreen() {
 
           setNetIncomeWon(resolved.netIncomeWon);
           setOperatingIncomeWon(resolved.operatingIncomeWon);
+          setRevenueWon(resolved.revenueWon ?? null);
           setDisplayRevenueKr(resolved.revenueKr);
           setDisplayOperatingIncomeKr(resolved.operatingIncomeKr);
           setDisplayNetIncomeKr(resolved.netIncomeKr);
@@ -976,21 +1066,21 @@ export default function CapPerPorCalculatorScreen() {
                 </Text>
                 <Text style={styles.metricRow}>
                   <Text style={styles.metricLblRev}>매출 ({fsAmountPeriodLabel}): </Text>
-                  <Text style={styles.metricVal}>{displayRevenueKr ?? '—'}</Text>
+                  <Text style={styles.metricVal}>{displayRevenueKrEff}</Text>
                   {revenuePeriodSuffix ? (
                     <Text style={styles.metricPeriodInline}>{` · ${revenuePeriodSuffix}`}</Text>
                   ) : null}
                 </Text>
                 <Text style={styles.metricRow}>
                   <Text style={styles.metricLblOp}>영업이익 ({fsAmountPeriodLabel}): </Text>
-                  <Text style={styles.metricVal}>{displayOperatingIncomeKr ?? '—'}</Text>
+                  <Text style={styles.metricVal}>{displayOperatingIncomeKrEff}</Text>
                   {operatingPeriodSuffix ? (
                     <Text style={styles.metricPeriodInline}>{` · ${operatingPeriodSuffix}`}</Text>
                   ) : null}
                 </Text>
                 <Text style={styles.metricRow}>
                   <Text style={styles.metricLblNet}>당기순이익 ({fsAmountPeriodLabel}): </Text>
-                  <Text style={styles.metricVal}>{displayNetIncomeKr ?? '—'}</Text>
+                  <Text style={styles.metricVal}>{displayNetIncomeKrEff}</Text>
                   {netIncomePeriodSuffix ? (
                     <Text style={styles.metricPeriodInline}>{` · ${netIncomePeriodSuffix}`}</Text>
                   ) : null}

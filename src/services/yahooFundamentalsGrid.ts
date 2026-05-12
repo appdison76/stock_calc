@@ -499,6 +499,7 @@ function bundleFromStatementCurrency(
 
   return {
     revenueKr: revWon != null ? formatWonShortKr(revWon) : '—',
+    revenueWon: revWon != null && Number.isFinite(revWon) ? revWon : null,
     operatingIncomeKr: opWon != null ? formatWonShortKr(opWon) : '—',
     marketCapKr: '—',
     per: '—',
@@ -691,6 +692,7 @@ function mergeFundamentalsTimeseriesIntoParsed(
     return {
       ...b,
       revenueKr: formatWonShortKr(revWon),
+      revenueWon: Number.isFinite(revWon) ? revWon : null,
     };
   };
 
@@ -1008,6 +1010,7 @@ export async function buildYahooFundamentalsGridColumn(params: {
 
   const empty = (): DartCellBundle => ({
     revenueKr: '—',
+    revenueWon: null,
     operatingIncomeKr: '—',
     marketCapKr: '—',
     per: '—',

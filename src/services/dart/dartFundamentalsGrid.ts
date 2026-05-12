@@ -11,6 +11,8 @@ import { dartTrace } from './dartLog';
 
 export type DartCellBundle = {
   revenueKr: string;
+  /** `revenueKr`과 동일 기간·동일 스케일의 매출(원) — 시총 대비 이상치 경고 등 */
+  revenueWon?: number | null;
   operatingIncomeKr: string;
   marketCapKr: string;
   per: string;
@@ -56,6 +58,7 @@ async function cachedFnltt(apiKey: string, corp: string, year: number, reprt: st
 
 const emptyBundle = (): DartCellBundle => ({
   revenueKr: '—',
+  revenueWon: null,
   operatingIncomeKr: '—',
   marketCapKr: '—',
   per: '—',
@@ -99,6 +102,7 @@ function bundleFromRows(rows: DartFnlttRow[], ctx?: string): DartCellBundle {
       : formatWonShortKr(operatingIncomeWon);
   return {
     revenueKr,
+    revenueWon: revWon != null && Number.isFinite(revWon) ? revWon : null,
     operatingIncomeKr,
     marketCapKr: '—',
     per: '—',
@@ -266,7 +270,14 @@ async function calendarQuarterBundle(
       rWon,
     });
   }
-  return { ...f, marketCapKr: '—', per: '—', netIncomeWon, operatingIncomeWon };
+  return {
+    ...f,
+    marketCapKr: '—',
+    per: '—',
+    netIncomeWon,
+    operatingIncomeWon,
+    revenueWon: rWon != null && Number.isFinite(rWon) ? rWon : null,
+  };
 }
 
 function parseQuarterPeriodKey(periodKey: string): { year: number; q: 1 | 2 | 3 | 4 } | null {
