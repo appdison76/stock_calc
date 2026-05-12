@@ -33,6 +33,15 @@ import {
 import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
 import StockSearchModal from '../src/components/StockSearchModal';
 import { togglePlainPercentSign } from '../src/utils/percentSignToggle';
+import { initDatabase, getAllAccounts, getStocksByAccountId } from '../src/services/DatabaseService';
+import type { Stock } from '../src/models/Stock';
+import {
+  getCapPerPorRecent,
+  pushCapPerPorRecent,
+  removeCapPerPorRecent,
+  CAP_PER_POR_RECENT_MAX,
+  type CapPerPorRecentEntry,
+} from '../src/services/CapPerPorRecentService';
 
 /** 비율 표시 — 기업실적비교와 동일 규칙 */
 function formatRatioLocale(n: number): string {
@@ -400,6 +409,9 @@ export default function CapPerPorCalculatorScreen() {
 
   const [usdKrwApplied, setUsdKrwApplied] = useState(FUNDAMENTALS_USD_KRW_RATE);
 
+  const [portfolioStocks, setPortfolioStocks] = useState<Stock[]>([]);
+  const [recentEntries, setRecentEntries] = useState<CapPerPorRecentEntry[]>([]);
+
   const quarterYearChoices = useMemo(
     () => fundamentalsQuarterYearChoices(new Date(), FUNDAMENTALS_CALENDAR_YEAR_SPAN),
     []
@@ -498,6 +510,11 @@ export default function CapPerPorCalculatorScreen() {
 
       const softRefresh = opts?.sameTickerGranularityChange === true;
 
+      const recordRecentIfNeeded = (displayName: string | null) => {
+        if (softRefresh) return;
+        void pushCapPerPorRecent(mk, displayName?.trim() || mk).then(setRecentEntries);
+      };
+
       setLoading(true);
       setError(null);
       if (!softRefresh) {
@@ -573,6 +590,7 @@ export default function CapPerPorCalculatorScreen() {
             setError('해당 종목의 실적 데이터를 찾지 못했습니다.');
             setMockKeyResolved(mk);
             if (cap != null) setCapWon(cap);
+            recordRecentIfNeeded(labelFromPicker || (quote?.name && quote.name.trim()) || null);
             setLoading(false);
             return;
           }
@@ -592,6 +610,7 @@ export default function CapPerPorCalculatorScreen() {
           const resolvedLabel =
             labelFromPicker || (quote?.name && quote.name.trim()) || null;
           setStockDisplayName(resolvedLabel);
+          recordRecentIfNeeded(resolvedLabel);
         } else {
           const widenedYearKeys = buildYearPeriodRowsForChoices(
             fundamentalsQuarterYearChoices(new Date(), FUNDAMENTALS_CALENDAR_YEAR_SPAN + 6)
@@ -621,6 +640,7 @@ export default function CapPerPorCalculatorScreen() {
           if (!resolved) {
             setError('해당 종목의 실적 데이터를 찾지 못했습니다.');
             setMockKeyResolved(mk);
+            recordRecentIfNeeded(labelFromPicker || (quote?.name && quote.name.trim()) || null);
             setLoading(false);
             return;
           }
@@ -640,6 +660,7 @@ export default function CapPerPorCalculatorScreen() {
           const resolvedLabel =
             labelFromPicker || (quote?.name && quote.name.trim()) || null;
           setStockDisplayName(resolvedLabel);
+          recordRecentIfNeeded(resolvedLabel);
 
           if (col.marketCap != null && Number.isFinite(col.marketCap) && col.marketCap > 0) {
             const cur = (col.currency || 'USD').toUpperCase();
@@ -670,6 +691,35 @@ export default function CapPerPorCalculatorScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    void getCapPerPorRecent().then(setRecentEntries);
+  }, []);
+
+  useEffect(() => {
+    const loadPortfolioStocks = async () => {
+      try {
+        await initDatabase();
+        const accounts = await getAllAccounts();
+        const stocksArrays = await Promise.all(accounts.map((account) => getStocksByAccountId(account.id)));
+        const allStocks: Stock[] = stocksArrays.flat();
+        const uniqueStocksMap = new Map<string, Stock>();
+        allStocks.forEach((stock) => {
+          const existing = uniqueStocksMap.get(stock.ticker);
+          if (!existing || (stock.id && existing.id && stock.id > existing.id)) {
+            uniqueStocksMap.set(stock.ticker, stock);
+          }
+        });
+        const uniqueStocks = Array.from(uniqueStocksMap.values()).sort(
+          (a, b) => (parseInt(String(a.id), 10) || 0) - (parseInt(String(b.id), 10) || 0)
+        );
+        setPortfolioStocks(uniqueStocks);
+      } catch (e) {
+        console.error('시총계산기 포트폴리오 로드 오류:', e);
+      }
+    };
+    void loadPortfolioStocks();
+  }, []);
+
   /** 기간 단위(분기/연도) 전환 시 이미 불러온 종목이면 실적 그리드·라벨을 다시 맞춤 */
   useEffect(() => {
     if (mockKeyResolved == null) return;
@@ -692,6 +742,31 @@ export default function CapPerPorCalculatorScreen() {
     },
     [fetchFundamentals]
   );
+
+  const onPickPortfolioStock = useCallback(
+    (stock: Stock) => {
+      const mk = fundamentalsMockKey(stock.ticker);
+      const trimmed = (stock.officialName || stock.name || '').trim() || null;
+      setTickerInput(mk);
+      setPickedOfficialName(trimmed);
+      void fetchFundamentals({ ticker: mk, officialNameFromModal: trimmed });
+    },
+    [fetchFundamentals]
+  );
+
+  const onPickRecentEntry = useCallback(
+    (entry: CapPerPorRecentEntry) => {
+      const trimmed = entry.officialName.trim() === entry.mockKey ? null : entry.officialName.trim() || null;
+      setTickerInput(entry.mockKey);
+      setPickedOfficialName(trimmed);
+      void fetchFundamentals({ ticker: entry.mockKey, officialNameFromModal: trimmed });
+    },
+    [fetchFundamentals]
+  );
+
+  const onRemoveRecentEntry = useCallback((mockKey: string) => {
+    void removeCapPerPorRecent(mockKey).then(setRecentEntries);
+  }, []);
 
   const onTickerInputChange = useCallback((text: string) => {
     setTickerInput(text);
@@ -748,14 +823,102 @@ export default function CapPerPorCalculatorScreen() {
 
         <Text style={styles.sectionTitle}>종목</Text>
         <TouchableOpacity
-          style={styles.stockSearchBtn}
+          style={styles.stockSearchStandaloneBtn}
           onPress={() => setShowStockModal(true)}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="종목 검색"
         >
-          <Text style={styles.stockSearchBtnText}>종목 검색 (팝업)</Text>
+          <Text style={styles.stockSearchStandaloneBtnText}>종목 검색</Text>
         </TouchableOpacity>
+
+        {portfolioStocks.length > 0 ? (
+          <>
+            <Text style={styles.subSectionLabel}>포트폴리오 종목</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.stockTabsPortfolioWrap}
+              contentContainerStyle={styles.stockTabsContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              {portfolioStocks.map((stock) => {
+                const mkTab = fundamentalsMockKey(stock.ticker);
+                const isActive = mockKeyResolved != null && mockKeyResolved === mkTab;
+                const label = stock.name || stock.officialName || stock.ticker;
+                return (
+                  <TouchableOpacity
+                    key={stock.id}
+                    style={[styles.stockTab, isActive && styles.stockTabActive]}
+                    onPress={() => onPickPortfolioStock(stock)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.stockTabText, isActive && styles.stockTabTextActive]} numberOfLines={1}>
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </>
+        ) : null}
+
+        {recentEntries.length > 0 ? (
+          <>
+            <Text style={styles.subSectionLabel}>최근 {CAP_PER_POR_RECENT_MAX}개</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.stockTabsRecentWrap}
+              contentContainerStyle={styles.stockTabsContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              {recentEntries.map((entry) => {
+                const isActive = mockKeyResolved != null && mockKeyResolved === entry.mockKey;
+                return (
+                  <View
+                    key={entry.mockKey}
+                    style={[styles.recentChipWrap, isActive && styles.recentChipWrapActive]}
+                  >
+                    <TouchableOpacity
+                      style={styles.recentChipLabelArea}
+                      onPress={() => onPickRecentEntry(entry)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[styles.recentChipText, isActive && styles.recentChipTextActive]}
+                        numberOfLines={1}
+                      >
+                        {entry.officialName}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.recentChipRemoveBtn}
+                      onPress={() => onRemoveRecentEntry(entry.mockKey)}
+                      activeOpacity={0.65}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${entry.officialName} 최근에서 삭제`}
+                    >
+                      <Text
+                        style={[
+                          styles.recentChipRemoveMark,
+                          isActive && styles.recentChipRemoveMarkOnActive,
+                        ]}
+                      >
+                        ✕
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </>
+        ) : null}
+
         <Text style={styles.hint}>
-          팝업에서 종목을 고르면 바로 시세·실적을 불러옵니다. 티커만 직접 입력한 경우에는 불러오기를 눌러 주세요.
+          {portfolioStocks.length > 0
+            ? '포트폴리오 탭·종목 검색·최근 종목으로 불러올 수 있습니다. 최근 목록은 항목 오른쪽 ✕로만 삭제됩니다. 티커만 직접 입력한 뒤에는 불러오기를 눌러 주세요.'
+            : '포트폴리오에 등록된 종목이 없습니다. 종목 검색·최근 종목 또는 티커 입력 후 불러오기를 이용해 주세요. 최근 목록은 ✕로 항목만 삭제합니다.'}
         </Text>
         <TextInput
           style={styles.input}
@@ -766,7 +929,12 @@ export default function CapPerPorCalculatorScreen() {
           autoCapitalize="characters"
           autoCorrect={false}
         />
-        <TouchableOpacity style={styles.primaryBtn} onPress={fetchFundamentals} disabled={loading} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={styles.primaryBtn}
+          onPress={() => void fetchFundamentals()}
+          disabled={loading}
+          activeOpacity={0.85}
+        >
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>불러오기</Text>}
         </TouchableOpacity>
 
@@ -990,6 +1158,124 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: '#1565c0', borderColor: '#42a5f5' },
   chipText: { color: '#90a4ae', fontWeight: '600' },
   chipTextOn: { color: '#fff' },
+  stockSearchStandaloneBtn: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 6,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: 'rgba(239, 83, 80, 0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 138, 128, 0.42)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Platform.select({
+      android: { elevation: 1 },
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.18,
+        shadowRadius: 2,
+      },
+    }),
+  },
+  stockSearchStandaloneBtnText: {
+    fontSize: 16,
+    color: '#ffccbc',
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  stockTabsPortfolioWrap: {
+    marginBottom: 4,
+    marginTop: 0,
+  },
+  stockTabsRecentWrap: {
+    marginBottom: 8,
+    marginTop: 0,
+  },
+  stockTabsContent: {
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingRight: 24,
+    alignItems: 'center',
+  },
+  recentChipWrap: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(189, 189, 189, 0.45)',
+    marginRight: 8,
+    overflow: 'hidden',
+  },
+  recentChipWrapActive: {
+    backgroundColor: '#00695c',
+    borderColor: '#26a69a',
+  },
+  recentChipLabelArea: {
+    flexShrink: 1,
+    maxWidth: 148,
+    paddingVertical: 7,
+    paddingLeft: 12,
+    paddingRight: 4,
+    justifyContent: 'center',
+  },
+  recentChipText: {
+    fontSize: 13,
+    color: '#bdbdbd',
+    fontWeight: '600',
+  },
+  recentChipTextActive: {
+    color: '#e0f2f1',
+    fontWeight: '700',
+  },
+  recentChipRemoveBtn: {
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  recentChipRemoveMark: {
+    fontSize: 14,
+    color: '#ef9a9a',
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  recentChipRemoveMarkOnActive: {
+    color: '#ffcdd2',
+  },
+  stockTab: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: 'rgba(66, 165, 245, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    marginRight: 8,
+  },
+  stockTabActive: {
+    backgroundColor: '#42A5F5',
+    borderColor: '#42A5F5',
+  },
+  stockTabText: {
+    fontSize: 14,
+    color: '#42A5F5',
+    fontWeight: '600',
+    maxWidth: 160,
+  },
+  stockTabTextActive: {
+    color: '#FFFFFF',
+  },
+  subSectionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#90a4ae',
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 6,
+  },
   input: {
     marginHorizontal: 16,
     marginBottom: 10,
@@ -1040,19 +1326,6 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  stockSearchBtn: {
-    marginHorizontal: 16,
-    marginBottom: 8,
-    padding: 14,
-    borderRadius: 10,
-    backgroundColor: '#C62828',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#FF8A80',
-    minHeight: 48,
-  },
-  stockSearchBtnText: { color: '#ffffff', fontWeight: '800', fontSize: 16 },
   errorText: { color: '#ef9a9a', marginHorizontal: 16, marginBottom: 8 },
   card: {
     marginHorizontal: 16,
