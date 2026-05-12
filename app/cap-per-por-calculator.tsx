@@ -1058,7 +1058,10 @@ export default function CapPerPorCalculatorScreen() {
             </View>
 
             <View style={styles.sectionCard}>
-              <Text style={styles.sectionHeading}>주가 시나리오 (%)</Text>
+              <Text style={[styles.sectionHeading, styles.sectionHeadingUserInput]}>
+                주가 시나리오{' '}
+                <Text style={styles.sectionHeadingUserInputSuffix}>(%)</Text>
+              </Text>
               <Text style={styles.sheetLead}>
                 현재가·시총에 같은 비율 적용(유통주식수 불변). 양수 상승, 음수 하락.
               </Text>
@@ -1090,22 +1093,25 @@ export default function CapPerPorCalculatorScreen() {
                   </Text>
                 </Text>
                 <Text style={styles.line}>
-                  <Text style={styles.summaryLblCap}>시나리오 시총: </Text>
-                  <Text style={styles.summaryValStrong}>
+                  <Text style={styles.summaryLblScenarioCap}>시나리오 시총: </Text>
+                  <Text style={styles.summaryValScenarioStrong}>
                     {scenarioCapWon != null
                       ? formatWonShortKr(scenarioCapWon, { maxAbsWon: FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS })
                       : '—'}
                   </Text>
                 </Text>
                 <Text style={styles.perPorNote}>{perPorBasisFootnote}</Text>
-                <Text style={styles.emRow}>
+                <Text style={styles.emRowScenario}>
                   PER {perScenario} · POR {porScenario}
                 </Text>
               </View>
             </View>
 
             <View style={styles.sectionCard}>
-              <Text style={styles.sectionHeading}>잠정 분기 영업이익 ×4 (선택)</Text>
+              <Text style={[styles.sectionHeading, styles.sectionHeadingUserInput]}>
+                잠정 분기 영업이익 ×4 (선택){' '}
+                <Text style={styles.sectionHeadingUserInputSuffix}>계산기</Text>
+              </Text>
               <Text style={styles.sheetLead}>분기 영업이익 숫자·단위 입력 → ×4 연율화 후 POR만 표시.</Text>
               <View style={[styles.unitRow, styles.unitRowInCard]}>
                 {OP_SCENARIO_UNITS.map((u) => (
@@ -1132,8 +1138,8 @@ export default function CapPerPorCalculatorScreen() {
                   <Text style={styles.summaryValStrong}>{formatPorFromQuarterlyOpEok(capWon, provisionalQOp)}</Text>
                 </Text>
                 <Text style={styles.line}>
-                  <Text style={styles.summaryLblCap}>시나리오 시총 기준 POR: </Text>
-                  <Text style={styles.summaryValStrong}>
+                  <Text style={styles.summaryLblScenarioCap}>시나리오 시총 기준 POR: </Text>
+                  <Text style={styles.summaryValScenarioStrong}>
                     {formatPorFromQuarterlyOpEok(scenarioCapWon, provisionalQOp)}
                   </Text>
                 </Text>
@@ -1141,7 +1147,10 @@ export default function CapPerPorCalculatorScreen() {
             </View>
 
             <View style={styles.sectionCard}>
-              <Text style={styles.sectionHeading}>가이던스 분기 영업이익 ×4 (선택)</Text>
+              <Text style={[styles.sectionHeading, styles.sectionHeadingUserInput]}>
+                가이던스 분기 영업이익 ×4 (선택){' '}
+                <Text style={styles.sectionHeadingUserInputSuffix}>계산기</Text>
+              </Text>
               <Text style={styles.sheetLead}>잠정과 동일 규칙으로 가이던스 분기 영업이익을 넣으면 POR을 봅니다.</Text>
               <View style={[styles.unitRow, styles.unitRowInCard]}>
                 {OP_SCENARIO_UNITS.map((u) => (
@@ -1168,8 +1177,8 @@ export default function CapPerPorCalculatorScreen() {
                   <Text style={styles.summaryValStrong}>{formatPorFromQuarterlyOpEok(capWon, guidanceQOp)}</Text>
                 </Text>
                 <Text style={styles.line}>
-                  <Text style={styles.summaryLblCap}>시나리오 시총 기준 POR: </Text>
-                  <Text style={styles.summaryValStrong}>{formatPorFromQuarterlyOpEok(scenarioCapWon, guidanceQOp)}</Text>
+                  <Text style={styles.summaryLblScenarioCap}>시나리오 시총 기준 POR: </Text>
+                  <Text style={styles.summaryValScenarioStrong}>{formatPorFromQuarterlyOpEok(scenarioCapWon, guidanceQOp)}</Text>
                 </Text>
               </View>
             </View>
@@ -1218,6 +1227,15 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
     borderLeftWidth: 3,
     borderLeftColor: '#42a5f5',
+  },
+  /** 기업 실적 비교와 동일 — 사용자 입력·시나리오 섹션 */
+  sectionHeadingUserInput: {
+    borderLeftColor: '#ffb74d',
+    color: '#ffe0b2',
+  },
+  sectionHeadingUserInputSuffix: {
+    color: '#ff9800',
+    fontWeight: '800',
   },
   sheetLead: {
     fontSize: 12,
@@ -1451,8 +1469,11 @@ const styles = StyleSheet.create({
   summaryLblMuted: { color: '#90a4ae', fontSize: 15 },
   summaryLblPrice: { color: '#64b5f6', fontSize: 15, fontWeight: '600' },
   summaryLblCap: { color: '#ffb74d', fontSize: 15, fontWeight: '600' },
+  /** 주가 시나리오·잠정/가이던스 내 시나리오 시총 — 기본 시가총액(주황)과 혼동 방지 */
+  summaryLblScenarioCap: { color: '#4dd0e1', fontSize: 15, fontWeight: '600' },
   summaryVal: { color: '#eceff1', fontSize: 15 },
   summaryValStrong: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  summaryValScenarioStrong: { color: '#b2ebf2', fontSize: 15, fontWeight: '700' },
   metricRow: { marginBottom: 8, fontSize: 15 },
   metricLblRev: { color: '#4db6ac', fontSize: 15, fontWeight: '600' },
   metricLblOp: { color: '#ba68c8', fontSize: 15, fontWeight: '600' },
@@ -1473,6 +1494,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   emRow: { color: '#fff', fontSize: 17, fontWeight: '700', marginTop: 0 },
+  emRowScenario: { color: '#80deea', fontSize: 17, fontWeight: '700', marginTop: 0 },
   unitRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginHorizontal: 16, marginBottom: 8 },
   unitChip: {
     paddingHorizontal: 12,
