@@ -789,322 +789,339 @@ export default function CapPerPorCalculatorScreen() {
         <LinearGradient colors={['#1e3a5f', '#121212']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
           <Text style={styles.heroTitle}>시총·PER·POR 계산기</Text>
           <Text style={styles.heroSub}>
-            시총과 최신 실적(분기·연) 기준 PER/POR, 주가 시나리오·잠정·가이던스를 함께 봅니다.
+            시총·실적 기준 PER/POR, 주가 % 시나리오와 잠정·가이던스 POR을 한 화면에서 확인합니다.
           </Text>
         </LinearGradient>
 
-        <Text style={styles.sectionTitle}>기간 단위</Text>
-        <View style={styles.periodAndFxRow}>
-          <View style={styles.chipRow}>
-            <TouchableOpacity
-              style={[styles.chip, granularity === 'quarter' && styles.chipOn]}
-              onPress={() => setGranularity('quarter')}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.chipText, granularity === 'quarter' && styles.chipTextOn]}>분기</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.chip, granularity === 'year' && styles.chipOn]}
-              onPress={() => setGranularity('year')}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.chipText, granularity === 'year' && styles.chipTextOn]}>연도</Text>
-            </TouchableOpacity>
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionHeading}>기간 단위</Text>
+          <View style={[styles.periodAndFxRow, styles.rowInCard]}>
+            <View style={styles.chipRow}>
+              <TouchableOpacity
+                style={[styles.chip, granularity === 'quarter' && styles.chipOn]}
+                onPress={() => setGranularity('quarter')}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.chipText, granularity === 'quarter' && styles.chipTextOn]}>분기</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.chip, granularity === 'year' && styles.chipOn]}
+                onPress={() => setGranularity('year')}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.chipText, granularity === 'year' && styles.chipTextOn]}>연도</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.fxPill} accessibilityLabel="적용 달러 환율">
+              <Text style={styles.fxPillText} numberOfLines={1}>
+                1 USD = {usdKrwApplied.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}원
+              </Text>
+            </View>
           </View>
-          <View style={styles.fxPill} accessibilityLabel="적용 달러 환율">
-            <Text style={styles.fxPillText} numberOfLines={1}>
-              1 USD = {usdKrwApplied.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}원
-            </Text>
-          </View>
+          <Text style={styles.sheetLead}>
+            분기: 당분기 손익을 ×4 연율화해 PER/POR. 연도: 연간 손익 그대로. 종목을 불러둔 뒤 분기↔연도만 바꿔도 자동으로 다시 맞춥니다.
+          </Text>
         </View>
-        <Text style={styles.hint}>
-          분기: 최근 분기 실적을 연율화(×4)해 PER/POR. 연도: 최신 연간 실적 그대로. 종목을 이미 불러온 뒤에는 단위만 바꿔도 자동으로 다시 맞춥니다.
-        </Text>
 
-        <Text style={styles.sectionTitle}>종목</Text>
-        <TouchableOpacity
-          style={styles.stockSearchStandaloneBtn}
-          onPress={() => setShowStockModal(true)}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel="종목 검색"
-        >
-          <Text style={styles.stockSearchStandaloneBtnText}>종목 검색</Text>
-        </TouchableOpacity>
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionHeading}>종목</Text>
+          <TouchableOpacity
+            style={[styles.stockSearchStandaloneBtn, styles.bleedInCard]}
+            onPress={() => setShowStockModal(true)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="종목 검색"
+          >
+            <Text style={styles.stockSearchStandaloneBtnText}>종목 검색</Text>
+          </TouchableOpacity>
 
-        {portfolioStocks.length > 0 ? (
-          <>
-            <Text style={styles.subSectionLabel}>포트폴리오 종목</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.stockTabsPortfolioWrap}
-              contentContainerStyle={styles.stockTabsContent}
-              keyboardShouldPersistTaps="handled"
-            >
-              {portfolioStocks.map((stock) => {
-                const mkTab = fundamentalsMockKey(stock.ticker);
-                const isActive = mockKeyResolved != null && mockKeyResolved === mkTab;
-                const label = stock.name || stock.officialName || stock.ticker;
-                return (
-                  <TouchableOpacity
-                    key={stock.id}
-                    style={[styles.stockTab, isActive && styles.stockTabActive]}
-                    onPress={() => onPickPortfolioStock(stock)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.stockTabText, isActive && styles.stockTabTextActive]} numberOfLines={1}>
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </>
-        ) : null}
-
-        {recentEntries.length > 0 ? (
-          <>
-            <Text style={styles.subSectionLabel}>최근 {CAP_PER_POR_RECENT_MAX}개</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.stockTabsRecentWrap}
-              contentContainerStyle={styles.stockTabsContent}
-              keyboardShouldPersistTaps="handled"
-            >
-              {recentEntries.map((entry) => {
-                const isActive = mockKeyResolved != null && mockKeyResolved === entry.mockKey;
-                return (
-                  <View
-                    key={entry.mockKey}
-                    style={[styles.recentChipWrap, isActive && styles.recentChipWrapActive]}
-                  >
+          {portfolioStocks.length > 0 ? (
+            <>
+              <Text style={[styles.subSectionLabel, styles.subSectionInCard]}>포트폴리오 종목</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.stockTabsPortfolioWrap}
+                contentContainerStyle={styles.stockTabsContentInCard}
+                keyboardShouldPersistTaps="handled"
+              >
+                {portfolioStocks.map((stock) => {
+                  const mkTab = fundamentalsMockKey(stock.ticker);
+                  const isActive = mockKeyResolved != null && mockKeyResolved === mkTab;
+                  const label = stock.name || stock.officialName || stock.ticker;
+                  return (
                     <TouchableOpacity
-                      style={styles.recentChipLabelArea}
-                      onPress={() => onPickRecentEntry(entry)}
+                      key={stock.id}
+                      style={[styles.stockTab, isActive && styles.stockTabActive]}
+                      onPress={() => onPickPortfolioStock(stock)}
                       activeOpacity={0.7}
                     >
-                      <Text
-                        style={[styles.recentChipText, isActive && styles.recentChipTextActive]}
-                        numberOfLines={1}
-                      >
-                        {entry.officialName}
+                      <Text style={[styles.stockTabText, isActive && styles.stockTabTextActive]} numberOfLines={1}>
+                        {label}
                       </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.recentChipRemoveBtn}
-                      onPress={() => onRemoveRecentEntry(entry.mockKey)}
-                      activeOpacity={0.65}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${entry.officialName} 최근에서 삭제`}
+                  );
+                })}
+              </ScrollView>
+            </>
+          ) : null}
+
+          {recentEntries.length > 0 ? (
+            <>
+              <Text style={[styles.subSectionLabel, styles.subSectionInCard]}>최근 {CAP_PER_POR_RECENT_MAX}개</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.stockTabsRecentWrap}
+                contentContainerStyle={styles.stockTabsContentInCard}
+                keyboardShouldPersistTaps="handled"
+              >
+                {recentEntries.map((entry) => {
+                  const isActive = mockKeyResolved != null && mockKeyResolved === entry.mockKey;
+                  return (
+                    <View
+                      key={entry.mockKey}
+                      style={[styles.recentChipWrap, isActive && styles.recentChipWrapActive]}
                     >
-                      <Text
-                        style={[
-                          styles.recentChipRemoveMark,
-                          isActive && styles.recentChipRemoveMarkOnActive,
-                        ]}
+                      <TouchableOpacity
+                        style={styles.recentChipLabelArea}
+                        onPress={() => onPickRecentEntry(entry)}
+                        activeOpacity={0.7}
                       >
-                        ✕
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                );
-              })}
-            </ScrollView>
-          </>
-        ) : null}
+                        <Text
+                          style={[styles.recentChipText, isActive && styles.recentChipTextActive]}
+                          numberOfLines={1}
+                        >
+                          {entry.officialName}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.recentChipRemoveBtn}
+                        onPress={() => onRemoveRecentEntry(entry.mockKey)}
+                        activeOpacity={0.65}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${entry.officialName} 최근에서 삭제`}
+                      >
+                        <Text
+                          style={[
+                            styles.recentChipRemoveMark,
+                            isActive && styles.recentChipRemoveMarkOnActive,
+                          ]}
+                        >
+                          ✕
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            </>
+          ) : null}
 
-        <Text style={styles.hint}>
-          {portfolioStocks.length > 0
-            ? '포트폴리오 탭·종목 검색·최근 종목으로 불러올 수 있습니다. 최근 목록은 항목 오른쪽 ✕로만 삭제됩니다. 티커만 직접 입력한 뒤에는 불러오기를 눌러 주세요.'
-            : '포트폴리오에 등록된 종목이 없습니다. 종목 검색·최근 종목 또는 티커 입력 후 불러오기를 이용해 주세요. 최근 목록은 ✕로 항목만 삭제합니다.'}
-        </Text>
-        <TextInput
-          style={styles.input}
-          placeholder="예: 005930, AAPL"
-          placeholderTextColor="#888"
-          value={tickerInput}
-          onChangeText={onTickerInputChange}
-          autoCapitalize="characters"
-          autoCorrect={false}
-        />
-        <TouchableOpacity
-          style={styles.primaryBtn}
-          onPress={() => void fetchFundamentals()}
-          disabled={loading}
-          activeOpacity={0.85}
-        >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>불러오기</Text>}
-        </TouchableOpacity>
+          <Text style={styles.sheetLead}>
+            {portfolioStocks.length > 0
+              ? '포트폴리오 탭·검색·최근에서 불러옵니다. 최근 항목은 ✕로 목록만 삭제. 티커만 직접 입력한 뒤에는 불러오기를 누르세요.'
+              : '포트폴리오가 비어 있으면 검색·최근·티커 입력 후 불러오기를 쓰면 됩니다. 최근은 ✕로 항목만 삭제합니다.'}
+          </Text>
+          <TextInput
+            style={[styles.input, styles.inputInCard]}
+            placeholder="예: 005930, AAPL"
+            placeholderTextColor="#888"
+            value={tickerInput}
+            onChangeText={onTickerInputChange}
+            autoCapitalize="characters"
+            autoCorrect={false}
+          />
+          <TouchableOpacity
+            style={[styles.primaryBtn, styles.primaryBtnInCard]}
+            onPress={() => void fetchFundamentals()}
+            disabled={loading}
+            activeOpacity={0.85}
+          >
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>불러오기</Text>}
+          </TouchableOpacity>
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error ? <Text style={[styles.errorText, styles.errorInCard]}>{error}</Text> : null}
+        </View>
 
         {showResults ? (
           <>
-            <Text style={styles.sectionTitle}>요약</Text>
-            <View style={styles.card}>
-              <Text style={styles.mono}>{mockKeyResolved}</Text>
-              {stockDisplayName ? <Text style={styles.stockNameLine}>{stockDisplayName}</Text> : null}
-              <Text style={styles.line}>
-                <Text style={styles.summaryLblMuted}>실적 기준: </Text>
-                <Text style={styles.summaryVal}>
-                  {periodKeyUsed ? formatCapBadge(periodKeyUsed, granularity) : '—'}
+            <View style={styles.sectionCard}>
+              <Text style={styles.sectionHeading}>요약</Text>
+              <View style={[styles.card, styles.cardInSection]}>
+                <Text style={styles.mono}>{mockKeyResolved}</Text>
+                {stockDisplayName ? <Text style={styles.stockNameLine}>{stockDisplayName}</Text> : null}
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblMuted}>실적 기준: </Text>
+                  <Text style={styles.summaryVal}>
+                    {periodKeyUsed ? formatCapBadge(periodKeyUsed, granularity) : '—'}
+                  </Text>
                 </Text>
-              </Text>
-              {fsPeriodLabel ? <Text style={styles.fsLabel}>{fsPeriodLabel}</Text> : null}
-              <Text style={styles.line}>
-                <Text style={styles.summaryLblPrice}>현재가: </Text>
-                <Text style={styles.summaryVal}>
-                  {price != null
-                    ? `${quoteCurrency === 'USD' ? '$' : ''}${price.toLocaleString('ko-KR', { maximumFractionDigits: quoteCurrency === 'USD' ? 2 : 0 })}${quoteCurrency === 'USD' ? '' : ' 원'}`
-                    : '—'}
+                {fsPeriodLabel ? <Text style={styles.fsLabel}>{fsPeriodLabel}</Text> : null}
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>현재가: </Text>
+                  <Text style={styles.summaryVal}>
+                    {price != null
+                      ? `${quoteCurrency === 'USD' ? '$' : ''}${price.toLocaleString('ko-KR', { maximumFractionDigits: quoteCurrency === 'USD' ? 2 : 0 })}${quoteCurrency === 'USD' ? '' : ' 원'}`
+                      : '—'}
+                  </Text>
                 </Text>
-              </Text>
-              <Text style={styles.line}>
-                <Text style={styles.summaryLblCap}>시가총액: </Text>
-                <Text style={styles.summaryValStrong}>
-                  {capWon != null
-                    ? formatWonShortKr(capWon, { maxAbsWon: FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS })
-                    : '—'}
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblCap}>시가총액: </Text>
+                  <Text style={styles.summaryValStrong}>
+                    {capWon != null
+                      ? formatWonShortKr(capWon, { maxAbsWon: FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS })
+                      : '—'}
+                  </Text>
                 </Text>
-              </Text>
-              <Text style={styles.metricRow}>
-                <Text style={styles.metricLblRev}>매출 ({fsAmountPeriodLabel}): </Text>
-                <Text style={styles.metricVal}>{displayRevenueKr ?? '—'}</Text>
-                {revenuePeriodSuffix ? (
-                  <Text style={styles.metricPeriodInline}>{` · ${revenuePeriodSuffix}`}</Text>
-                ) : null}
-              </Text>
-              <Text style={styles.metricRow}>
-                <Text style={styles.metricLblOp}>영업이익 ({fsAmountPeriodLabel}): </Text>
-                <Text style={styles.metricVal}>{displayOperatingIncomeKr ?? '—'}</Text>
-                {operatingPeriodSuffix ? (
-                  <Text style={styles.metricPeriodInline}>{` · ${operatingPeriodSuffix}`}</Text>
-                ) : null}
-              </Text>
-              <Text style={styles.metricRow}>
-                <Text style={styles.metricLblNet}>당기순이익 ({fsAmountPeriodLabel}): </Text>
-                <Text style={styles.metricVal}>{displayNetIncomeKr ?? '—'}</Text>
-                {netIncomePeriodSuffix ? (
-                  <Text style={styles.metricPeriodInline}>{` · ${netIncomePeriodSuffix}`}</Text>
-                ) : null}
-              </Text>
-              <Text style={styles.perPorNote}>{perPorBasisFootnote}</Text>
-              <Text style={styles.emRow}>PER {perCurrent} · POR {porCurrent}</Text>
+                <Text style={styles.metricRow}>
+                  <Text style={styles.metricLblRev}>매출 ({fsAmountPeriodLabel}): </Text>
+                  <Text style={styles.metricVal}>{displayRevenueKr ?? '—'}</Text>
+                  {revenuePeriodSuffix ? (
+                    <Text style={styles.metricPeriodInline}>{` · ${revenuePeriodSuffix}`}</Text>
+                  ) : null}
+                </Text>
+                <Text style={styles.metricRow}>
+                  <Text style={styles.metricLblOp}>영업이익 ({fsAmountPeriodLabel}): </Text>
+                  <Text style={styles.metricVal}>{displayOperatingIncomeKr ?? '—'}</Text>
+                  {operatingPeriodSuffix ? (
+                    <Text style={styles.metricPeriodInline}>{` · ${operatingPeriodSuffix}`}</Text>
+                  ) : null}
+                </Text>
+                <Text style={styles.metricRow}>
+                  <Text style={styles.metricLblNet}>당기순이익 ({fsAmountPeriodLabel}): </Text>
+                  <Text style={styles.metricVal}>{displayNetIncomeKr ?? '—'}</Text>
+                  {netIncomePeriodSuffix ? (
+                    <Text style={styles.metricPeriodInline}>{` · ${netIncomePeriodSuffix}`}</Text>
+                  ) : null}
+                </Text>
+                <Text style={styles.perPorNote}>{perPorBasisFootnote}</Text>
+                <Text style={styles.emRow}>PER {perCurrent} · POR {porCurrent}</Text>
+              </View>
             </View>
 
-            <Text style={styles.sectionTitle}>주가 시나리오 (%)</Text>
-            <Text style={styles.hint}>현재가·시총에 동일 비율 적용(발행주식수 불변 가정). 양수는 상승, 음수는 하락입니다.</Text>
-            <View style={styles.percentRow}>
+            <View style={styles.sectionCard}>
+              <Text style={styles.sectionHeading}>주가 시나리오 (%)</Text>
+              <Text style={styles.sheetLead}>
+                현재가·시총에 같은 비율 적용(유통주식수 불변). 양수 상승, 음수 하락.
+              </Text>
+              <View style={[styles.percentRow, styles.percentRowInCard]}>
+                <TextInput
+                  style={[styles.input, styles.inputInCard, styles.percentInput]}
+                  placeholder="예: 5 또는 -5"
+                  placeholderTextColor="#888"
+                  keyboardType="numeric"
+                  value={scenarioPct}
+                  onChangeText={handleScenarioPctInputChange}
+                />
+                <TouchableOpacity
+                  style={styles.signToggleBtn}
+                  onPress={() => togglePlainPercentSign(scenarioPct, handleScenarioPctInputChange)}
+                  activeOpacity={0.75}
+                  accessibilityLabel="부호 바꾸기"
+                >
+                  <Text style={styles.signToggleText}>±</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={[styles.card, styles.cardInSection]}>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>목표 주가: </Text>
+                  <Text style={styles.summaryVal}>
+                    {scenarioPrice != null
+                      ? `${quoteCurrency === 'USD' ? '$' : ''}${scenarioPrice.toLocaleString('ko-KR', { maximumFractionDigits: quoteCurrency === 'USD' ? 2 : 0 })}`
+                      : '—'}
+                  </Text>
+                </Text>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblCap}>시나리오 시총: </Text>
+                  <Text style={styles.summaryValStrong}>
+                    {scenarioCapWon != null
+                      ? formatWonShortKr(scenarioCapWon, { maxAbsWon: FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS })
+                      : '—'}
+                  </Text>
+                </Text>
+                <Text style={styles.perPorNote}>{perPorBasisFootnote}</Text>
+                <Text style={styles.emRow}>
+                  PER {perScenario} · POR {porScenario}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.sectionCard}>
+              <Text style={styles.sectionHeading}>잠정 분기 영업이익 ×4 (선택)</Text>
+              <Text style={styles.sheetLead}>분기 영업이익 숫자·단위 입력 → ×4 연율화 후 POR만 표시.</Text>
+              <View style={[styles.unitRow, styles.unitRowInCard]}>
+                {OP_SCENARIO_UNITS.map((u) => (
+                  <TouchableOpacity
+                    key={u.id}
+                    style={[styles.unitChip, provisionalUnit === u.id && styles.unitChipOn]}
+                    onPress={() => setProvisionalUnit(u.id)}
+                  >
+                    <Text style={[styles.unitChipText, provisionalUnit === u.id && styles.unitChipTextOn]}>{u.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
               <TextInput
-                style={[styles.input, styles.percentInput]}
-                placeholder="예: 5 또는 -5"
+                style={[styles.input, styles.inputInCard]}
+                placeholder="분기 영업이익"
                 placeholderTextColor="#888"
-                keyboardType="numeric"
-                value={scenarioPct}
-                onChangeText={handleScenarioPctInputChange}
+                keyboardType="decimal-pad"
+                value={provisionalOpEok}
+                onChangeText={setProvisionalOpEok}
               />
-              <TouchableOpacity
-                style={styles.signToggleBtn}
-                onPress={() => togglePlainPercentSign(scenarioPct, handleScenarioPctInputChange)}
-                activeOpacity={0.75}
-                accessibilityLabel="부호 바꾸기"
-              >
-                <Text style={styles.signToggleText}>±</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.card}>
-              <Text style={styles.line}>
-                <Text style={styles.summaryLblPrice}>목표 주가: </Text>
-                <Text style={styles.summaryVal}>
-                  {scenarioPrice != null
-                    ? `${quoteCurrency === 'USD' ? '$' : ''}${scenarioPrice.toLocaleString('ko-KR', { maximumFractionDigits: quoteCurrency === 'USD' ? 2 : 0 })}`
-                    : '—'}
+              <View style={[styles.card, styles.cardInSection]}>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>현재 시총 기준 POR: </Text>
+                  <Text style={styles.summaryValStrong}>{formatPorFromQuarterlyOpEok(capWon, provisionalQOp)}</Text>
                 </Text>
-              </Text>
-              <Text style={styles.line}>
-                <Text style={styles.summaryLblCap}>시나리오 시총: </Text>
-                <Text style={styles.summaryValStrong}>
-                  {scenarioCapWon != null
-                    ? formatWonShortKr(scenarioCapWon, { maxAbsWon: FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS })
-                    : '—'}
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblCap}>시나리오 시총 기준 POR: </Text>
+                  <Text style={styles.summaryValStrong}>
+                    {formatPorFromQuarterlyOpEok(scenarioCapWon, provisionalQOp)}
+                  </Text>
                 </Text>
-              </Text>
-              <Text style={styles.perPorNote}>{perPorBasisFootnote}</Text>
-              <Text style={styles.emRow}>
-                PER {perScenario} · POR {porScenario}
-              </Text>
+              </View>
             </View>
 
-            <Text style={styles.sectionTitle}>잠정 분기 영업이익 ×4 (선택)</Text>
-            <Text style={styles.hint}>기업실적비교와 동일: 분기 영업이익 숫자·단위 → 연율화 후 POR만 표시.</Text>
-            <View style={styles.unitRow}>
-              {OP_SCENARIO_UNITS.map((u) => (
-                <TouchableOpacity
-                  key={u.id}
-                  style={[styles.unitChip, provisionalUnit === u.id && styles.unitChipOn]}
-                  onPress={() => setProvisionalUnit(u.id)}
-                >
-                  <Text style={[styles.unitChipText, provisionalUnit === u.id && styles.unitChipTextOn]}>{u.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TextInput
-              style={styles.input}
-              placeholder="분기 영업이익"
-              placeholderTextColor="#888"
-              keyboardType="decimal-pad"
-              value={provisionalOpEok}
-              onChangeText={setProvisionalOpEok}
-            />
-            <View style={styles.card}>
-              <Text style={styles.line}>
-                <Text style={styles.summaryLblPrice}>현재 시총 기준 POR: </Text>
-                <Text style={styles.summaryValStrong}>{formatPorFromQuarterlyOpEok(capWon, provisionalQOp)}</Text>
-              </Text>
-              <Text style={styles.line}>
-                <Text style={styles.summaryLblCap}>시나리오 시총 기준 POR: </Text>
-                <Text style={styles.summaryValStrong}>
-                  {formatPorFromQuarterlyOpEok(scenarioCapWon, provisionalQOp)}
+            <View style={styles.sectionCard}>
+              <Text style={styles.sectionHeading}>가이던스 분기 영업이익 ×4 (선택)</Text>
+              <Text style={styles.sheetLead}>잠정과 동일 규칙으로 가이던스 분기 영업이익을 넣으면 POR을 봅니다.</Text>
+              <View style={[styles.unitRow, styles.unitRowInCard]}>
+                {OP_SCENARIO_UNITS.map((u) => (
+                  <TouchableOpacity
+                    key={u.id}
+                    style={[styles.unitChip, guidanceUnit === u.id && styles.unitChipOn]}
+                    onPress={() => setGuidanceUnit(u.id)}
+                  >
+                    <Text style={[styles.unitChipText, guidanceUnit === u.id && styles.unitChipTextOn]}>{u.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                style={[styles.input, styles.inputInCard]}
+                placeholder="분기 영업이익"
+                placeholderTextColor="#888"
+                keyboardType="decimal-pad"
+                value={guidanceOpEok}
+                onChangeText={setGuidanceOpEok}
+              />
+              <View style={[styles.card, styles.cardInSection]}>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>현재 시총 기준 POR: </Text>
+                  <Text style={styles.summaryValStrong}>{formatPorFromQuarterlyOpEok(capWon, guidanceQOp)}</Text>
                 </Text>
-              </Text>
-            </View>
-
-            <Text style={styles.sectionTitle}>가이던스 분기 영업이익 ×4 (선택)</Text>
-            <View style={styles.unitRow}>
-              {OP_SCENARIO_UNITS.map((u) => (
-                <TouchableOpacity
-                  key={u.id}
-                  style={[styles.unitChip, guidanceUnit === u.id && styles.unitChipOn]}
-                  onPress={() => setGuidanceUnit(u.id)}
-                >
-                  <Text style={[styles.unitChipText, guidanceUnit === u.id && styles.unitChipTextOn]}>{u.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TextInput
-              style={styles.input}
-              placeholder="분기 영업이익"
-              placeholderTextColor="#888"
-              keyboardType="decimal-pad"
-              value={guidanceOpEok}
-              onChangeText={setGuidanceOpEok}
-            />
-            <View style={styles.card}>
-              <Text style={styles.line}>
-                <Text style={styles.summaryLblPrice}>현재 시총 기준 POR: </Text>
-                <Text style={styles.summaryValStrong}>{formatPorFromQuarterlyOpEok(capWon, guidanceQOp)}</Text>
-              </Text>
-              <Text style={styles.line}>
-                <Text style={styles.summaryLblCap}>시나리오 시총 기준 POR: </Text>
-                <Text style={styles.summaryValStrong}>{formatPorFromQuarterlyOpEok(scenarioCapWon, guidanceQOp)}</Text>
-              </Text>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblCap}>시나리오 시총 기준 POR: </Text>
+                  <Text style={styles.summaryValStrong}>{formatPorFromQuarterlyOpEok(scenarioCapWon, guidanceQOp)}</Text>
+                </Text>
+              </View>
             </View>
           </>
         ) : null}
 
-        <AdmobNativeAd />
+        <View style={styles.adWrap}>
+          <AdmobNativeAd />
+        </View>
       </ScrollView>
 
       <StockSearchModal
@@ -1119,14 +1136,53 @@ export default function CapPerPorCalculatorScreen() {
 }
 
 const styles = StyleSheet.create({
+  adWrap: { marginHorizontal: 12, marginTop: 4 },
   flex: { flex: 1, backgroundColor: '#121212' },
   scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 32 },
-  hero: { padding: 20, marginBottom: 8 },
+  scrollContent: { paddingBottom: 36 },
+  hero: { padding: 20, marginBottom: 10 },
   heroTitle: { fontSize: 22, fontWeight: '700', color: '#fff' },
   heroSub: { marginTop: 8, fontSize: 14, color: '#b0bec5', lineHeight: 20 },
-  sectionTitle: { fontSize: 16, fontWeight: '600', color: '#eceff1', marginHorizontal: 16, marginTop: 16, marginBottom: 8 },
-  hint: { fontSize: 12, color: '#78909c', marginHorizontal: 16, marginBottom: 8, lineHeight: 18 },
+  sectionCard: {
+    marginHorizontal: 12,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#171b20',
+    borderWidth: 1,
+    borderColor: '#2a3140',
+  },
+  sectionHeading: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#eceff1',
+    marginBottom: 12,
+    paddingLeft: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#42a5f5',
+  },
+  sheetLead: {
+    fontSize: 12,
+    color: '#90a4ae',
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  rowInCard: { marginHorizontal: 0 },
+  bleedInCard: { marginHorizontal: 0 },
+  inputInCard: { marginHorizontal: 0 },
+  primaryBtnInCard: { marginHorizontal: 0, marginBottom: 0 },
+  errorInCard: { marginHorizontal: 0, marginTop: 8, marginBottom: 0 },
+  percentRowInCard: { marginHorizontal: 0 },
+  unitRowInCard: { marginHorizontal: 0 },
+  cardInSection: { marginHorizontal: 0, marginBottom: 0, marginTop: 4 },
+  subSectionInCard: { marginHorizontal: 0 },
+  stockTabsContentInCard: {
+    gap: 8,
+    paddingHorizontal: 0,
+    paddingRight: 12,
+    alignItems: 'center',
+  },
   periodAndFxRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1159,32 +1215,34 @@ const styles = StyleSheet.create({
   chipText: { color: '#90a4ae', fontWeight: '600' },
   chipTextOn: { color: '#fff' },
   stockSearchStandaloneBtn: {
-    marginHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 6,
+    marginTop: 2,
+    marginBottom: 8,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 10,
-    backgroundColor: 'rgba(239, 83, 80, 0.22)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 138, 128, 0.42)',
+    backgroundColor: '#f57c00',
+    borderWidth: 2,
+    borderColor: '#ffe082',
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({
-      android: { elevation: 1 },
+      android: { elevation: 5 },
       ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.18,
-        shadowRadius: 2,
+        shadowColor: '#e65100',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.45,
+        shadowRadius: 4,
       },
     }),
   },
   stockSearchStandaloneBtnText: {
     fontSize: 16,
-    color: '#ffccbc',
-    fontWeight: '700',
-    letterSpacing: 0.2,
+    color: '#ffffff',
+    fontWeight: '800',
+    letterSpacing: 0.25,
+    textShadowColor: 'rgba(62, 39, 35, 0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
   },
   stockTabsPortfolioWrap: {
     marginBottom: 4,
@@ -1193,12 +1251,6 @@ const styles = StyleSheet.create({
   stockTabsRecentWrap: {
     marginBottom: 8,
     marginTop: 0,
-  },
-  stockTabsContent: {
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingRight: 24,
-    alignItems: 'center',
   },
   recentChipWrap: {
     flexDirection: 'row',
