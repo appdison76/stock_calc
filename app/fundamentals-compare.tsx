@@ -1652,39 +1652,37 @@ export default function FundamentalsCompareScreen() {
         </View>
 
         <View style={styles.sectionCard}>
-        <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionHeading, styles.sectionTitleInline]}>
-            비교 종목
-          </Text>
-          <View style={styles.sectionHeaderActions}>
-            <TouchableOpacity
-              style={styles.selectionBulkBtn}
-              onPress={selectAllFundamentalsKeys}
-              disabled={deduped.length === 0}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.selectionBulkBtnText}>전체 선택</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.selectionBulkBtn}
-              onPress={deselectAllFundamentalsKeys}
-              disabled={deduped.length === 0}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.selectionBulkBtnText}>전체 해제</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.resetOrderBtn}
-              onPress={() => void handleResetFundamentalsColumnOrder()}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.resetOrderBtnText}>순서 초기화</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.addStockBtn} onPress={handleAddStock} activeOpacity={0.85}>
-              <Text style={styles.addStockBtnText}>+ 종목 추가</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+          <Text style={styles.sectionHeading}>비교 종목</Text>
+          {!loading && deduped.length > 0 ? (
+            <View style={styles.compareStockToolbar}>
+              <TouchableOpacity
+                style={styles.selectionBulkBtn}
+                onPress={selectAllFundamentalsKeys}
+                disabled={deduped.length === 0}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.selectionBulkBtnText}>전체 선택</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.selectionBulkBtn}
+                onPress={deselectAllFundamentalsKeys}
+                disabled={deduped.length === 0}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.selectionBulkBtnText}>전체 해제</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.resetOrderBtn}
+                onPress={() => void handleResetFundamentalsColumnOrder()}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.resetOrderBtnText}>순서 초기화</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.addStockBtn} onPress={handleAddStock} activeOpacity={0.85}>
+                <Text style={styles.addStockBtnText}>+ 종목 추가</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         {loading ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator color="#42A5F5" />
@@ -2301,20 +2299,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
-  sectionHeaderRow: {
+  /** 비교 종목: 타이틀 바로 아래 · 리스트 위 액션 줄 */
+  compareStockToolbar: {
     marginTop: 0,
     marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  sectionHeaderActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flexShrink: 1,
     flexWrap: 'wrap',
+    gap: 6,
     justifyContent: 'flex-end',
   },
   selectionBulkBtn: {
@@ -2342,12 +2334,6 @@ const styles = StyleSheet.create({
     color: '#B0BEC5',
     fontWeight: '600',
     fontSize: 12,
-  },
-  sectionTitleInline: {
-    flex: 1,
-    marginTop: 0,
-    marginBottom: 0,
-    marginRight: 4,
   },
   addStockBtn: {
     paddingVertical: 8,
