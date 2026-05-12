@@ -1992,7 +1992,10 @@ export default function FundamentalsCompareScreen() {
             </View>
 
             <View style={styles.sectionCard}>
-            <Text style={styles.sectionHeading}>잠정 분기 실적 ×4</Text>
+            <Text style={[styles.sectionHeading, styles.sectionHeadingUserInput]}>
+              잠정 분기 실적 ×4{' '}
+              <Text style={styles.sectionHeadingUserInputSuffix}>계산기</Text>
+            </Text>
             <Text style={styles.scenarioSub}>
               다음 분기 영업이익(조·억·천만·백만) 입력 → ×4 연율 대비 현재 시총으로 POR만 표시합니다.
             </Text>
@@ -2069,7 +2072,10 @@ export default function FundamentalsCompareScreen() {
             </View>
 
             <View style={styles.sectionCard}>
-            <Text style={styles.sectionHeading}>가이던스 분기 실적 ×4</Text>
+            <Text style={[styles.sectionHeading, styles.sectionHeadingUserInput]}>
+              가이던스 분기 실적 ×4{' '}
+              <Text style={styles.sectionHeadingUserInputSuffix}>계산기</Text>
+            </Text>
             <Text style={styles.scenarioSub}>
               차기 분기 가이던스 영업이익만 입력 · POR만 표시합니다.
             </Text>
@@ -2207,6 +2213,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: -0.2,
+  },
+  /** 잠정·가이던스 등 사용자 입력 시뮬 섹션 — 조회 데이터(파랑)와 구분 */
+  sectionHeadingUserInput: {
+    borderLeftColor: '#ffb74d',
+    color: '#ffe0b2',
+  },
+  /** 같은 제목 줄에서 「계산기」만 한 단계 더 강조 */
+  sectionHeadingUserInputSuffix: {
+    color: '#ff9800',
+    fontWeight: '800',
   },
   sectionSubheading: {
     marginTop: 4,
