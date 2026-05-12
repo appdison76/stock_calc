@@ -20,6 +20,7 @@ import {
   FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS,
   formatWonShortKr,
 } from '../src/services/dart/dartFormatKr';
+import { dartDomesticWonScaleDown } from '../src/services/dart/dartDomesticCapScaleDown';
 import {
   FUNDAMENTALS_USD_KRW_RATE,
   fundamentalsMockKey,
@@ -56,37 +57,6 @@ function annualizeIncomeForPerPor(baseWon: number | null, g: 'year' | 'quarter')
   if (baseWon == null || !Number.isFinite(baseWon)) return null;
   if (g === 'year') return baseWon;
   return baseWon * 4;
-}
-
-/**
- * 네이버 시총 대비 연율 손익이 비정형이면 DART 천원 스케일 과대(×1000 중복) 의심.
- * 매출이 있으면 매출 우선, 없으면 영업이익(>0)·당기순이익(|·|) 순으로 같은 배수 기준 적용.
- */
-const REV_ANNUALIZED_OVER_CAP_SUSPICIOUS = 10;
-
-function domesticDartIncomeToCapSuspicious(
-  capWon: number | null,
-  revenueWon: number | null,
-  operatingIncomeWon: number | null,
-  netIncomeWon: number | null,
-  granularity: 'year' | 'quarter'
-): boolean {
-  if (capWon == null || !Number.isFinite(capWon) || capWon <= 0) return false;
-  const thresh = capWon * REV_ANNUALIZED_OVER_CAP_SUSPICIOUS;
-
-  if (revenueWon != null && Number.isFinite(revenueWon) && revenueWon > 0) {
-    const a = annualizeIncomeForPerPor(revenueWon, granularity);
-    if (a != null && Number.isFinite(a) && a > thresh) return true;
-  }
-  if (operatingIncomeWon != null && Number.isFinite(operatingIncomeWon) && operatingIncomeWon > 0) {
-    const a = annualizeIncomeForPerPor(operatingIncomeWon, granularity);
-    if (a != null && Number.isFinite(a) && a > thresh) return true;
-  }
-  if (netIncomeWon != null && Number.isFinite(netIncomeWon) && netIncomeWon !== 0) {
-    const a = annualizeIncomeForPerPor(Math.abs(netIncomeWon), granularity);
-    if (a != null && Number.isFinite(a) && a > thresh) return true;
-  }
-  return false;
 }
 
 function formatPerFromCapAndNet(marketCapWon: number | null, netIncomeWon: number | null): string {
@@ -472,21 +442,18 @@ export default function CapPerPorCalculatorScreen() {
   const latestQuarterCandidates = useMemo(() => buildDartLatestQuarterCandidates(new Date(), 12), []);
 
   /** 국내: 시총 대비 연율 손익이 비정형이면 DART 손익을 동일 ÷1000 보정(천원 과대 스케일 가정) */
-  const dartWonScaleDown = useMemo(() => {
-    if (mockKeyResolved == null || !/^\d{6}$/.test(mockKeyResolved.trim())) return 1;
-    if (
-      !domesticDartIncomeToCapSuspicious(
+  const dartWonScaleDown = useMemo(
+    () =>
+      dartDomesticWonScaleDown(
+        mockKeyResolved,
         capWon,
         revenueWon,
         operatingIncomeWon,
         netIncomeWon,
         granularity
-      )
-    ) {
-      return 1;
-    }
-    return 1e-3;
-  }, [mockKeyResolved, capWon, revenueWon, operatingIncomeWon, netIncomeWon, granularity]);
+      ),
+    [mockKeyResolved, capWon, revenueWon, operatingIncomeWon, netIncomeWon, granularity]
+  );
 
   const perDenominator = useMemo(() => {
     const n =

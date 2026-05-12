@@ -42,6 +42,10 @@ import {
   type DartFundamentalsGrid,
 } from '../src/services/dart/dartFundamentalsGrid';
 import {
+  applyDartDomesticCapScaleToBundle,
+  dartDomesticWonScaleForBundle,
+} from '../src/services/dart/dartDomesticCapScaleDown';
+import {
   FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS,
   formatWonShortKr,
 } from '../src/services/dart/dartFormatKr';
@@ -996,6 +1000,14 @@ export default function FundamentalsCompareScreen() {
           }
         }
       }
+      if (isDomestic && dartGrid && netIncomeWon != null && Number.isFinite(netIncomeWon) && netIncomePeriodKey != null) {
+        const nb = dartGrid[netIncomePeriodKey]?.[k];
+        netIncomeWon *= dartDomesticWonScaleForBundle(k, capWon, nb, granularity);
+      }
+      if (isDomestic && dartGrid && operatingIncomeWon != null && Number.isFinite(operatingIncomeWon) && operatingPeriodKey != null) {
+        const ob = dartGrid[operatingPeriodKey]?.[k];
+        operatingIncomeWon *= dartDomesticWonScaleForBundle(k, capWon, ob, granularity);
+      }
       const netForPer = annualizeIncomeForPerPor(netIncomeWon, granularity);
       const opForPor = annualizeIncomeForPerPor(operatingIncomeWon, granularity);
       const perUi = netForPer != null ? formatPerFromCapAndNet(capWon, netForPer) : '—';
@@ -1329,14 +1341,18 @@ export default function FundamentalsCompareScreen() {
       const grid = isDomestic ? dartGrid : yahooGrid;
       if (!grid) return { text: '—', hint: null };
 
-      const tryPick = (bundle: DartCellBundle | undefined) => pickDartCellDisplay(tab, bundle);
       const primary = grid[row.periodKey]?.[mockKey];
 
       if (!dartCellHasFundamentals(primary)) {
         return { text: '—', hint: null };
       }
 
-      const fromPrimary = tryPick(primary);
+      const capWon = marketCapWonByKey[mockKey] ?? null;
+      const scale = dartDomesticWonScaleForBundle(mockKey, capWon, primary, granularity);
+      const scaled = applyDartDomesticCapScaleToBundle(primary, scale) ?? primary;
+
+      const tryPick = (bundle: DartCellBundle | undefined) => pickDartCellDisplay(tab, bundle);
+      const fromPrimary = tryPick(scaled);
       if (fromPrimary !== '—') {
         const fs = !isDomestic && primary?.fsPeriodLabel?.trim();
         return { text: fromPrimary, hint: fs ? fs.trim() : null };
@@ -1344,7 +1360,7 @@ export default function FundamentalsCompareScreen() {
 
       return { text: '—', hint: null };
     },
-    [dartGrid, yahooGrid]
+    [dartGrid, yahooGrid, marketCapWonByKey, granularity]
   );
 
   const resolveCapSummaryTableCell = useCallback(
@@ -1365,6 +1381,11 @@ export default function FundamentalsCompareScreen() {
       /** 헤더 분기 칸에 매출·영업·순 중 하나도 없으면 과거 분기로 채우지 않음 */
       const headlineHasAny = dartCellHasFundamentals(headlineBundle);
       const capWon = marketCapWonByKey[k] ?? null;
+
+      const scaleAtPk = (pk: string | null): number => {
+        if (!isDomestic || !grid || pk == null) return 1;
+        return dartDomesticWonScaleForBundle(k, capWon, grid[pk]?.[k], granularity);
+      };
 
       const hintIfDifferent = (usedPk: string | null): string | null => {
         if (usedPk == null) return null;
@@ -1458,27 +1479,25 @@ export default function FundamentalsCompareScreen() {
 
       const revenueKrForSummary = (): string => {
         if (!grid) return '—';
-        const rH = headlineBundle?.revenueKr;
-        if (rH != null && rH !== '—') return rH;
-        if (!headlineHasAny) return '—';
-        for (const pk of orderedKeys) {
-          if (pk === headlinePk) continue;
-          const r = grid[pk]?.[k]?.revenueKr;
-          if (r != null && r !== '—') return r;
-        }
+        const pk = pickRevPk();
+        if (pk == null) return '—';
+        const raw = grid[pk][k];
+        const sc = scaleAtPk(pk);
+        const b = applyDartDomesticCapScaleToBundle(raw, sc) ?? raw;
+        const r = b.revenueKr;
+        if (r != null && r !== '—') return r;
         return '—';
       };
 
       const operatingIncomeKrForSummary = (): string => {
         if (!grid) return '—';
-        const oH = headlineBundle?.operatingIncomeKr;
-        if (oH != null && oH !== '—') return oH;
-        if (!headlineHasAny) return '—';
-        for (const pk of orderedKeys) {
-          if (pk === headlinePk) continue;
-          const o = grid[pk]?.[k]?.operatingIncomeKr;
-          if (o != null && o !== '—') return o;
-        }
+        const pk = pickOpKrPk();
+        if (pk == null) return '—';
+        const raw = grid[pk][k];
+        const sc = scaleAtPk(pk);
+        const b = applyDartDomesticCapScaleToBundle(raw, sc) ?? raw;
+        const o = b.operatingIncomeKr;
+        if (o != null && o !== '—') return o;
         return '—';
       };
 
@@ -1492,15 +1511,22 @@ export default function FundamentalsCompareScreen() {
             hint: null,
           };
         case 'por': {
-          const opWon = annualizeIncomeForPerPor(operatingIncomeWonForPor(), granularity);
+          const opPk = pickOpWonPk();
+          const opRaw = operatingIncomeWonForPor();
+          const sc = scaleAtPk(opPk);
+          const opAdj = opRaw != null && Number.isFinite(opRaw) ? opRaw * sc : null;
+          const opWon = annualizeIncomeForPerPor(opAdj, granularity);
           return {
             text: opWon != null ? formatPorFromCapAndOp(capWon, opWon) : '—',
-            hint: hintIfDifferent(pickOpWonPk()),
+            hint: hintIfDifferent(opPk),
           };
         }
         case 'per': {
-          const net = annualizeIncomeForPerPor(netIncomeWonForPer(), granularity);
           const netPk = pickNetPk();
+          const netRaw = netIncomeWonForPer();
+          const sc = scaleAtPk(netPk);
+          const netAdj = netRaw != null && Number.isFinite(netRaw) ? netRaw * sc : null;
+          const net = annualizeIncomeForPerPor(netAdj, granularity);
           return {
             text: net != null ? formatPerFromCapAndNet(capWon, net) : '—',
             hint: hintIfDifferent(netPk),
@@ -1510,7 +1536,8 @@ export default function FundamentalsCompareScreen() {
           const net = netIncomeWonForPer();
           const netPk = pickNetPk();
           if (net == null || !Number.isFinite(net)) return { text: '—', hint: null };
-          return { text: formatWonShortKr(net), hint: hintIfDifferent(netPk) };
+          const sc = scaleAtPk(netPk);
+          return { text: formatWonShortKr(net * sc), hint: hintIfDifferent(netPk) };
         }
         case 'op':
           return {
