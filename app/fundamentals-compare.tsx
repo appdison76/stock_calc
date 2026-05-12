@@ -54,7 +54,7 @@ import {
 } from '../src/services/YahooFinanceService';
 import { buildYahooFundamentalsGridColumn } from '../src/services/yahooFundamentalsGrid';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SettingsService } from '../src/services/SettingsService';
+import { SettingsService, type FundamentalsCompareSelectionPersisted } from '../src/services/SettingsService';
 
 /** 해외 실적 컬럼 동시 조회 상한 — 무제한 병렬은 Yahoo 차단·메모리 스파이크 위험 */
 const YAHOO_FUNDAMENTALS_FOREIGN_CONCURRENCY = 4;
@@ -317,6 +317,34 @@ function applySavedFundamentalsColumnOrder(rows: DedupedStockRow[], saved: strin
   return out;
 }
 
+/** 저장된 체크 + 직전 포트폴리오 스냅샷으로 복원. 신규 mockKey는 자동 체크. 저장 없으면 전체 체크. */
+function mergeFundamentalsSelectedKeys(
+  ordered: DedupedStockRow[],
+  persisted: FundamentalsCompareSelectionPersisted | null
+): Set<string> {
+  const orderedKeys = ordered.map((r) => r.mockKey);
+  if (orderedKeys.length === 0) return new Set();
+
+  const emptyPersist =
+    !persisted ||
+    ((!persisted.selectedMockKeys || persisted.selectedMockKeys.length === 0) &&
+      (!persisted.portfolioSnapshotMockKeys || persisted.portfolioSnapshotMockKeys.length === 0));
+
+  if (emptyPersist) {
+    return new Set(orderedKeys);
+  }
+
+  const oSet = new Set(orderedKeys);
+  const snapSet = new Set(persisted.portfolioSnapshotMockKeys ?? []);
+  const savedSel = (persisted.selectedMockKeys ?? []).filter((k) => oSet.has(k));
+  const newcomers = orderedKeys.filter((k) => !snapSet.has(k));
+  const merged = new Set<string>([...savedSel, ...newcomers]);
+  if (merged.size === 0) {
+    merged.add(orderedKeys[0]);
+  }
+  return merged;
+}
+
 export default function FundamentalsCompareScreen() {
   const router = useRouter();
   const pathname = usePathname();
@@ -396,8 +424,9 @@ export default function FundamentalsCompareScreen() {
       const list = Array.from(byKey.values());
       const savedOrder = await SettingsService.getFundamentalsCompareColumnOrder();
       const ordered = applySavedFundamentalsColumnOrder(list, savedOrder);
+      const persisted = await SettingsService.getFundamentalsCompareSelectionPersisted();
       setDeduped(ordered);
-      setSelectedKeys(new Set(ordered.map((x) => x.mockKey)));
+      setSelectedKeys(mergeFundamentalsSelectedKeys(ordered, persisted));
     } catch (e) {
       console.error('[FundamentalsCompare] 포트폴리오 종목 로드 실패:', e);
       setDeduped([]);
@@ -527,6 +556,14 @@ export default function FundamentalsCompareScreen() {
       return next;
     });
   }, [selectedRows]);
+
+  /** 체크 상태·포트폴리오 스냅샷 저장 (재진입 시 복원·신규 종목 자동 체크에 사용) */
+  useEffect(() => {
+    if (deduped.length === 0) return;
+    const orderedKeys = deduped.map((d) => d.mockKey);
+    const selectedArr = orderedKeys.filter((k) => selectedKeys.has(k));
+    void SettingsService.setFundamentalsCompareSelectionPersisted(selectedArr, orderedKeys);
+  }, [selectedKeys, deduped]);
 
   /**
    * 상단 시총·PER·실적 요약에 쓰는 실적 기준 기간(국내 DART / 해외 Yahoo 손익).
@@ -1509,18 +1546,29 @@ export default function FundamentalsCompareScreen() {
       ? `${quarterYear}년 분기별`
       : `연도별(최근 ${FUNDAMENTALS_CALENDAR_YEAR_SPAN}년)`;
 
-  const toggleKey = (key: string) => {
+  const toggleKey = useCallback((key: string) => {
     setSelectedKeys((prev) => {
       const next = new Set(prev);
       if (next.has(key)) {
-        if (next.size <= 1) return next;
         next.delete(key);
       } else {
         next.add(key);
       }
+      if (next.size === 0 && deduped.length > 0) {
+        next.add(deduped[0].mockKey);
+      }
       return next;
     });
-  };
+  }, [deduped]);
+
+  const selectAllFundamentalsKeys = useCallback(() => {
+    setSelectedKeys(new Set(deduped.map((x) => x.mockKey)));
+  }, [deduped]);
+
+  const deselectAllFundamentalsKeys = useCallback(() => {
+    if (deduped.length === 0) return;
+    setSelectedKeys(new Set([deduped[0].mockKey]));
+  }, [deduped]);
 
   const handleResetFundamentalsColumnOrder = useCallback(async () => {
     await SettingsService.clearFundamentalsCompareColumnOrder();
@@ -1578,9 +1626,25 @@ export default function FundamentalsCompareScreen() {
 
         <View style={styles.sectionHeaderRow}>
           <Text style={[styles.sectionTitle, styles.sectionTitleInline]}>
-            비교 종목 (전 포트폴리오 합집합 · 중복 제거)
+            비교 종목
           </Text>
           <View style={styles.sectionHeaderActions}>
+            <TouchableOpacity
+              style={styles.selectionBulkBtn}
+              onPress={selectAllFundamentalsKeys}
+              disabled={deduped.length === 0}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.selectionBulkBtnText}>전체 선택</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.selectionBulkBtn}
+              onPress={deselectAllFundamentalsKeys}
+              disabled={deduped.length === 0}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.selectionBulkBtnText}>전체 해제</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.resetOrderBtn}
               onPress={() => void handleResetFundamentalsColumnOrder()}
@@ -1608,9 +1672,6 @@ export default function FundamentalsCompareScreen() {
           </View>
         ) : (
           <>
-            <Text style={styles.compareOrderHint}>
-              왼쪽 체크로 표에 포함할 종목을 고르고, 오른쪽 ↑↓ 옆에서 맨 위·맨 아래로 순서를 바꿉니다. 순서는 저장됩니다.
-            </Text>
             <View style={styles.checkList}>
               {deduped.map((item, index) => {
                 const on = selectedKeys.has(item.mockKey);
@@ -2209,8 +2270,23 @@ const styles = StyleSheet.create({
   sectionHeaderActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    flexShrink: 0,
+    gap: 6,
+    flexShrink: 1,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+  },
+  selectionBulkBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  selectionBulkBtnText: {
+    color: '#CFD8DC',
+    fontWeight: '600',
+    fontSize: 11,
   },
   resetOrderBtn: {
     paddingVertical: 8,
@@ -2353,12 +2429,6 @@ const styles = StyleSheet.create({
     color: '#90A4AE',
     fontSize: 13,
     lineHeight: 20,
-  },
-  compareOrderHint: {
-    color: '#78909C',
-    fontSize: 12,
-    lineHeight: 18,
-    marginBottom: 8,
   },
   checkList: {
     borderRadius: 12,

@@ -26,6 +26,15 @@ const KEY_PORTFOLIO_FILTER_OPTION = 'portfolio_filter_option';
 /** 기업 실적 비교 — 종목 열 순서(mockKey 배열 JSON) */
 const KEY_FUNDAMENTALS_COMPARE_COLUMN_ORDER = 'fundamentals_compare_column_order';
 
+/** 기업 실적 비교 — 체크한 종목 + 직전 포트폴리오 스냅샷(신규 종목 자동 체크용) */
+const KEY_FUNDAMENTALS_COMPARE_SELECTION_V1 = 'fundamentals_compare_selection_v1';
+
+export type FundamentalsCompareSelectionPersisted = {
+  selectedMockKeys: string[];
+  /** 직전 저장 시점 포트폴리오에 있던 mockKey(정렬·중복 제거) */
+  portfolioSnapshotMockKeys: string[];
+};
+
 // 알림 설정 키
 const KEY_ENABLE_NEWS_NOTIFICATIONS = 'enable_news_notifications';
 const KEY_ENABLE_STOCK_NOTIFICATIONS = 'enable_stock_notifications';
@@ -267,6 +276,41 @@ export class SettingsService {
 
   static async clearFundamentalsCompareColumnOrder(): Promise<void> {
     await AsyncStorage.removeItem(KEY_FUNDAMENTALS_COMPARE_COLUMN_ORDER);
+  }
+
+  /// 기업 실적 비교 — 체크 상태·포트폴리오 스냅샷 (없으면 null)
+  static async getFundamentalsCompareSelectionPersisted(): Promise<FundamentalsCompareSelectionPersisted | null> {
+    try {
+      const raw = await AsyncStorage.getItem(KEY_FUNDAMENTALS_COMPARE_SELECTION_V1);
+      if (raw == null || raw === '') return null;
+      const parsed = JSON.parse(raw) as unknown;
+      if (!parsed || typeof parsed !== 'object') return null;
+      const o = parsed as Record<string, unknown>;
+      const sel = o.selectedMockKeys;
+      const snap = o.portfolioSnapshotMockKeys;
+      if (!Array.isArray(sel) || !Array.isArray(snap)) return null;
+      const selectedMockKeys = sel.filter((x): x is string => typeof x === 'string');
+      const portfolioSnapshotMockKeys = snap.filter((x): x is string => typeof x === 'string');
+      return { selectedMockKeys, portfolioSnapshotMockKeys };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * @param selectedMockKeys 현재 체크된 mockKey (표시 순서 `deduped` 기준 필터해도 됨)
+   * @param orderedPortfolioMockKeys 현재 `deduped`의 mockKey 순서(스냅샷은 정렬해 저장)
+   */
+  static async setFundamentalsCompareSelectionPersisted(
+    selectedMockKeys: string[],
+    orderedPortfolioMockKeys: string[]
+  ): Promise<void> {
+    const snap = [...new Set(orderedPortfolioMockKeys)].sort();
+    const body: FundamentalsCompareSelectionPersisted = {
+      selectedMockKeys: [...new Set(selectedMockKeys)].filter((k) => snap.includes(k)),
+      portfolioSnapshotMockKeys: snap,
+    };
+    await AsyncStorage.setItem(KEY_FUNDAMENTALS_COMPARE_SELECTION_V1, JSON.stringify(body));
   }
 
   // ===== 세계시간 및 기준금리 표시 설정 =====
