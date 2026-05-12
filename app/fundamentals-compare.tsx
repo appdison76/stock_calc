@@ -1609,8 +1609,8 @@ export default function FundamentalsCompareScreen() {
           </View>
           <Text style={styles.bannerSub}>
             {dartApiKeyPresent
-              ? '국내(6자리) 실적은 DART, 해외는 Yahoo Finance 손익입니다. 시총은 국내는 네이버 우선·없으면 Yahoo, 해외는 Yahoo입니다. PER·POR 규칙은 아래 안내를 참고하세요. 기간·종목을 바꾸면 자동으로 다시 불러옵니다.'
-              : '국내 실적(DART)은 DART_API_KEY가 필요합니다. 해외 실적·시총은 Yahoo를 사용합니다.'}
+              ? '국내 DART · 해외 Yahoo 실적, 시총은 네이버·Yahoo. 기간·종목을 바꾸면 자동으로 다시 불러옵니다.'
+              : '국내 DART는 API 키가 필요합니다. 해외·시총은 Yahoo를 사용합니다.'}
           </Text>
           <TouchableOpacity
             style={[styles.primaryFetchBtn, isFundamentalsFetching && styles.dartLoadBtnDisabled]}
@@ -1624,8 +1624,9 @@ export default function FundamentalsCompareScreen() {
           </TouchableOpacity>
         </View>
 
+        <View style={styles.sectionCard}>
         <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, styles.sectionTitleInline]}>
+          <Text style={[styles.sectionHeading, styles.sectionTitleInline]}>
             비교 종목
           </Text>
           <View style={styles.sectionHeaderActions}>
@@ -1750,6 +1751,7 @@ export default function FundamentalsCompareScreen() {
             </View>
           </>
         )}
+        </View>
 
         {!dartApiKeyPresent ? (
           <Text style={styles.dartHintMuted}>
@@ -1765,73 +1767,73 @@ export default function FundamentalsCompareScreen() {
         {dartError ? <Text style={styles.dartErrorLine}>DART: {dartError}</Text> : null}
         {yahooError ? <Text style={styles.dartErrorLine}>Yahoo 실적: {yahooError}</Text> : null}
 
-        <Text style={styles.sectionTitle}>기간 단위</Text>
-        <View style={styles.chipRow}>
-          <TouchableOpacity
-            style={[styles.chip, granularity === 'quarter' && styles.chipOn]}
-            onPress={() => {
-              if (granularity === 'quarter') return;
-              const choices = fundamentalsQuarterYearChoices(new Date(), FUNDAMENTALS_CALENDAR_YEAR_SPAN);
-              setGranularity('quarter');
-              const yFromYearMode = /^(\d{4})$/.exec(periodKey);
-              if (yFromYearMode) {
-                const y = Number(yFromYearMode[1]);
-                if (Number.isFinite(y) && choices.includes(y)) {
-                  setQuarterYear(y);
-                  setPeriodKey(quarterPeriodKeyForChipYear(y, snapshotQuarterInfo));
-                  return;
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionHeading}>기간 단위</Text>
+          <View style={styles.chipRow}>
+            <TouchableOpacity
+              style={[styles.chip, granularity === 'quarter' && styles.chipOn]}
+              onPress={() => {
+                if (granularity === 'quarter') return;
+                const choices = fundamentalsQuarterYearChoices(new Date(), FUNDAMENTALS_CALENDAR_YEAR_SPAN);
+                setGranularity('quarter');
+                const yFromYearMode = /^(\d{4})$/.exec(periodKey);
+                if (yFromYearMode) {
+                  const y = Number(yFromYearMode[1]);
+                  if (Number.isFinite(y) && choices.includes(y)) {
+                    setQuarterYear(y);
+                    setPeriodKey(quarterPeriodKeyForChipYear(y, snapshotQuarterInfo));
+                    return;
+                  }
                 }
-              }
-              const next = fundamentalsDefaultQuarterWithinChoices(new Date(), choices);
-              setQuarterYear(next.quarterYear);
-              setPeriodKey(next.periodKey);
-            }}
-            activeOpacity={0.85}
-          >
-            <Text style={[styles.chipText, granularity === 'quarter' && styles.chipTextOn]}>분기</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.chip, granularity === 'year' && styles.chipOn]}
-            onPress={() => {
-              if (granularity === 'year') return;
-              setGranularity('year');
-            }}
-            activeOpacity={0.85}
-          >
-            <Text style={[styles.chipText, granularity === 'year' && styles.chipTextOn]}>연도</Text>
-          </TouchableOpacity>
-        </View>
-
-        {granularity === 'quarter' ? (
-          <>
-            <Text style={styles.sectionTitle}>분기 연도</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.periodScroll}
+                const next = fundamentalsDefaultQuarterWithinChoices(new Date(), choices);
+                setQuarterYear(next.quarterYear);
+                setPeriodKey(next.periodKey);
+              }}
+              activeOpacity={0.85}
             >
-              {quarterYearChoices.map((y) => (
-                <TouchableOpacity
-                  key={y}
-                  style={[styles.periodChip, quarterYear === y && styles.periodChipOn]}
-                  onPress={() => setQuarterYearFromChip(y)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={[styles.periodChipText, quarterYear === y && styles.periodChipTextOn]}>
-                    {y}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </>
-        ) : null}
+              <Text style={[styles.chipText, granularity === 'quarter' && styles.chipTextOn]}>분기</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.chip, granularity === 'year' && styles.chipOn]}
+              onPress={() => {
+                if (granularity === 'year') return;
+                setGranularity('year');
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.chipText, granularity === 'year' && styles.chipTextOn]}>연도</Text>
+            </TouchableOpacity>
+          </View>
+
+          {granularity === 'quarter' ? (
+            <>
+              <Text style={styles.sectionSubheading}>연도 선택</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.periodScroll}
+              >
+                {quarterYearChoices.map((y) => (
+                  <TouchableOpacity
+                    key={y}
+                    style={[styles.periodChip, quarterYear === y && styles.periodChipOn]}
+                    onPress={() => setQuarterYearFromChip(y)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.periodChipText, quarterYear === y && styles.periodChipTextOn]}>
+                      {y}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </>
+          ) : null}
+        </View>
 
         {!loading && deduped.length > 0 && selectedRows.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>지표</Text>
-            <Text style={styles.metricSectionSub}>
-              기간별 표에 적용 · 아래 시총 요약과 별개. 해외(Yahoo)는 달력 분기·연도 칸 + 숫자 아래 공시 기간(FROM ~ TO).
-            </Text>
+            <View style={styles.sectionCard}>
+            <Text style={styles.sectionHeading}>지표 · {periodTableTitle}</Text>
             <View style={styles.metricTabs}>
               {METRIC_TAB_CHIP_ORDER.map((tab) => (
                 <TouchableOpacity
@@ -1847,8 +1849,6 @@ export default function FundamentalsCompareScreen() {
               ))}
             </View>
 
-            <>
-              <Text style={styles.sectionTitle}>{periodTableTitle}</Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator
@@ -1887,24 +1887,20 @@ export default function FundamentalsCompareScreen() {
                 </View>
               </ScrollView>
               <Text style={styles.tableHint}>
-                가로로 스크롤하여 열을 확인할 수 있습니다. 이 표만 연·분기 단위가 적용됩니다. 숫자가 행 기준이 아닌 다른 공시 기간에서 가져온 경우(매출·영업·순이익 탐색 순), 칸 아래에 실적 기준 분기·연도 또는 해외 Yahoo 공시 구간(FROM ~ TO)을 표시합니다.
+                가로 스크롤 · 다른 기간 값은 칸 아래 표시.
               </Text>
-            </>
+            </View>
 
-            <Text style={styles.sectionTitle}>시총·PER·실적 요약</Text>
-            <Text style={styles.capSummaryCalcMode}>
+            <View style={styles.sectionCard}>
+            <Text style={styles.sectionHeading}>시총·PER·실적 요약</Text>
+            <Text style={styles.sheetLead}>
               {granularity === 'year'
-                ? '연도 단위: 매출·영업이익·당기순이익은 연 실적(종목별 최근 연도). PER·POR 분모도 같은 연간 영업이익·당기순이익.'
-                : '분기 단위: 매출·영업·순이익 행은 해당 분기 금액. PER·POR 분모는 분기 이익×4(연율).'}
-            </Text>
-            <Text style={styles.metricSectionSub}>
-              열 헤더는 종목별로 잡힌 대표 실적 기준입니다. 매출·영업·순이익·PER·POR 행은 데이터가 다른 분기·연에서 가져온 경우 숫자 아래에 실제 출처(FROM~TO 또는 연·분기)를 표시합니다.
-              {hasForeignSelected ? ' 해외 Yahoo' : ''}
-              {hasDomesticSelected ? ' · 국내 DART' : ''}
-            </Text>
-            <Text style={styles.capSummaryGlossary}>
-              · PER(주가수익비율): 시가총액을 당기순이익으로 나눈 값. 이 표는 시총÷당기순이익(원화)이며, 분모 이익은 위 연·분기 규칙과 같습니다.{'\n'}
-              · POR: 시가총액을 영업이익으로 나눈 값(이 화면에서 시총÷영업이익, 원화). PER은 순이익, POR은 영업이익 기준으로 ‘몇 배 밸류’인지 볼 때 쓰는 지표입니다.
+                ? '연 실적 기준. PER·POR 분모도 연간 이익.'
+                : '분기 금액 표시, PER·POR은 분기 이익×4(연율).'}
+              {' '}
+              PER=시총÷당기순이익, POR=시총÷영업이익. 출처는 숫자 아래.
+              {hasForeignSelected ? ' 해외: Yahoo 구간' : ''}
+              {hasDomesticSelected ? ' · 국내: DART' : ''}
             </Text>
             <ScrollView
               horizontal
@@ -1916,7 +1912,7 @@ export default function FundamentalsCompareScreen() {
                 <View style={styles.tableHeaderRow}>
                   <Text style={[styles.th, styles.thLabel]}>항목</Text>
                   {selectedRows.map((s) => (
-                    <View key={s.mockKey} style={[styles.th, styles.thStock, styles.capSummaryStockHead]}>
+                    <View key={s.mockKey} style={[styles.thStock, styles.capSummaryStockHead]}>
                       <Text style={styles.capSummaryStockName} numberOfLines={2}>
                         {s.label}
                       </Text>
@@ -1958,15 +1954,17 @@ export default function FundamentalsCompareScreen() {
                 ))}
               </View>
             </ScrollView>
-            <Text style={styles.tableHint}>
+            <Text style={styles.tableHintMuted}>
               {granularity === 'year'
-                ? '시총은 조회 시점 기준입니다. POR=시총÷연간 영업이익, PER=시총÷연간 당기순이익.'
-                : '시총은 조회 시점 기준입니다. PER·POR은 분기 이익×4(연율).「영업이익」「당기순이익」행은 해당 분기 금액.'}
+                ? '시총·조회 시점. POR·PER 분모는 연간 이익.'
+                : '시총·조회 시점. PER·POR은 이익×4 연율.'}
             </Text>
+            </View>
 
-            <Text style={styles.sectionTitle}>잠정 분기 실적 ×4 환산 실적</Text>
+            <View style={styles.sectionCard}>
+            <Text style={styles.sectionHeading}>잠정 분기 실적 ×4</Text>
             <Text style={styles.scenarioSub}>
-              잠정(다음 분기) 분기 영업이익 숫자를 입력하고 조·억·천만·백만 단위를 고르세요. (×4 연율)÷현재 시총으로 POR을 봅니다. 매출·당기순이익은 사용하지 않습니다.
+              다음 분기 영업이익(조·억·천만·백만) 입력 → ×4 연율 대비 현재 시총으로 POR만 표시합니다.
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator style={styles.tableScroll}>
               <View style={styles.tableInner}>
@@ -2037,11 +2035,13 @@ export default function FundamentalsCompareScreen() {
                 </View>
               </View>
             </ScrollView>
-            <Text style={styles.tableHint}>시총은 위 요약과 동일합니다(조회 시점).</Text>
+            <Text style={styles.tableHintMuted}>시총은 위 요약과 동일(조회 시점).</Text>
+            </View>
 
-            <Text style={styles.sectionTitle}>가이던스 분기 실적 ×4 환산 실적</Text>
+            <View style={styles.sectionCard}>
+            <Text style={styles.sectionHeading}>가이던스 분기 실적 ×4</Text>
             <Text style={styles.scenarioSub}>
-              가이던스가 나온 분기(예: 차기 분기) 영업이익 숫자와 단위(조·억·천만·백만)를 입력하세요. PER은 계산하지 않고 POR만 표시합니다.
+              차기 분기 가이던스 영업이익만 입력 · POR만 표시합니다.
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator style={styles.tableScroll}>
               <View style={styles.tableInner}>
@@ -2112,7 +2112,8 @@ export default function FundamentalsCompareScreen() {
                 </View>
               </View>
             </ScrollView>
-            <Text style={styles.tableHint}>잠정과 동일 공식: POR = 현재 시총 ÷ (분기 영업이익 억 × 10⁸ × 4).</Text>
+            <Text style={styles.tableHintMuted}>POR = 시총 ÷ (분기 영업이익 억 × 10⁸ × 4). 잠정과 동일.</Text>
+            </View>
           </>
         )}
       </ScrollView>
@@ -2134,6 +2135,48 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
+  },
+  /** 구역 구분 — 표·설명 덩어리 묶음 */
+  sectionCard: {
+    marginTop: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: '#171b20',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+  sectionHeading: {
+    marginTop: 0,
+    marginBottom: 12,
+    paddingLeft: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#42A5F5',
+    color: '#ECEFF1',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  sectionSubheading: {
+    marginTop: 4,
+    marginBottom: 8,
+    color: '#90A4AE',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  sheetLead: {
+    marginBottom: 12,
+    color: '#B0BEC5',
+    fontSize: 13,
+    lineHeight: 20,
+    fontWeight: '500',
+  },
+  tableHintMuted: {
+    marginTop: 8,
+    marginBottom: 0,
+    color: '#78909C',
+    fontSize: 11,
+    lineHeight: 16,
   },
   banner: {
     backgroundColor: 'rgba(66, 165, 245, 0.12)',
@@ -2231,36 +2274,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
-  sectionTitle: {
-    marginTop: 20,
-    marginBottom: 10,
-    color: '#ECEFF1',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  metricSectionSub: {
-    marginTop: -4,
-    marginBottom: 10,
-    color: '#90A4AE',
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  capSummaryCalcMode: {
-    marginTop: 4,
-    marginBottom: 4,
-    color: '#CFD8DC',
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 19,
-  },
-  capSummaryGlossary: {
-    marginBottom: 10,
-    color: '#90A4AE',
-    fontSize: 12,
-    lineHeight: 18,
-  },
   sectionHeaderRow: {
-    marginTop: 20,
+    marginTop: 0,
     marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
@@ -2382,15 +2397,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   metricTabs: {
-    flexDirection: 'column',
-    alignSelf: 'stretch',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
+    marginBottom: 12,
   },
   metricTab: {
-    paddingVertical: 10,
+    paddingVertical: 9,
     paddingHorizontal: 14,
     borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.06)',
+    flexGrow: 1,
+    flexBasis: '30%',
+    minWidth: 96,
+    maxWidth: '100%',
   },
   metricTabOn: {
     backgroundColor: 'rgba(76, 175, 80, 0.25)',
@@ -2650,8 +2670,8 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   scenarioSub: {
-    marginTop: -4,
-    marginBottom: 8,
+    marginTop: 0,
+    marginBottom: 10,
     color: '#90A4AE',
     fontSize: 12,
     lineHeight: 18,
