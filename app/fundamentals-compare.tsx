@@ -59,6 +59,7 @@ import {
 } from '../src/services/YahooFinanceService';
 import { buildYahooFundamentalsGridColumn } from '../src/services/yahooFundamentalsGrid';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
 import { SettingsService, type FundamentalsCompareSelectionPersisted, type OpScenarioPersistUnit } from '../src/services/SettingsService';
 
 /** 해외 실적 컬럼 동시 조회 상한 — 무제한 병렬은 Yahoo 차단·메모리 스파이크 위험 */
@@ -2234,6 +2235,10 @@ export default function FundamentalsCompareScreen() {
             </View>
           </>
         )}
+
+        <View style={styles.adWrap}>
+          <AdmobNativeAd />
+        </View>
       </ScrollView>
     </View>
     </GestureHandlerRootView>
@@ -2253,6 +2258,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
+  },
+  adWrap: {
+    marginTop: 16,
+    marginBottom: 4,
   },
   /** 시총·PER·POR 계산기 `hero`와 동일 패딩·타이포 (`cap-per-por-calculator.tsx`) */
   hero: {
