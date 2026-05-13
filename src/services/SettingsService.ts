@@ -26,6 +26,18 @@ const KEY_PORTFOLIO_FILTER_OPTION = 'portfolio_filter_option';
 /** 기업 실적 비교 — 종목 열 순서(mockKey 배열 JSON) */
 const KEY_FUNDAMENTALS_COMPARE_COLUMN_ORDER = 'fundamentals_compare_column_order';
 
+/** 잠정·가이던스 분기 영업이익(억) 입력 — mockKey별, 기업실적비교·시총PERPOR 계산기 공통 */
+const KEY_OP_SCENARIO_BY_MOCK_KEY_V1 = 'op_scenario_by_mock_key_v1';
+
+export type OpScenarioPersistUnit = 'jo' | 'eok' | 'cheonman' | 'baekman';
+
+export type OpScenarioPersistRow = {
+  provisionalEok: string;
+  provisionalUnit: OpScenarioPersistUnit;
+  guidanceEok: string;
+  guidanceUnit: OpScenarioPersistUnit;
+};
+
 /** 기업 실적 비교 — 체크한 종목 + 직전 포트폴리오 스냅샷(신규 종목 자동 체크용) */
 const KEY_FUNDAMENTALS_COMPARE_SELECTION_V1 = 'fundamentals_compare_selection_v1';
 
@@ -65,6 +77,22 @@ const DEFAULT_PORTFOLIO_FILTER_OPTION = 'all'; // 전체
 // 알림 설정 기본값 (기본적으로 모두 활성화)
 const DEFAULT_ENABLE_NEWS_NOTIFICATIONS = true;
 const DEFAULT_ENABLE_STOCK_NOTIFICATIONS = true;
+
+function normalizeOpScenarioUnit(u: unknown, fallback: OpScenarioPersistUnit): OpScenarioPersistUnit {
+  if (u === 'jo' || u === 'eok' || u === 'cheonman' || u === 'baekman') return u;
+  return fallback;
+}
+
+function parseOpScenarioRowValue(raw: unknown): OpScenarioPersistRow | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  return {
+    provisionalEok: typeof o.provisionalEok === 'string' ? o.provisionalEok : '',
+    provisionalUnit: normalizeOpScenarioUnit(o.provisionalUnit, 'jo'),
+    guidanceEok: typeof o.guidanceEok === 'string' ? o.guidanceEok : '',
+    guidanceUnit: normalizeOpScenarioUnit(o.guidanceUnit, 'jo'),
+  };
+}
 
 export class SettingsService {
   /// 원화 거래세율 가져오기
@@ -311,6 +339,29 @@ export class SettingsService {
       portfolioSnapshotMockKeys: snap,
     };
     await AsyncStorage.setItem(KEY_FUNDAMENTALS_COMPARE_SELECTION_V1, JSON.stringify(body));
+  }
+
+  /// 잠정·가이던스 입력 — mockKey → 행 (기업실적비교·시총PERPOR 공통 저장소)
+  static async getOpScenarioByMockKey(): Promise<Record<string, OpScenarioPersistRow>> {
+    try {
+      const raw = await AsyncStorage.getItem(KEY_OP_SCENARIO_BY_MOCK_KEY_V1);
+      if (raw == null || raw === '') return {};
+      const parsed = JSON.parse(raw) as unknown;
+      if (!parsed || typeof parsed !== 'object') return {};
+      const out: Record<string, OpScenarioPersistRow> = {};
+      for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+        if (typeof k !== 'string' || k.trim() === '') continue;
+        const row = parseOpScenarioRowValue(v);
+        if (row) out[k] = row;
+      }
+      return out;
+    } catch {
+      return {};
+    }
+  }
+
+  static async setOpScenarioByMockKey(map: Record<string, OpScenarioPersistRow>): Promise<void> {
+    await AsyncStorage.setItem(KEY_OP_SCENARIO_BY_MOCK_KEY_V1, JSON.stringify(map));
   }
 
   // ===== 세계시간 및 기준금리 표시 설정 =====

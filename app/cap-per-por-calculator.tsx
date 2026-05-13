@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -43,6 +43,7 @@ import {
   CAP_PER_POR_RECENT_MAX,
   type CapPerPorRecentEntry,
 } from '../src/services/CapPerPorRecentService';
+import { SettingsService, type OpScenarioPersistRow, type OpScenarioPersistUnit } from '../src/services/SettingsService';
 
 /** 비율 표시 — 기업실적비교와 동일 규칙 */
 function formatRatioLocale(n: number): string {
@@ -391,6 +392,8 @@ export default function CapPerPorCalculatorScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const [mockKeyResolved, setMockKeyResolved] = useState<string | null>(null);
+  /** 잠정·가이던스 저장 effect가 이전 종목 값으로 덮어쓰지 않도록, hydrate 완료 후에만 허용 */
+  const scenarioPersistReadyRef = useRef<string | null>(null);
   /** 불러오기 성공 후 표시 — 시세 종목명 우선, 없으면 검색 팝업에서 고른 이름 */
   const [stockDisplayName, setStockDisplayName] = useState<string | null>(null);
   /** 종목 검색 모달에서만 설정; 입력칸 직접 수정 시 초기화 */
@@ -424,6 +427,67 @@ export default function CapPerPorCalculatorScreen() {
 
   const [portfolioStocks, setPortfolioStocks] = useState<Stock[]>([]);
   const [recentEntries, setRecentEntries] = useState<CapPerPorRecentEntry[]>([]);
+
+  /** AsyncStorage에서 잠정·가이던스 복원(mockKey 공통, 시총계산기·기업실적비교 동일 키) */
+  useEffect(() => {
+    if (mockKeyResolved == null) {
+      scenarioPersistReadyRef.current = null;
+      setProvisionalOpEok('');
+      setProvisionalUnit('jo');
+      setGuidanceOpEok('');
+      setGuidanceUnit('jo');
+      return;
+    }
+    scenarioPersistReadyRef.current = null;
+    let cancelled = false;
+    void (async () => {
+      const map = await SettingsService.getOpScenarioByMockKey();
+      if (cancelled) return;
+      const row = map[mockKeyResolved];
+      if (row) {
+        setProvisionalOpEok(row.provisionalEok);
+        setProvisionalUnit(row.provisionalUnit as OpScenarioUnit);
+        setGuidanceOpEok(row.guidanceEok);
+        setGuidanceUnit(row.guidanceUnit as OpScenarioUnit);
+      } else {
+        setProvisionalOpEok('');
+        setProvisionalUnit('jo');
+        setGuidanceOpEok('');
+        setGuidanceUnit('jo');
+      }
+      if (!cancelled) scenarioPersistReadyRef.current = mockKeyResolved;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mockKeyResolved]);
+
+  /** 디바운스 저장 · 종목 전환 시 cleanup에서 즉시 flush */
+  useEffect(() => {
+    if (mockKeyResolved == null || scenarioPersistReadyRef.current !== mockKeyResolved) return;
+    const key = mockKeyResolved;
+    const snap: OpScenarioPersistRow = {
+      provisionalEok: provisionalOpEok,
+      provisionalUnit: provisionalUnit as OpScenarioPersistUnit,
+      guidanceEok: guidanceOpEok,
+      guidanceUnit: guidanceUnit as OpScenarioPersistUnit,
+    };
+    const t = setTimeout(() => {
+      void (async () => {
+        const map = await SettingsService.getOpScenarioByMockKey();
+        map[key] = snap;
+        await SettingsService.setOpScenarioByMockKey(map);
+      })();
+    }, 400);
+    return () => {
+      clearTimeout(t);
+      void (async () => {
+        const map = await SettingsService.getOpScenarioByMockKey();
+        map[key] = snap;
+        await SettingsService.setOpScenarioByMockKey(map);
+      })();
+    };
+  }, [mockKeyResolved, provisionalOpEok, provisionalUnit, guidanceOpEok, guidanceUnit]);
 
   const quarterYearChoices = useMemo(
     () => fundamentalsQuarterYearChoices(new Date(), FUNDAMENTALS_CALENDAR_YEAR_SPAN),

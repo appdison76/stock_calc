@@ -59,7 +59,7 @@ import {
 } from '../src/services/YahooFinanceService';
 import { buildYahooFundamentalsGridColumn } from '../src/services/yahooFundamentalsGrid';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SettingsService, type FundamentalsCompareSelectionPersisted } from '../src/services/SettingsService';
+import { SettingsService, type FundamentalsCompareSelectionPersisted, type OpScenarioPersistUnit } from '../src/services/SettingsService';
 
 /** 해외 실적 컬럼 동시 조회 상한 — 무제한 병렬은 Yahoo 차단·메모리 스파이크 위험 */
 const YAHOO_FUNDAMENTALS_FOREIGN_CONCURRENCY = 4;
@@ -526,8 +526,12 @@ export default function FundamentalsCompareScreen() {
     [deduped, selectedKeys]
   );
 
+  const dedupedKeysSig = useMemo(() => deduped.map((d) => d.mockKey).join('|'), [deduped]);
+  const [opScenarioReady, setOpScenarioReady] = useState(false);
+
+  /** 포트폴리오 `deduped` 기준으로 잠정·가이던스 맵 유지(체크 해제해도 값·저장 유지) */
   useEffect(() => {
-    const keyList = selectedRows.map((r) => r.mockKey);
+    const keyList = deduped.map((r) => r.mockKey);
     setProvisionalOpEokByKey((prev) => {
       const next: Record<string, string> = {};
       for (const k of keyList) {
@@ -556,7 +560,85 @@ export default function FundamentalsCompareScreen() {
       }
       return next;
     });
-  }, [selectedRows]);
+  }, [deduped]);
+
+  /** AsyncStorage에서 잠정·가이던스 복원(mockKey 공통 저장소) */
+  useEffect(() => {
+    if (deduped.length === 0) {
+      setOpScenarioReady(false);
+      return;
+    }
+    setOpScenarioReady(false);
+    let cancelled = false;
+    void (async () => {
+      const map = await SettingsService.getOpScenarioByMockKey();
+      if (cancelled) return;
+      setProvisionalOpEokByKey((prev) => {
+        const next: Record<string, string> = { ...prev };
+        for (const r of deduped) {
+          const row = map[r.mockKey];
+          next[r.mockKey] = row?.provisionalEok ?? prev[r.mockKey] ?? '';
+        }
+        return next;
+      });
+      setGuidanceOpEokByKey((prev) => {
+        const next: Record<string, string> = { ...prev };
+        for (const r of deduped) {
+          const row = map[r.mockKey];
+          next[r.mockKey] = row?.guidanceEok ?? prev[r.mockKey] ?? '';
+        }
+        return next;
+      });
+      setProvisionalOpUnitByKey((prev) => {
+        const next: Record<string, OpScenarioUnit> = { ...prev };
+        for (const r of deduped) {
+          const row = map[r.mockKey];
+          next[r.mockKey] = (row?.provisionalUnit ?? prev[r.mockKey] ?? 'jo') as OpScenarioUnit;
+        }
+        return next;
+      });
+      setGuidanceOpUnitByKey((prev) => {
+        const next: Record<string, OpScenarioUnit> = { ...prev };
+        for (const r of deduped) {
+          const row = map[r.mockKey];
+          next[r.mockKey] = (row?.guidanceUnit ?? prev[r.mockKey] ?? 'jo') as OpScenarioUnit;
+        }
+        return next;
+      });
+      if (!cancelled) setOpScenarioReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dedupedKeysSig]);
+
+  /** 잠정·가이던스 입력 디바운스 저장 */
+  useEffect(() => {
+    if (!opScenarioReady || deduped.length === 0) return;
+    const t = setTimeout(() => {
+      void (async () => {
+        const map = await SettingsService.getOpScenarioByMockKey();
+        for (const r of deduped) {
+          const k = r.mockKey;
+          map[k] = {
+            provisionalEok: provisionalOpEokByKey[k] ?? '',
+            provisionalUnit: (provisionalOpUnitByKey[k] ?? 'jo') as OpScenarioPersistUnit,
+            guidanceEok: guidanceOpEokByKey[k] ?? '',
+            guidanceUnit: (guidanceOpUnitByKey[k] ?? 'jo') as OpScenarioPersistUnit,
+          };
+        }
+        await SettingsService.setOpScenarioByMockKey(map);
+      })();
+    }, 450);
+    return () => clearTimeout(t);
+  }, [
+    opScenarioReady,
+    deduped,
+    provisionalOpEokByKey,
+    provisionalOpUnitByKey,
+    guidanceOpEokByKey,
+    guidanceOpUnitByKey,
+  ]);
 
   /** 체크 상태·포트폴리오 스냅샷 저장 (재진입 시 복원·신규 종목 자동 체크에 사용) */
   useEffect(() => {
