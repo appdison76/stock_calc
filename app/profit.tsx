@@ -329,8 +329,8 @@ export default function ProfitCalculatorView() {
       console.log('Haptic feedback not available');
     }
 
-    if (!buyPrice || !quantity) {
-      Alert.alert('입력 오류', '매수가와 수량을 입력해주세요.');
+    if (!buyPrice) {
+      Alert.alert('입력 오류', '매수가를 입력해주세요.');
       return;
     }
 
@@ -343,16 +343,19 @@ export default function ProfitCalculatorView() {
     const buyPriceNum = parseFloat(removeCommas(buyPrice));
     let sellPriceNum = sellPrice ? parseFloat(removeCommas(sellPrice)) : NaN;
     const profitRateNum = profitRate ? parseFloat(removeCommas(profitRate.replace('-', ''))) * (profitRate.startsWith('-') ? -1 : 1) : NaN;
-    const quantityNum = parseInt(removeCommas(quantity), 10);
+    const qtyCleaned = removeCommas(quantity).trim();
+    let quantityNum = 1;
+    if (qtyCleaned !== '') {
+      quantityNum = parseInt(qtyCleaned, 10);
+      if (isNaN(quantityNum) || quantityNum <= 0) {
+        Alert.alert('입력 오류', '올바른 수량을 입력하거나 비워 두면 1주 기준입니다.');
+        return;
+      }
+    }
     const exchangeRateNum = selectedCurrency === Currency.USD ? parseFloat(removeCommas(usdExchangeRate)) : undefined;
 
     if (isNaN(buyPriceNum) || buyPriceNum <= 0) {
       Alert.alert('입력 오류', '올바른 매수가를 입력하세요.');
-      return;
-    }
-
-    if (isNaN(quantityNum) || quantityNum <= 0) {
-      Alert.alert('입력 오류', '올바른 수량을 입력하세요.');
       return;
     }
     
@@ -621,12 +624,13 @@ export default function ProfitCalculatorView() {
 
           <TextInput
             style={styles.input}
-            placeholder="수량 (주)"
+            placeholder="수량 (주, 비우면 1주)"
             placeholderTextColor="#757575"
             value={quantity}
             onChangeText={(text) => handleQuantityInputChange(text, setQuantity)}
             keyboardType="numeric"
           />
+          <Text style={styles.helperText}>비우면 1주 기준으로 순수익·총액이 계산됩니다.</Text>
 
           <View style={styles.buttonRow}>
             <TouchableOpacity 
