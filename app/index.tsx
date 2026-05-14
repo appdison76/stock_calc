@@ -128,6 +128,8 @@ const CalculatorCard: React.FC<CalculatorCardProps> = ({
               </View>
             ) : icon === 'mci-calculator-variant' ? (
               <MaterialCommunityIcons name="calculator-variant" size={32} color={color} />
+            ) : icon === 'mci-chart-timeline-variant' ? (
+              <MaterialCommunityIcons name="chart-timeline-variant" size={32} color={color} />
             ) : (
               <Text style={[styles.icon, { color }]}>{icon}</Text>
             )}
@@ -1215,13 +1217,25 @@ export default function MainScreen() {
                 <View style={styles.iconGridRow}>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(0, 137, 123, 0.85)' }]}
-                      onPress={() => router.push('/daily-settlement')}
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(255, 193, 7, 0.92)' }]}
+                      onPress={() => router.push('/price-scenario-profit')}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.circularIconText}>📒</Text>
+                      <MaterialCommunityIcons name="chart-timeline-variant" size={28} color="#4a3728" />
                     </TouchableOpacity>
-                    <Text style={styles.circularIconLabel}>일일 정산</Text>
+                    <Text style={styles.circularIconLabel} numberOfLines={2}>
+                      주가 시나리오{'\n'}수익 계산기
+                    </Text>
+                  </View>
+                  <View style={styles.iconItemContainer}>
+                    <TouchableOpacity
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(126, 87, 194, 0.85)' }]}
+                      onPress={() => router.push('/cap-per-por-calculator')}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialCommunityIcons name="calculator-variant" size={28} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <Text style={styles.circularIconLabel} numberOfLines={2}>시총·PER·POR 계산기</Text>
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
@@ -1234,16 +1248,6 @@ export default function MainScreen() {
                     <Text style={styles.circularIconLabel} numberOfLines={2}>
                       기업 실적 비교
                     </Text>
-                  </View>
-                  <View style={styles.iconItemContainer}>
-                    <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(126, 87, 194, 0.85)' }]}
-                      onPress={() => router.push('/cap-per-por-calculator')}
-                      activeOpacity={0.8}
-                    >
-                      <MaterialCommunityIcons name="calculator-variant" size={28} color="#FFFFFF" />
-                    </TouchableOpacity>
-                    <Text style={styles.circularIconLabel} numberOfLines={2}>시총·PER·POR 계산기</Text>
                   </View>
                 </View>
                 {/* 세 번째 줄 */}
@@ -1882,6 +1886,15 @@ export default function MainScreen() {
               icon="▲▼"
               color="#FF6B6B"
               onPress={() => router.push('/stop-loss-take-profit')}
+            />
+            <View style={styles.cardSpacer} />
+
+            <CalculatorCard
+              title="주가 시나리오 수익 계산기"
+              description={['현재가·매수가·수량과 목표가·변동률·수익률·수익금을', '서로 연동합니다. 종목을 고르면 시총·PER·POR·잠정·가이던스']}
+              icon="mci-chart-timeline-variant"
+              color="#29B6F6"
+              onPress={() => router.push('/price-scenario-profit')}
             />
             <View style={styles.cardSpacer} />
 

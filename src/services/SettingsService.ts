@@ -31,11 +31,22 @@ const KEY_OP_SCENARIO_BY_MOCK_KEY_V1 = 'op_scenario_by_mock_key_v1';
 
 export type OpScenarioPersistUnit = 'jo' | 'eok' | 'cheonman' | 'baekman';
 
+/** 주가 시나리오 수익 계산기 — mockKey별 입력(현재가 제외, 시세로 채움) */
+export type PriceScenarioInputsPersist = {
+  buyPriceStr: string;
+  qtyStr: string;
+  targetPriceStr: string;
+  deltaPctStr: string;
+  myReturnPctStr: string;
+  profitWonStr: string;
+};
+
 export type OpScenarioPersistRow = {
   provisionalEok: string;
   provisionalUnit: OpScenarioPersistUnit;
   guidanceEok: string;
   guidanceUnit: OpScenarioPersistUnit;
+  priceScenarioInputs?: PriceScenarioInputsPersist;
 };
 
 /** 기업 실적 비교 — 체크한 종목 + 직전 포트폴리오 스냅샷(신규 종목 자동 체크용) */
@@ -83,14 +94,31 @@ function normalizeOpScenarioUnit(u: unknown, fallback: OpScenarioPersistUnit): O
   return fallback;
 }
 
+function parsePriceScenarioInputs(raw: unknown): PriceScenarioInputsPersist | undefined {
+  if (raw == null || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  const s = (k: string) => (typeof o[k] === 'string' ? o[k] : '');
+  const out: PriceScenarioInputsPersist = {
+    buyPriceStr: s('buyPriceStr'),
+    qtyStr: s('qtyStr'),
+    targetPriceStr: s('targetPriceStr'),
+    deltaPctStr: s('deltaPctStr'),
+    myReturnPctStr: s('myReturnPctStr'),
+    profitWonStr: s('profitWonStr'),
+  };
+  return out;
+}
+
 function parseOpScenarioRowValue(raw: unknown): OpScenarioPersistRow | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
+  const priceScenarioInputs = parsePriceScenarioInputs(o.priceScenarioInputs);
   return {
     provisionalEok: typeof o.provisionalEok === 'string' ? o.provisionalEok : '',
     provisionalUnit: normalizeOpScenarioUnit(o.provisionalUnit, 'jo'),
     guidanceEok: typeof o.guidanceEok === 'string' ? o.guidanceEok : '',
     guidanceUnit: normalizeOpScenarioUnit(o.guidanceUnit, 'jo'),
+    ...(priceScenarioInputs != null ? { priceScenarioInputs } : {}),
   };
 }
 

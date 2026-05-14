@@ -2,7 +2,7 @@
  * 기업 실적 비교 화면 — 기간 유틸·라벨·티커 정규화 (실제 숫자는 DART/Yahoo/네이버 API).
  */
 
-/** `false`로 두면 더보기·홈 헤더에서 기업 실적 비교 진입이 숨겨집니다. */
+/** `false`로 두면 주식계산기 목록·홈 헤더에서 기업 실적 비교 진입이 숨겨집니다. */
 export const SHOW_FUNDAMENTALS_COMPARE_MENU = true;
 
 /**

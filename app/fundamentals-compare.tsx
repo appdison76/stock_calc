@@ -621,11 +621,13 @@ export default function FundamentalsCompareScreen() {
         const map = await SettingsService.getOpScenarioByMockKey();
         for (const r of deduped) {
           const k = r.mockKey;
+          const prev = map[k];
           map[k] = {
             provisionalEok: provisionalOpEokByKey[k] ?? '',
             provisionalUnit: (provisionalOpUnitByKey[k] ?? 'jo') as OpScenarioPersistUnit,
             guidanceEok: guidanceOpEokByKey[k] ?? '',
             guidanceUnit: (guidanceOpUnitByKey[k] ?? 'jo') as OpScenarioPersistUnit,
+            priceScenarioInputs: prev?.priceScenarioInputs,
           };
         }
         await SettingsService.setOpScenarioByMockKey(map);

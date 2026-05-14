@@ -57,19 +57,53 @@ interface CalculatorItem {
   icon: string;
   route: string;
   description?: string;
+  /** 이모지 대신 벡터 아이콘 — 목록에서만 사용 */
+  renderMenuIcon?: () => React.ReactNode;
 }
 
-const calculatorItems: CalculatorItem[] = [
+const calculatorItemsBase: CalculatorItem[] = [
   { label: '수익률 계산기', icon: '%', route: '/profit', description: '매수/매도 수익률 계산' },
   { label: '물타기 계산기', icon: '💧', route: '/averaging', description: '평단가 계산' },
   { label: '목표가 계산기', icon: '🎯', route: '/target-price', description: '목표가와 예상 수익 계산' },
   { label: '손절/익절 계산기', icon: '▲▼', route: '/stop-loss-take-profit', description: '목표가와 손절가 계산' },
+  {
+    label: '주가 시나리오 수익 계산기',
+    icon: '📊',
+    route: '/price-scenario-profit',
+    description: '현재가·목표·수익률·수익금 연동, 종목 시총·PER·POR',
+    renderMenuIcon: () => (
+      <MaterialCommunityIcons name="chart-timeline-variant" size={28} color="#FFFFFF" />
+    ),
+  },
   { label: '시총·PER·POR 계산기', icon: '🧮', route: '/cap-per-por-calculator', description: '시총·실적 기준 PER/POR과 주가 시나리오' },
   { label: '정기 매수 계산기', icon: '📆', route: '/regular-purchase-simulator', description: '정기 매수 평균 매수가 계산' },
   { label: '배당금 계산기', icon: '💵', route: '/dividend', description: '연간 배당금과 배당 수익률 계산' },
   { label: '양도소득세 계산기', icon: '💰', route: '/capital-gains-tax', description: '한국/미국 주식 양도소득세 계산' },
   { label: '수수료 비교 계산기', icon: '⚖️', route: '/fee-comparison', description: '여러 증권사 수수료 비교' },
 ];
+
+const fundamentalsCompareCalculatorItem: CalculatorItem = {
+  label: '기업 실적 비교',
+  icon: '\u2696',
+  route: '/fundamentals-compare',
+  description: '여러 종목 실적·시총 비교, 잠정·가이던스 POR 시뮬레이션',
+  renderMenuIcon: () => (
+    <MaterialCommunityIcons name="scale-balance" size={28} color="#FFFFFF" />
+  ),
+};
+
+function buildCalculatorItems(): CalculatorItem[] {
+  if (!SHOW_FUNDAMENTALS_COMPARE_MENU) {
+    return [...calculatorItemsBase];
+  }
+  const items = [...calculatorItemsBase];
+  const capIdx = items.findIndex((x) => x.route === '/cap-per-por-calculator');
+  const idx = capIdx >= 0 ? capIdx + 1 : items.length;
+  items.splice(idx, 0, fundamentalsCompareCalculatorItem);
+  return items;
+}
+
+const calculatorItems = buildCalculatorItems();
 
 // 더보기 메뉴 목록 (확장 가능)
 interface MoreMenuItem {
@@ -91,27 +125,6 @@ const moreMenuItemsBase: MoreMenuItem[] = [
   { label: '환경설정', icon: '⚙️', route: '/settings', description: '앱 설정 및 수수료 관리' },
 ];
 
-const fundamentalsCompareMenuItem: MoreMenuItem = {
-  label: '기업 실적 비교',
-  icon: '\u2696', // 폴백(미사용 시)
-  route: '/fundamentals-compare',
-  description: '여러 종목 실적·시총 비교, 잠정·가이던스 POR 시뮬레이션',
-  renderMenuIcon: () => (
-    <MaterialCommunityIcons name="scale-balance" size={28} color="#FFFFFF" />
-  ),
-};
-
-function buildMoreMenuItems(): MoreMenuItem[] {
-  if (!SHOW_FUNDAMENTALS_COMPARE_MENU) {
-    return [...moreMenuItemsBase];
-  }
-  const items = [...moreMenuItemsBase];
-  const dailyIdx = items.findIndex((x) => x.route === '/daily-settlement');
-  const idx = dailyIdx >= 0 ? dailyIdx + 1 : items.length;
-  items.splice(idx, 0, fundamentalsCompareMenuItem);
-  return items;
-}
-
 const navItems: NavItem[] = [
   { label: '홈화면', icon: '⌂', route: '/' },
   { label: '주식계산기', icon: 'calculator', route: 'calculator_modal', isModal: true, isCustomIcon: true },
@@ -129,7 +142,7 @@ export default function BottomNavigationBar() {
   const insets = useSafeAreaInsets();
   const [calculatorModalVisible, setCalculatorModalVisible] = useState(false);
   const [moreModalVisible, setMoreModalVisible] = useState(false);
-  const moreMenuItems = useMemo(() => buildMoreMenuItems(), []);
+  const moreMenuItems = useMemo(() => [...moreMenuItemsBase], []);
   
   // 하단 네비게이션 바 높이 계산 (아이콘 40 + 라벨 20 + 패딩 20 + SafeArea)
   const bottomNavHeight = 80 + Math.max(insets.bottom, 8);
@@ -256,7 +269,9 @@ export default function BottomNavigationBar() {
                     activeOpacity={0.7}
                   >
                     <View style={styles.menuItemIconContainer}>
-                      {calculator.route === '/cap-per-por-calculator' ? (
+                      {calculator.renderMenuIcon != null ? (
+                        calculator.renderMenuIcon()
+                      ) : calculator.route === '/cap-per-por-calculator' ? (
                         <MaterialCommunityIcons name="calculator-variant" size={28} color="#FFFFFF" />
                       ) : calculator.icon === '▲▼' ? (
                         <View style={styles.triangleIconContainer}>

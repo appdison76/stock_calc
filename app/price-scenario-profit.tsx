@@ -11,10 +11,10 @@ import {
   Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getStockQuote, normalizeYahooTickerKey, type StockQuote } from '../src/services/YahooFinanceService';
+import { getStockQuote, type StockQuote } from '../src/services/YahooFinanceService';
 import { fetchDomesticMarketCapWonFromNaver } from '../src/services/naverFinanceStock';
 import { buildYahooFundamentalsGridColumn } from '../src/services/yahooFundamentalsGrid';
-import { buildDartFundamentalsGrid, type DartCellBundle, type DartFundamentalsGrid } from '../src/services/dart/dartFundamentalsGrid';
+import { buildDartFundamentalsGrid } from '../src/services/dart/dartFundamentalsGrid';
 import { getDartApiKey } from '../src/services/dart/dartConfig';
 import {
   FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS,
@@ -34,357 +34,88 @@ import {
 import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
 import StockSearchModal from '../src/components/StockSearchModal';
 import { togglePlainPercentSign } from '../src/utils/percentSignToggle';
+import { addCommas } from '../src/utils/formatUtils';
 import { initDatabase, getAllAccounts, getStocksByAccountId } from '../src/services/DatabaseService';
 import type { Stock } from '../src/models/Stock';
 import {
-  getCapPerPorRecent,
-  pushCapPerPorRecent,
-  removeCapPerPorRecent,
-  CAP_PER_POR_RECENT_MAX,
-  type CapPerPorRecentEntry,
-} from '../src/services/CapPerPorRecentService';
+  getPriceScenarioRecent,
+  pushPriceScenarioRecent,
+  removePriceScenarioRecent,
+  PRICE_SCENARIO_RECENT_MAX,
+  type PriceScenarioRecentEntry,
+} from '../src/services/PriceScenarioRecentService';
 import { SettingsService, type OpScenarioPersistRow, type OpScenarioPersistUnit } from '../src/services/SettingsService';
+import {
+  annualizeIncomeForPerPor,
+  applyFundamentalsSnapshotFromGrid,
+  formatCapBadge,
+  formatPerFromCapAndNet,
+  formatPorFromCapAndOp,
+  formatPorFromQuarterlyOpEok,
+  marketCapWonFromQuote,
+  OP_SCENARIO_UNITS,
+  parseScenarioToQuarterlyOpEok,
+  resolveUsdKrwRate,
+  type OpScenarioUnit,
+  yahooLookupFromMockKey,
+} from '../src/lib/capFundamentalsGridResolve';
+import {
+  buildScenarioStrings,
+  parseMoneyInput,
+  parsePercentInput,
+  resolveScenarioPrice,
+  resolveScenarioPriceWithAnchor,
+  type ScenarioAnchor,
+  type ScenarioParsed,
+} from '../src/lib/priceScenarioMath';
 
-/** 비율 표시 — 기업실적비교와 동일 규칙 */
-function formatRatioLocale(n: number): string {
-  const maxFrac = n >= 100 ? 0 : n >= 10 ? 1 : 2;
-  return new Intl.NumberFormat('ko-KR', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: maxFrac,
-  }).format(n);
+function cleanPercentTyping(text: string): string {
+  const cleaned = text.replace(/[^0-9.-]/g, '');
+  const parts = cleaned.split('.');
+  return parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned;
 }
 
-function annualizeIncomeForPerPor(baseWon: number | null, g: 'year' | 'quarter'): number | null {
-  if (baseWon == null || !Number.isFinite(baseWon)) return null;
-  if (g === 'year') return baseWon;
-  return baseWon * 4;
-}
-
-function formatPerFromCapAndNet(marketCapWon: number | null, netIncomeWon: number | null): string {
-  if (marketCapWon == null || !Number.isFinite(marketCapWon)) return '—';
-  if (netIncomeWon == null || !Number.isFinite(netIncomeWon)) return '—';
-  if (netIncomeWon <= 0) return '적자';
-  const per = marketCapWon / netIncomeWon;
-  if (!Number.isFinite(per) || per <= 0) return '—';
-  return formatRatioLocale(per);
-}
-
-function formatPorFromCapAndOp(marketCapWon: number | null, operatingIncomeWon: number | null): string {
-  if (marketCapWon == null || !Number.isFinite(marketCapWon)) return '—';
-  if (operatingIncomeWon == null || !Number.isFinite(operatingIncomeWon)) return '—';
-  if (operatingIncomeWon <= 0) return '적자';
-  const por = marketCapWon / operatingIncomeWon;
-  if (!Number.isFinite(por) || por <= 0) return '—';
-  return formatRatioLocale(por);
-}
-
-type OpScenarioUnit = 'jo' | 'eok' | 'cheonman' | 'baekman';
-
-const OP_SCENARIO_UNITS: { id: OpScenarioUnit; label: string }[] = [
-  { id: 'jo', label: '조' },
-  { id: 'eok', label: '억' },
-  { id: 'cheonman', label: '천만' },
-  { id: 'baekman', label: '백만' },
-];
-
-function parsePositiveAmountString(raw: string): number | null {
-  const s = raw.replace(/,/g, '').trim();
-  if (s === '') return null;
-  const n = Number(s);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return n;
-}
-
-function scenarioAmountToQuarterlyOpEok(amount: number, unit: OpScenarioUnit): number {
-  switch (unit) {
-    case 'jo':
-      return amount * 10000;
-    case 'eok':
-      return amount;
-    case 'cheonman':
-      return amount * 0.1;
-    case 'baekman':
-      return amount * 0.01;
-    default:
-      return amount;
+/** 금액·수량 입력: maxFrac 0이면 정수+콤마, 2면 USD식 소수 둘째 자리 */
+function formatPriceFieldInput(text: string, maxFrac: number): string {
+  if (maxFrac <= 0) {
+    const d = text.replace(/[^0-9]/g, '');
+    return d === '' ? '' : addCommas(d);
   }
-}
-
-function parseScenarioToQuarterlyOpEok(raw: string, unit: OpScenarioUnit): number | null {
-  const n = parsePositiveAmountString(raw);
-  if (n == null) return null;
-  return scenarioAmountToQuarterlyOpEok(n, unit);
-}
-
-/** 분기 영업이익(억)×4 = 연율 영업이익(원) 기준 POR */
-function formatPorFromQuarterlyOpEok(capWon: number | null, quarterlyOpEok: number | null): string {
-  if (capWon == null || !Number.isFinite(capWon)) return '—';
-  if (quarterlyOpEok == null || !Number.isFinite(quarterlyOpEok)) return '—';
-  if (quarterlyOpEok <= 0) return '적자';
-  const annualOpWon = quarterlyOpEok * 1e8 * 4;
-  const por = capWon / annualOpWon;
-  if (!Number.isFinite(por) || por <= 0) return '—';
-  return formatRatioLocale(por);
-}
-
-function formatCapBadge(periodKey: string, g: 'year' | 'quarter'): string {
-  const quarterRe = /^(\d{4})Q([1-4])$/;
-  const yearOnlyRe = /^(\d{4})$/;
-
-  if (g === 'year') {
-    const qm = quarterRe.exec(periodKey);
-    if (qm) return `${qm[1]}년 연`;
-    const ym = yearOnlyRe.exec(periodKey);
-    if (ym) return `${ym[1]}년 연`;
-    return `${periodKey}년 연`;
+  const c = text.replace(/[^0-9.]/g, '');
+  const fd = c.indexOf('.');
+  if (fd === -1) {
+    const d = c.replace(/[^0-9]/g, '');
+    return d === '' ? '' : addCommas(d);
   }
-
-  const qm = quarterRe.exec(periodKey);
-  if (qm) return `${qm[1]}년 ${qm[2]}분기`;
-  const ym = yearOnlyRe.exec(periodKey);
-  if (ym) return `${ym[1]}년 연간`;
-  return periodKey;
+  const intD = c.slice(0, fd).replace(/[^0-9]/g, '');
+  const fracRaw = c.slice(fd + 1).replace(/\./g, '');
+  const frac = fracRaw.slice(0, maxFrac);
+  const intNorm = intD.replace(/^0+(?=\d)/, '');
+  const intShow = intNorm === '' ? (intD === '' ? '0' : addCommas(intD)) : addCommas(intNorm);
+  if (fracRaw === '' && c.endsWith('.')) return `${intShow}.`;
+  return frac === '' ? intShow : `${intShow}.${frac}`;
 }
 
-function yahooLookupFromMockKey(mockKey: string): string {
-  const mk = mockKey.trim();
-  if (/^\d{6}$/.test(mk)) return mk;
-  const withoutSuffix = mk.replace(/\.(US|O|NYSE|NASDAQ)$/i, '');
-  return normalizeYahooTickerKey(withoutSuffix);
+/** 등락률(%): 소수 둘째 자리까지, 음수·중간 입력(5.) 허용 */
+function cleanDeltaPctInput(text: string): string {
+  const cleaned = text.replace(/[^0-9.-]/g, '');
+  const firstDot = cleaned.indexOf('.');
+  if (firstDot === -1) return cleaned;
+  const head = cleaned.slice(0, firstDot + 1);
+  const after = cleaned.slice(firstDot + 1).replace(/\./g, '');
+  return head + after.slice(0, 2);
 }
 
-async function resolveUsdKrwRate(): Promise<number> {
-  try {
-    const q = await getStockQuote('USDKRW=X');
-    if (q != null && Number.isFinite(q.price) && q.price > 400 && q.price < 100_000) return q.price;
-  } catch {
-    /* ignore */
-  }
-  return FUNDAMENTALS_USD_KRW_RATE;
-}
+export default function PriceScenarioProfitScreen() {
+  const [currentPriceStr, setCurrentPriceStr] = useState('');
+  const [buyPriceStr, setBuyPriceStr] = useState('');
+  const [qtyStr, setQtyStr] = useState('');
+  const [targetPriceStr, setTargetPriceStr] = useState('');
+  const [deltaPctStr, setDeltaPctStr] = useState('');
+  const [myReturnPctStr, setMyReturnPctStr] = useState('');
+  const [profitWonStr, setProfitWonStr] = useState('');
+  const [priceMaxFrac, setPriceMaxFrac] = useState(0);
 
-function cellAt(
-  grid: DartFundamentalsGrid,
-  periodKey: string,
-  mockKey: string
-): DartCellBundle | undefined {
-  return grid[periodKey]?.[mockKey];
-}
-
-function gridHasAnyFundamentals(grid: DartFundamentalsGrid, mockKey: string): boolean {
-  for (const pk of Object.keys(grid)) {
-    const b = grid[pk]?.[mockKey];
-    if (
-      b &&
-      (b.revenueKr !== '—' ||
-        b.operatingIncomeKr !== '—' ||
-        (b.netIncomeWon != null && Number.isFinite(b.netIncomeWon)))
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
-/**
- * 기업실적비교 `capSummaryPeriodKeyByStock`(종목 1개)·`dartCapTableSnapshotPeriodKey` 와 동일:
- * 연도·분기 모두 **매출이 있는 기간을 최우선**(손익보다 공시·파싱에서 먼저 채워지는 경우가 많음).
- * 그다음 순이익 → 그다음 매출·영업·순이익 중 하나.
- */
-function pickSnapshotPeriodKey(
-  grid: DartFundamentalsGrid,
-  mockKey: string,
-  granularity: 'year' | 'quarter',
-  latestQuarterCandidates: string[],
-  yearPeriodRows: Array<{ periodKey: string }>
-): string | null {
-  const hasRevenue = (pk: string) => {
-    const r = cellAt(grid, pk, mockKey)?.revenueKr;
-    return r != null && r !== '—';
-  };
-  const hasNet = (pk: string) => {
-    const n = cellAt(grid, pk, mockKey)?.netIncomeWon;
-    return n != null && Number.isFinite(n);
-  };
-  const hasAnyFs = (pk: string) => {
-    const b = cellAt(grid, pk, mockKey);
-    return !!(
-      b &&
-      (b.revenueKr !== '—' ||
-        (b.netIncomeWon != null && Number.isFinite(b.netIncomeWon)) ||
-        b.operatingIncomeKr !== '—')
-    );
-  };
-
-  if (granularity === 'year') {
-    for (const r of yearPeriodRows) {
-      if (hasRevenue(r.periodKey)) return r.periodKey;
-    }
-    for (const r of yearPeriodRows) {
-      if (hasNet(r.periodKey)) return r.periodKey;
-    }
-    for (const r of yearPeriodRows) {
-      if (hasAnyFs(r.periodKey)) return r.periodKey;
-    }
-    return yearPeriodRows[0]?.periodKey ?? null;
-  }
-  for (const pk of latestQuarterCandidates) {
-    if (hasRevenue(pk)) return pk;
-  }
-  for (const pk of latestQuarterCandidates) {
-    if (hasNet(pk)) return pk;
-  }
-  for (const pk of latestQuarterCandidates) {
-    if (hasAnyFs(pk)) return pk;
-  }
-  return latestQuarterCandidates[0] ?? null;
-}
-
-/** 기업실적비교 `perNetIncomeSearchPeriodKeys` 와 동일 */
-function buildPerNetIncomeSearchPeriodKeys(
-  granularity: 'year' | 'quarter',
-  snapshotPeriodKey: string,
-  latestQuarterCandidates: string[],
-  yearPeriodRows: Array<{ periodKey: string }>
-): string[] {
-  if (granularity === 'year') {
-    const ys = yearPeriodRows.map((r) => r.periodKey);
-    return [...new Set([snapshotPeriodKey, ...ys])];
-  }
-  return [...new Set([snapshotPeriodKey, ...latestQuarterCandidates])];
-}
-
-/** 요약 표 `netIncomeWonForPer`와 동일: 스냅샷 분기가 리스트 선두 → 순서대로 탐색 */
-function resolveNetIncomeWon(
-  grid: DartFundamentalsGrid,
-  mockKey: string,
-  searchKeys: string[]
-): { value: number | null; periodKey: string | null } {
-  for (const pk of searchKeys) {
-    const n = cellAt(grid, pk, mockKey)?.netIncomeWon;
-    if (n != null && Number.isFinite(n)) return { value: n, periodKey: pk };
-  }
-  return { value: null, periodKey: null };
-}
-
-/** `revenueKrForSummary` 와 동일 분기·동일 셀 — 원 단위는 `revenueWon` */
-function resolveRevenue(
-  grid: DartFundamentalsGrid,
-  mockKey: string,
-  searchKeys: string[]
-): { kr: string | null; won: number | null; periodKey: string | null } {
-  for (const pk of searchKeys) {
-    const b = cellAt(grid, pk, mockKey);
-    if (!b) continue;
-    if (b.revenueKr != null && b.revenueKr !== '—') {
-      const won = b.revenueWon;
-      return {
-        kr: b.revenueKr,
-        won: won != null && Number.isFinite(won) ? won : null,
-        periodKey: pk,
-      };
-    }
-  }
-  return { kr: null, won: null, periodKey: null };
-}
-
-/** `operatingIncomeWonForPor` / `operatingIncomeKrForSummary` 와 동일 */
-function resolveOperatingIncome(
-  grid: DartFundamentalsGrid,
-  mockKey: string,
-  searchKeys: string[]
-): { kr: string | null; won: number | null; periodKey: string | null } {
-  for (const pk of searchKeys) {
-    const b = cellAt(grid, pk, mockKey);
-    if (!b) continue;
-    if (b.operatingIncomeKr !== '—' && b.operatingIncomeWon != null && Number.isFinite(b.operatingIncomeWon)) {
-      return { kr: b.operatingIncomeKr, won: b.operatingIncomeWon, periodKey: pk };
-    }
-  }
-  return { kr: null, won: null, periodKey: null };
-}
-
-/** 스냅샷과 출처 분기가 다를 때 숫자 옆 표시. 해외(Yahoo)는 해당 칸 fsPeriodLabel(from–to) 우선 */
-function metricPeriodSuffixFromGrid(
-  grid: DartFundamentalsGrid,
-  mockKey: string,
-  sourcePk: string | null,
-  snapshotPk: string | null,
-  granularity: 'year' | 'quarter'
-): string | null {
-  if (!sourcePk || !snapshotPk || sourcePk === snapshotPk) return null;
-  const domestic = /^\d{6}$/.test(mockKey.trim());
-  const b = cellAt(grid, sourcePk, mockKey);
-  if (!domestic && b?.fsPeriodLabel?.trim()) return b.fsPeriodLabel.trim();
-  return formatCapBadge(sourcePk, granularity);
-}
-
-function applyFundamentalsSnapshotFromGrid(
-  grid: DartFundamentalsGrid,
-  mockKey: string,
-  granularity: 'year' | 'quarter',
-  latestQuarterCandidates: string[],
-  yearPeriodRows: Array<{ periodKey: string }>
-): {
-  snapshotPk: string;
-  netIncomeWon: number | null;
-  operatingIncomeWon: number | null;
-  revenueWon: number | null;
-  revenueKr: string;
-  operatingIncomeKr: string;
-  netIncomeKr: string;
-  fsPeriodLabel: string | null;
-  revenuePeriodSuffix: string | null;
-  operatingPeriodSuffix: string | null;
-  netIncomePeriodSuffix: string | null;
-} | null {
-  if (!gridHasAnyFundamentals(grid, mockKey)) return null;
-
-  const snapshotPk = pickSnapshotPeriodKey(grid, mockKey, granularity, latestQuarterCandidates, yearPeriodRows);
-  if (snapshotPk == null) return null;
-
-  const searchKeys = buildPerNetIncomeSearchPeriodKeys(
-    granularity,
-    snapshotPk,
-    latestQuarterCandidates,
-    yearPeriodRows
-  );
-  const net = resolveNetIncomeWon(grid, mockKey, searchKeys);
-  const rev = resolveRevenue(grid, mockKey, searchKeys);
-  const op = resolveOperatingIncome(grid, mockKey, searchKeys);
-
-  const hasResolved =
-    (net.value != null && Number.isFinite(net.value)) ||
-    (rev.kr != null && rev.kr !== '—') ||
-    (op.won != null && Number.isFinite(op.won));
-  if (!hasResolved) return null;
-
-  const netKr =
-    net.value != null && Number.isFinite(net.value) ? formatWonShortKr(net.value) : '—';
-
-  return {
-    snapshotPk,
-    netIncomeWon: net.value,
-    operatingIncomeWon: op.won,
-    revenueWon: rev.won,
-    revenueKr: rev.kr ?? '—',
-    operatingIncomeKr: op.kr ?? '—',
-    netIncomeKr: netKr,
-    fsPeriodLabel: cellAt(grid, snapshotPk, mockKey)?.fsPeriodLabel ?? null,
-    revenuePeriodSuffix: metricPeriodSuffixFromGrid(grid, mockKey, rev.periodKey, snapshotPk, granularity),
-    operatingPeriodSuffix: metricPeriodSuffixFromGrid(grid, mockKey, op.periodKey, snapshotPk, granularity),
-    netIncomePeriodSuffix: metricPeriodSuffixFromGrid(grid, mockKey, net.periodKey, snapshotPk, granularity),
-  };
-}
-
-function marketCapWonFromQuote(q: StockQuote | null, usdKrw: number): number | null {
-  if (!q?.marketCap || !Number.isFinite(q.marketCap)) return null;
-  const cur = (q.currency || '').toUpperCase();
-  if (cur === 'KRW') return q.marketCap;
-  return q.marketCap * usdKrw;
-}
-
-export default function CapPerPorCalculatorScreen() {
   const [tickerInput, setTickerInput] = useState('');
   const [showStockModal, setShowStockModal] = useState(false);
   const [granularity, setGranularity] = useState<'year' | 'quarter'>('quarter');
@@ -392,31 +123,23 @@ export default function CapPerPorCalculatorScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const [mockKeyResolved, setMockKeyResolved] = useState<string | null>(null);
-  /** 잠정·가이던스 저장 effect가 이전 종목 값으로 덮어쓰지 않도록, hydrate 완료 후에만 허용 */
   const scenarioPersistReadyRef = useRef<string | null>(null);
-  /** 불러오기 성공 후 표시 — 시세 종목명 우선, 없으면 검색 팝업에서 고른 이름 */
   const [stockDisplayName, setStockDisplayName] = useState<string | null>(null);
-  /** 종목 검색 모달에서만 설정; 입력칸 직접 수정 시 초기화 */
   const [pickedOfficialName, setPickedOfficialName] = useState<string | null>(null);
   const [capWon, setCapWon] = useState<number | null>(null);
-  const [price, setPrice] = useState<number | null>(null);
+  const [quotePrice, setQuotePrice] = useState<number | null>(null);
   const [quoteCurrency, setQuoteCurrency] = useState<string>('KRW');
   const [periodKeyUsed, setPeriodKeyUsed] = useState<string | null>(null);
   const [fsPeriodLabel, setFsPeriodLabel] = useState<string | null>(null);
   const [netIncomeWon, setNetIncomeWon] = useState<number | null>(null);
   const [operatingIncomeWon, setOperatingIncomeWon] = useState<number | null>(null);
-  /** 요약 카드 — 선택 실적 기간의 매출·영업이익(포맷 문자열), 당기순이익 표시용 */
   const [displayRevenueKr, setDisplayRevenueKr] = useState<string | null>(null);
-  /** 요약과 동일 스냅샷의 매출(원) — 시총 대비 이상치 경고 */
-  const [revenueWon, setRevenueWon] = useState<number | null>(null);
   const [displayOperatingIncomeKr, setDisplayOperatingIncomeKr] = useState<string | null>(null);
   const [displayNetIncomeKr, setDisplayNetIncomeKr] = useState<string | null>(null);
-  /** 스냅샷과 다른 칸에서 채운 경우 숫자 옆 표시(해외는 Yahoo fsPeriodLabel 우선) */
+  const [revenueWon, setRevenueWon] = useState<number | null>(null);
   const [revenuePeriodSuffix, setRevenuePeriodSuffix] = useState<string | null>(null);
   const [operatingPeriodSuffix, setOperatingPeriodSuffix] = useState<string | null>(null);
   const [netIncomePeriodSuffix, setNetIncomePeriodSuffix] = useState<string | null>(null);
-
-  const [scenarioPct, setScenarioPct] = useState('5');
 
   const [provisionalOpEok, setProvisionalOpEok] = useState('');
   const [provisionalUnit, setProvisionalUnit] = useState<OpScenarioUnit>('jo');
@@ -424,11 +147,95 @@ export default function CapPerPorCalculatorScreen() {
   const [guidanceUnit, setGuidanceUnit] = useState<OpScenarioUnit>('jo');
 
   const [usdKrwApplied, setUsdKrwApplied] = useState(FUNDAMENTALS_USD_KRW_RATE);
-
   const [portfolioStocks, setPortfolioStocks] = useState<Stock[]>([]);
-  const [recentEntries, setRecentEntries] = useState<CapPerPorRecentEntry[]>([]);
+  const [recentEntries, setRecentEntries] = useState<PriceScenarioRecentEntry[]>([]);
 
-  /** AsyncStorage에서 잠정·가이던스 복원(mockKey 공통, 시총계산기·기업실적비교 동일 키) */
+  const quarterYearChoices = useMemo(
+    () => fundamentalsQuarterYearChoices(new Date(), FUNDAMENTALS_CALENDAR_YEAR_SPAN),
+    []
+  );
+  const yearPeriodRows = useMemo(() => buildYearPeriodRowsForChoices(quarterYearChoices), [quarterYearChoices]);
+  const initQuarter = useMemo(
+    () => fundamentalsDefaultQuarterWithinChoices(new Date(), quarterYearChoices),
+    [quarterYearChoices]
+  );
+  const [quarterYear] = useState(initQuarter.quarterYear);
+  const latestQuarterCandidates = useMemo(() => buildDartLatestQuarterCandidates(new Date(), 12), []);
+
+  const syncScenarioBlock = useCallback(
+    (
+      override: Partial<{
+        currentPriceStr: string;
+        buyPriceStr: string;
+        qtyStr: string;
+        targetPriceStr: string;
+        deltaPctStr: string;
+        myReturnPctStr: string;
+        profitWonStr: string;
+      }>,
+      scenarioAnchor?: ScenarioAnchor | null
+    ) => {
+      const curS = override.currentPriceStr ?? currentPriceStr;
+      const buyS = override.buyPriceStr ?? buyPriceStr;
+      const qtyS = override.qtyStr ?? qtyStr;
+      const tgtS = override.targetPriceStr ?? targetPriceStr;
+      const dS = override.deltaPctStr ?? deltaPctStr;
+      const rS = override.myReturnPctStr ?? myReturnPctStr;
+      const pS = override.profitWonStr ?? profitWonStr;
+
+      const P0 = parseMoneyInput(curS);
+      const Pbuy = parseMoneyInput(buyS);
+      const Q = parseMoneyInput(qtyS);
+      const parsed: ScenarioParsed = {
+        target: parseMoneyInput(tgtS),
+        deltaPct: parsePercentInput(dS),
+        myReturnPct: parsePercentInput(rS),
+        profitWon: parseMoneyInput(pS),
+      };
+      const anchor = scenarioAnchor ?? null;
+      let P1 = resolveScenarioPriceWithAnchor(anchor, P0, Pbuy, Q, parsed);
+      /** 목표가를 지웠거나 0 이하면 앵커만으로는 P1이 없음 → 목표가 없이 나머지 필드로만 재해석 */
+      if (
+        anchor === 'target' &&
+        (parsed.target == null || !Number.isFinite(parsed.target) || parsed.target <= 0)
+      ) {
+        P1 = resolveScenarioPrice(P0, Pbuy, Q, { ...parsed, target: null });
+      }
+      if (P1 == null || !Number.isFinite(P1) || P1 <= 0) {
+        if (anchor === 'target') {
+          setDeltaPctStr('');
+          setMyReturnPctStr('');
+          setProfitWonStr('');
+        }
+        return;
+      }
+      const s = buildScenarioStrings({ P0, Pbuy, Q, P1, priceMaxFrac });
+      /** 방금 고친 칸(앵커)은 입력 문자열 그대로 두고, 나머지 필드만 재계산 결과로 맞춤 */
+      const ed = scenarioAnchor === 'delta';
+      const er = scenarioAnchor === 'return';
+      const et = scenarioAnchor === 'target';
+      const ep = scenarioAnchor === 'profit';
+
+      setTargetPriceStr(et ? tgtS : s.target);
+      setDeltaPctStr(ed ? dS : s.deltaPct);
+      setMyReturnPctStr(er ? rS : s.myReturnPct);
+      setProfitWonStr(ep ? pS : s.profitWon);
+    },
+    [
+      priceMaxFrac,
+      buyPriceStr,
+      currentPriceStr,
+      deltaPctStr,
+      myReturnPctStr,
+      profitWonStr,
+      qtyStr,
+      targetPriceStr,
+    ]
+  );
+
+  const syncScenarioBlockRef = useRef(syncScenarioBlock);
+  syncScenarioBlockRef.current = syncScenarioBlock;
+
   useEffect(() => {
     if (mockKeyResolved == null) {
       scenarioPersistReadyRef.current = null;
@@ -436,14 +243,21 @@ export default function CapPerPorCalculatorScreen() {
       setProvisionalUnit('jo');
       setGuidanceOpEok('');
       setGuidanceUnit('jo');
+      setBuyPriceStr('');
+      setQtyStr('');
+      setTargetPriceStr('');
+      setDeltaPctStr('');
+      setMyReturnPctStr('');
+      setProfitWonStr('');
       return;
     }
     scenarioPersistReadyRef.current = null;
+    const mkLocal = mockKeyResolved;
     let cancelled = false;
     void (async () => {
       const map = await SettingsService.getOpScenarioByMockKey();
       if (cancelled) return;
-      const row = map[mockKeyResolved];
+      const row = map[mkLocal];
       if (row) {
         setProvisionalOpEok(row.provisionalEok);
         setProvisionalUnit(row.provisionalUnit as OpScenarioUnit);
@@ -455,28 +269,54 @@ export default function CapPerPorCalculatorScreen() {
         setGuidanceOpEok('');
         setGuidanceUnit('jo');
       }
-      if (!cancelled) scenarioPersistReadyRef.current = mockKeyResolved;
+      const ps = row?.priceScenarioInputs;
+      if (ps) {
+        setBuyPriceStr(ps.buyPriceStr ?? '');
+        setQtyStr(ps.qtyStr ?? '');
+        setTargetPriceStr(ps.targetPriceStr ?? '');
+        setDeltaPctStr(ps.deltaPctStr ?? '');
+        setMyReturnPctStr(ps.myReturnPctStr ?? '');
+        setProfitWonStr(ps.profitWonStr ?? '');
+      } else {
+        setBuyPriceStr('');
+        setQtyStr('');
+        setTargetPriceStr('');
+        setDeltaPctStr('');
+        setMyReturnPctStr('');
+        setProfitWonStr('');
+      }
+      setTimeout(() => {
+        if (cancelled) return;
+        syncScenarioBlockRef.current({});
+        scenarioPersistReadyRef.current = mkLocal;
+      }, 0);
     })();
     return () => {
       cancelled = true;
     };
   }, [mockKeyResolved]);
 
-  /** 디바운스 저장 · 종목 전환 시 cleanup에서 즉시 flush */
   useEffect(() => {
     if (mockKeyResolved == null || scenarioPersistReadyRef.current !== mockKeyResolved) return;
     const key = mockKeyResolved;
+    const snap: OpScenarioPersistRow = {
+      provisionalEok: provisionalOpEok,
+      provisionalUnit: provisionalUnit as OpScenarioPersistUnit,
+      guidanceEok: guidanceOpEok,
+      guidanceUnit: guidanceUnit as OpScenarioPersistUnit,
+      priceScenarioInputs: {
+        buyPriceStr,
+        qtyStr,
+        targetPriceStr,
+        deltaPctStr,
+        myReturnPctStr,
+        profitWonStr,
+      },
+    };
     const t = setTimeout(() => {
       void (async () => {
         const map = await SettingsService.getOpScenarioByMockKey();
-        const prev = map[key];
-        map[key] = {
-          provisionalEok: provisionalOpEok,
-          provisionalUnit: provisionalUnit as OpScenarioPersistUnit,
-          guidanceEok: guidanceOpEok,
-          guidanceUnit: guidanceUnit as OpScenarioPersistUnit,
-          priceScenarioInputs: prev?.priceScenarioInputs,
-        };
+        map[key] = snap;
         await SettingsService.setOpScenarioByMockKey(map);
       })();
     }, 400);
@@ -484,36 +324,24 @@ export default function CapPerPorCalculatorScreen() {
       clearTimeout(t);
       void (async () => {
         const map = await SettingsService.getOpScenarioByMockKey();
-        const prev = map[key];
-        map[key] = {
-          provisionalEok: provisionalOpEok,
-          provisionalUnit: provisionalUnit as OpScenarioPersistUnit,
-          guidanceEok: guidanceOpEok,
-          guidanceUnit: guidanceUnit as OpScenarioPersistUnit,
-          priceScenarioInputs: prev?.priceScenarioInputs,
-        };
+        map[key] = snap;
         await SettingsService.setOpScenarioByMockKey(map);
       })();
     };
-  }, [mockKeyResolved, provisionalOpEok, provisionalUnit, guidanceOpEok, guidanceUnit]);
+  }, [
+    mockKeyResolved,
+    provisionalOpEok,
+    provisionalUnit,
+    guidanceOpEok,
+    guidanceUnit,
+    buyPriceStr,
+    qtyStr,
+    targetPriceStr,
+    deltaPctStr,
+    myReturnPctStr,
+    profitWonStr,
+  ]);
 
-  const quarterYearChoices = useMemo(
-    () => fundamentalsQuarterYearChoices(new Date(), FUNDAMENTALS_CALENDAR_YEAR_SPAN),
-    []
-  );
-  const yearPeriodRows = useMemo(
-    () => buildYearPeriodRowsForChoices(quarterYearChoices),
-    [quarterYearChoices]
-  );
-  const initQuarter = useMemo(
-    () => fundamentalsDefaultQuarterWithinChoices(new Date(), quarterYearChoices),
-    [quarterYearChoices]
-  );
-  const [quarterYear] = useState(initQuarter.quarterYear);
-
-  const latestQuarterCandidates = useMemo(() => buildDartLatestQuarterCandidates(new Date(), 12), []);
-
-  /** 국내: 시총 대비 연율 손익이 비정형이면 DART 손익을 동일 ÷1000 보정(천원 과대 스케일 가정) */
   const dartWonScaleDown = useMemo(
     () =>
       dartDomesticWonScaleDown(
@@ -532,6 +360,7 @@ export default function CapPerPorCalculatorScreen() {
       netIncomeWon != null && Number.isFinite(netIncomeWon) ? netIncomeWon * dartWonScaleDown : null;
     return annualizeIncomeForPerPor(n, granularity);
   }, [netIncomeWon, granularity, dartWonScaleDown]);
+
   const porDenominator = useMemo(() => {
     const o =
       operatingIncomeWon != null && Number.isFinite(operatingIncomeWon)
@@ -561,7 +390,6 @@ export default function CapPerPorCalculatorScreen() {
     return displayNetIncomeKr ?? '—';
   }, [netIncomeWon, dartWonScaleDown, displayNetIncomeKr]);
 
-  /** 요약·주가 시나리오 PER/POR가 분기 실적을 어떻게 쓰는지 안내 */
   const perPorBasisFootnote = useMemo(
     () =>
       granularity === 'quarter'
@@ -572,22 +400,31 @@ export default function CapPerPorCalculatorScreen() {
 
   const fsAmountPeriodLabel = granularity === 'quarter' ? '분기' : '연간';
 
-  const scenarioPctNum = useMemo(() => {
-    const n = parseFloat(scenarioPct.replace(/,/g, '').trim());
-    return Number.isFinite(n) ? n : 0;
-  }, [scenarioPct]);
+  /** 미국 종목(USD)일 때 수익금(달러) → 적용 환율 기준 원화 안내(금액만 UI에서 강조) */
+  const profitUsdKrwHintParts = useMemo(() => {
+    if (quoteCurrency !== 'USD') return null;
+    if (usdKrwApplied == null || !Number.isFinite(usdKrwApplied) || usdKrwApplied <= 0) return null;
+    const usd = parseMoneyInput(profitWonStr);
+    if (usd == null || !Number.isFinite(usd)) return null;
+    const won = Math.round(usd * usdKrwApplied);
+    const rateStr = usdKrwApplied.toLocaleString('ko-KR', { maximumFractionDigits: 2 });
+    return {
+      wonFormatted: addCommas(String(won)),
+      rateStr,
+    };
+  }, [quoteCurrency, profitWonStr, usdKrwApplied]);
 
-  const scenarioMultiplier = useMemo(() => 1 + scenarioPctNum / 100, [scenarioPctNum]);
+  const scenarioRatio = useMemo(() => {
+    const P0 = parseMoneyInput(currentPriceStr);
+    const P1 = parseMoneyInput(targetPriceStr);
+    if (P0 == null || P0 <= 0 || P1 == null || P1 <= 0) return null;
+    return P1 / P0;
+  }, [currentPriceStr, targetPriceStr]);
 
   const scenarioCapWon = useMemo(() => {
-    if (capWon == null || !Number.isFinite(capWon)) return null;
-    return capWon * scenarioMultiplier;
-  }, [capWon, scenarioMultiplier]);
-
-  const scenarioPrice = useMemo(() => {
-    if (price == null || !Number.isFinite(price)) return null;
-    return price * scenarioMultiplier;
-  }, [price, scenarioMultiplier]);
+    if (capWon == null || !Number.isFinite(capWon) || scenarioRatio == null) return null;
+    return capWon * scenarioRatio;
+  }, [capWon, scenarioRatio]);
 
   const provisionalQOp = useMemo(
     () => parseScenarioToQuarterlyOpEok(provisionalOpEok, provisionalUnit),
@@ -598,23 +435,16 @@ export default function CapPerPorCalculatorScreen() {
     [guidanceOpEok, guidanceUnit]
   );
 
-  const handleScenarioPctInputChange = useCallback((text: string) => {
-    const cleaned = text.replace(/[^0-9.-]/g, '');
-    const parts = cleaned.split('.');
-    const formatted = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned;
-    if (formatted === '' || formatted === '.' || formatted === '-') {
-      setScenarioPct(formatted);
-      return;
-    }
-    setScenarioPct(formatted);
-  }, []);
+  const perCurrent = formatPerFromCapAndNet(capWon, perDenominator);
+  const porCurrent = formatPorFromCapAndOp(capWon, porDenominator);
+  const perScenario = formatPerFromCapAndNet(scenarioCapWon, perDenominator);
+  const porScenario = formatPorFromCapAndOp(scenarioCapWon, porDenominator);
+
+  const showResults = mockKeyResolved != null && periodKeyUsed != null;
 
   type FetchFundamentalsOpts = {
-    /** 모달 선택 직후 state 반영 전에 조회 — 티커 문자열 */
     ticker?: string;
-    /** 모달 검색 결과 종목명 — 즉시 표시용 */
     officialNameFromModal?: string | null;
-    /** 분기/연도 전환 등 동일 종목만 다시 맞출 때 — 카드가 사라지지 않도록 일부 state 유지 */
     sameTickerGranularityChange?: boolean;
   };
 
@@ -629,14 +459,14 @@ export default function CapPerPorCalculatorScreen() {
       const domestic = /^\d{6}$/.test(mk);
       const labelFromPicker =
         opts?.officialNameFromModal !== undefined
-          ? opts.officialNameFromModal?.trim() || null
+          ? opts?.officialNameFromModal?.trim() || null
           : pickedOfficialName;
 
       const softRefresh = opts?.sameTickerGranularityChange === true;
 
       const recordRecentIfNeeded = (displayName: string | null) => {
         if (softRefresh) return;
-        void pushCapPerPorRecent(mk, displayName?.trim() || mk).then(setRecentEntries);
+        void pushPriceScenarioRecent(mk, displayName?.trim() || mk).then(setRecentEntries);
       };
 
       setLoading(true);
@@ -645,7 +475,7 @@ export default function CapPerPorCalculatorScreen() {
         setMockKeyResolved(null);
         setStockDisplayName(null);
         setCapWon(null);
-        setPrice(null);
+        setQuotePrice(null);
         setPeriodKeyUsed(null);
         setFsPeriodLabel(null);
         setNetIncomeWon(null);
@@ -657,18 +487,32 @@ export default function CapPerPorCalculatorScreen() {
         setRevenuePeriodSuffix(null);
         setOperatingPeriodSuffix(null);
         setNetIncomePeriodSuffix(null);
+        setBuyPriceStr('');
+        setQtyStr('');
+        setTargetPriceStr('');
+        setDeltaPctStr('');
+        setMyReturnPctStr('');
+        setProfitWonStr('');
       }
 
       try {
         const yahooSym = yahooLookupFromMockKey(mk);
-        const [usdKrw, quote] = await Promise.all([
-          resolveUsdKrwRate(),
-          getStockQuote(yahooSym),
-        ]);
+        const [usdKrw, quote] = await Promise.all([resolveUsdKrwRate(), getStockQuote(yahooSym)]);
         setUsdKrwApplied(usdKrw);
         if (quote != null && Number.isFinite(quote.price) && quote.price > 0) {
-          setPrice(quote.price);
-          setQuoteCurrency((quote.currency || 'KRW').toUpperCase());
+          setQuotePrice(quote.price);
+          const cur = (quote.currency || 'KRW').toUpperCase();
+          setQuoteCurrency(cur);
+          setPriceMaxFrac(cur === 'USD' ? 2 : 0);
+          if (!softRefresh) {
+            if (cur === 'USD') {
+              const x = Math.round(quote.price * 100) / 100;
+              const [inte, fr] = x.toFixed(2).split('.');
+              setCurrentPriceStr(`${addCommas(inte)}.${fr}`);
+            } else {
+              setCurrentPriceStr(addCommas(String(Math.round(quote.price))));
+            }
+          }
         }
 
         let cap: number | null = null;
@@ -734,8 +578,7 @@ export default function CapPerPorCalculatorScreen() {
           setNetIncomePeriodSuffix(resolved.netIncomePeriodSuffix);
           setMockKeyResolved(mk);
           if (cap != null) setCapWon(cap);
-          const resolvedLabel =
-            labelFromPicker || (quote?.name && quote.name.trim()) || null;
+          const resolvedLabel = labelFromPicker || (quote?.name && quote.name.trim()) || null;
           setStockDisplayName(resolvedLabel);
           recordRecentIfNeeded(resolvedLabel);
         } else {
@@ -786,8 +629,7 @@ export default function CapPerPorCalculatorScreen() {
           setNetIncomePeriodSuffix(resolved.netIncomePeriodSuffix);
           setMockKeyResolved(mk);
 
-          const resolvedLabel =
-            labelFromPicker || (quote?.name && quote.name.trim()) || null;
+          const resolvedLabel = labelFromPicker || (quote?.name && quote.name.trim()) || null;
           setStockDisplayName(resolvedLabel);
           recordRecentIfNeeded(resolvedLabel);
 
@@ -806,7 +648,14 @@ export default function CapPerPorCalculatorScreen() {
         setLoading(false);
       }
     },
-    [tickerInput, granularity, quarterYear, latestQuarterCandidates, yearPeriodRows, pickedOfficialName]
+    [
+      tickerInput,
+      granularity,
+      quarterYear,
+      latestQuarterCandidates,
+      yearPeriodRows,
+      pickedOfficialName,
+    ]
   );
 
   useEffect(() => {
@@ -821,7 +670,7 @@ export default function CapPerPorCalculatorScreen() {
   }, []);
 
   useEffect(() => {
-    void getCapPerPorRecent().then(setRecentEntries);
+    void getPriceScenarioRecent().then(setRecentEntries);
   }, []);
 
   useEffect(() => {
@@ -843,20 +692,18 @@ export default function CapPerPorCalculatorScreen() {
         );
         setPortfolioStocks(uniqueStocks);
       } catch (e) {
-        console.error('시총계산기 포트폴리오 로드 오류:', e);
+        console.error('주가 시나리오 계산기 포트폴리오 로드 오류:', e);
       }
     };
     void loadPortfolioStocks();
   }, []);
 
-  /** 기간 단위(분기/연도) 전환 시 이미 불러온 종목이면 실적 그리드·라벨을 다시 맞춤 */
   useEffect(() => {
     if (mockKeyResolved == null) return;
     void fetchFundamentals({
       ticker: mockKeyResolved,
       sameTickerGranularityChange: true,
     });
-    // intentional: granularity 외 변경으로는 재조회하지 않음 (mockKeyResolved·fetchFundamentals는 의도적 제외)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [granularity]);
 
@@ -884,7 +731,7 @@ export default function CapPerPorCalculatorScreen() {
   );
 
   const onPickRecentEntry = useCallback(
-    (entry: CapPerPorRecentEntry) => {
+    (entry: PriceScenarioRecentEntry) => {
       const trimmed = entry.officialName.trim() === entry.mockKey ? null : entry.officialName.trim() || null;
       setTickerInput(entry.mockKey);
       setPickedOfficialName(trimmed);
@@ -894,7 +741,7 @@ export default function CapPerPorCalculatorScreen() {
   );
 
   const onRemoveRecentEntry = useCallback((mockKey: string) => {
-    void removeCapPerPorRecent(mockKey).then(setRecentEntries);
+    void removePriceScenarioRecent(mockKey).then(setRecentEntries);
   }, []);
 
   const onTickerInputChange = useCallback((text: string) => {
@@ -902,12 +749,73 @@ export default function CapPerPorCalculatorScreen() {
     setPickedOfficialName(null);
   }, []);
 
-  const perCurrent = formatPerFromCapAndNet(capWon, perDenominator);
-  const porCurrent = formatPorFromCapAndOp(capWon, porDenominator);
-  const perScenario = formatPerFromCapAndNet(scenarioCapWon, perDenominator);
-  const porScenario = formatPorFromCapAndOp(scenarioCapWon, porDenominator);
+  const handleDeltaPctChange = useCallback(
+    (text: string) => {
+      const t = cleanDeltaPctInput(text);
+      setDeltaPctStr(t);
+      syncScenarioBlock({ deltaPctStr: t }, 'delta');
+    },
+    [syncScenarioBlock]
+  );
 
-  const showResults = mockKeyResolved != null && periodKeyUsed != null;
+  const handleMyReturnPctChange = useCallback(
+    (text: string) => {
+      const t = cleanPercentTyping(text);
+      setMyReturnPctStr(t);
+      syncScenarioBlock({ myReturnPctStr: t }, 'return');
+    },
+    [syncScenarioBlock]
+  );
+
+  const handleTargetChange = useCallback(
+    (text: string) => {
+      const t = formatPriceFieldInput(text, priceMaxFrac);
+      setTargetPriceStr(t);
+      syncScenarioBlock({ targetPriceStr: t }, 'target');
+    },
+    [syncScenarioBlock, priceMaxFrac]
+  );
+
+  const handleProfitWonChange = useCallback(
+    (text: string) => {
+      const t = formatPriceFieldInput(text, priceMaxFrac);
+      setProfitWonStr(t);
+      syncScenarioBlock({ profitWonStr: t }, 'profit');
+    },
+    [syncScenarioBlock, priceMaxFrac]
+  );
+
+  const handleCurrentPriceChange = useCallback(
+    (text: string) => {
+      const t = formatPriceFieldInput(text, priceMaxFrac);
+      setCurrentPriceStr(t);
+      syncScenarioBlock({ currentPriceStr: t });
+    },
+    [syncScenarioBlock, priceMaxFrac]
+  );
+
+  const handleBuyChange = useCallback(
+    (text: string) => {
+      const t = formatPriceFieldInput(text, priceMaxFrac);
+      setBuyPriceStr(t);
+      syncScenarioBlock({ buyPriceStr: t });
+    },
+    [syncScenarioBlock, priceMaxFrac]
+  );
+
+  const handleQtyChange = useCallback(
+    (text: string) => {
+      const t = formatPriceFieldInput(text, 0);
+      setQtyStr(t);
+      syncScenarioBlock({ qtyStr: t });
+    },
+    [syncScenarioBlock]
+  );
+
+  const formatPriceLine = (p: number | null, cur: string) => {
+    if (p == null || !Number.isFinite(p)) return '—';
+    return `${cur === 'USD' ? '$' : ''}${p.toLocaleString('ko-KR', { maximumFractionDigits: cur === 'USD' ? 2 : 0 })}${cur === 'USD' ? '' : ' 원'}`;
+  };
 
   return (
     <KeyboardAvoidingView
@@ -915,45 +823,15 @@ export default function CapPerPorCalculatorScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <LinearGradient colors={['#1e3a5f', '#121212']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-          <Text style={styles.heroTitle}>시총·PER·POR 계산기</Text>
+        <LinearGradient colors={['#1565c0', '#121212']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+          <Text style={styles.heroTitle}>주가 시나리오 수익 계산기</Text>
           <Text style={styles.heroSub}>
-            시총·실적 기준 PER/POR, 주가 % 시나리오와 잠정·가이던스 POR을 한 화면에서 확인합니다.
+            ① 현재가·등락률·목표 주가와 ② 매수가·수량·수익률·수익금이 서로 연동됩니다. 종목은 선택 사항이며, 불러오면 시총·PER·POR·잠정·가이던스를 함께 볼 수 있습니다.
           </Text>
         </LinearGradient>
 
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeading}>기간 단위</Text>
-          <View style={[styles.periodAndFxRow, styles.rowInCard]}>
-            <View style={styles.chipRow}>
-              <TouchableOpacity
-                style={[styles.chip, granularity === 'quarter' && styles.chipOn]}
-                onPress={() => setGranularity('quarter')}
-                activeOpacity={0.85}
-              >
-                <Text style={[styles.chipText, granularity === 'quarter' && styles.chipTextOn]}>분기</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.chip, granularity === 'year' && styles.chipOn]}
-                onPress={() => setGranularity('year')}
-                activeOpacity={0.85}
-              >
-                <Text style={[styles.chipText, granularity === 'year' && styles.chipTextOn]}>연도</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.fxPill} accessibilityLabel="적용 달러 환율">
-              <Text style={styles.fxPillText} numberOfLines={1}>
-                1 USD = {usdKrwApplied.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}원
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.sheetLead}>
-            분기: 당분기 손익을 ×4 연율화해 PER/POR. 연도: 연간 손익 그대로. 종목을 불러둔 뒤 분기↔연도만 바꿔도 자동으로 다시 맞춥니다.
-          </Text>
-        </View>
-
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeading}>종목</Text>
+          <Text style={styles.sectionHeading}>종목 (선택사항)</Text>
           <TouchableOpacity
             style={[styles.stockSearchStandaloneBtn, styles.bleedInCard]}
             onPress={() => setShowStockModal(true)}
@@ -997,7 +875,7 @@ export default function CapPerPorCalculatorScreen() {
 
           {recentEntries.length > 0 ? (
             <>
-              <Text style={[styles.subSectionLabel, styles.subSectionInCard]}>최근 {CAP_PER_POR_RECENT_MAX}개</Text>
+              <Text style={[styles.subSectionLabel, styles.subSectionInCard]}>최근 {PRICE_SCENARIO_RECENT_MAX}개</Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -1049,8 +927,8 @@ export default function CapPerPorCalculatorScreen() {
 
           <Text style={styles.sheetLead}>
             {portfolioStocks.length > 0
-              ? '포트폴리오 탭·검색·최근에서 불러옵니다. 최근 항목은 ✕로 목록만 삭제. 티커만 직접 입력한 뒤에는 불러오기를 누르세요.'
-              : '포트폴리오가 비어 있으면 검색·최근·티커 입력 후 불러오기를 쓰면 됩니다. 최근은 ✕로 항목만 삭제합니다.'}
+              ? '포트폴리오·검색·최근에서 불러오면 시세로 현재가를 채우고, 더 아래에 기간 단위·요약·시총·PER·POR이 나타납니다. 현재가는 아래 주가 시나리오에서 언제든 수정할 수 있습니다.'
+              : '검색·최근·티커 입력 후 불러오기를 사용하세요. 최근 항목 ✕는 목록에서만 삭제합니다.'}
           </Text>
           <TextInput
             style={[styles.input, styles.inputInCard]}
@@ -1073,10 +951,156 @@ export default function CapPerPorCalculatorScreen() {
           {error ? <Text style={[styles.errorText, styles.errorInCard]}>{error}</Text> : null}
         </View>
 
+        <View style={styles.sectionCard}>
+          <Text style={[styles.sectionHeading, styles.sectionHeadingUserInput]}>
+            ① 주가 시나리오 <Text style={styles.sectionHeadingUserInputSuffix}>(현재가 기준)</Text>
+          </Text>
+          <Text style={styles.sheetLead}>
+            등락률(%)과 목표 주가 모두 직접 입력할 수 있습니다. 한쪽을 고치면 다른 쪽·② 포지션 값이 그에 맞춰집니다.
+          </Text>
+          <Text style={styles.fieldLabel}>현재가 (직접 수정 가능)</Text>
+          <TextInput
+            style={[styles.input, styles.inputInCard]}
+            placeholder="종목을 선택하면 현재가를 가져올 수 있습니다."
+            placeholderTextColor="#888"
+            keyboardType="decimal-pad"
+            value={currentPriceStr}
+            onChangeText={handleCurrentPriceChange}
+          />
+          {quotePrice != null ? (
+            <Text style={styles.hintMuted}>불러온 시세: {formatPriceLine(quotePrice, quoteCurrency)}</Text>
+          ) : null}
+          <Text style={styles.fieldLabel}>등락률 (%)</Text>
+          <View style={[styles.percentRow, styles.percentRowInCard]}>
+            <TextInput
+              style={[styles.input, styles.inputInCard, styles.percentInput]}
+              placeholder="예: 5, -3, 1.25"
+              placeholderTextColor="#888"
+              keyboardType="decimal-pad"
+              value={deltaPctStr}
+              onChangeText={handleDeltaPctChange}
+            />
+            <TouchableOpacity
+              style={styles.signToggleBtn}
+              onPress={() =>
+                togglePlainPercentSign(deltaPctStr, (next) => handleDeltaPctChange(cleanDeltaPctInput(next)))
+              }
+              activeOpacity={0.75}
+              accessibilityLabel="부호 바꾸기"
+            >
+              <Text style={styles.signToggleText}>±</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.fieldLabel}>목표 주가</Text>
+          <TextInput
+            style={[styles.input, styles.inputInCard]}
+            placeholder="시나리오 주가"
+            placeholderTextColor="#888"
+            keyboardType="decimal-pad"
+            value={targetPriceStr}
+            onChangeText={handleTargetChange}
+          />
+        </View>
+
+        <View style={styles.sectionCard}>
+          <Text style={[styles.sectionHeading, styles.sectionHeadingUserInput]}>
+            ② 내 포지션 <Text style={styles.sectionHeadingUserInputSuffix}>(매수가 기준)</Text>
+          </Text>
+          <Text style={styles.sheetLead}>
+            매수가·수량·내 수익률·수익금이 연동됩니다. 전체 우선순위는 목표가 → 등락률 → 수익률 → 수익금 순입니다.
+          </Text>
+          <Text style={styles.fieldLabel}>매수가</Text>
+          <TextInput
+            style={[styles.input, styles.inputInCard]}
+            placeholder="평균 매수가"
+            placeholderTextColor="#888"
+            keyboardType="decimal-pad"
+            value={buyPriceStr}
+            onChangeText={handleBuyChange}
+          />
+          <Text style={styles.fieldLabel}>수량</Text>
+          <TextInput
+            style={[styles.input, styles.inputInCard]}
+            placeholder="보유 수량"
+            placeholderTextColor="#888"
+            keyboardType="decimal-pad"
+            value={qtyStr}
+            onChangeText={handleQtyChange}
+          />
+          <Text style={styles.fieldLabel}>내 수익률 (%)</Text>
+          <View style={[styles.percentRow, styles.percentRowInCard]}>
+            <TextInput
+              style={[styles.input, styles.inputInCard, styles.percentInput]}
+              placeholder="매수가 대비"
+              placeholderTextColor="#888"
+              keyboardType="decimal-pad"
+              value={myReturnPctStr}
+              onChangeText={handleMyReturnPctChange}
+            />
+            <TouchableOpacity
+              style={styles.signToggleBtn}
+              onPress={() => togglePlainPercentSign(myReturnPctStr, handleMyReturnPctChange)}
+              activeOpacity={0.75}
+              accessibilityLabel="부호 바꾸기"
+            >
+              <Text style={styles.signToggleText}>±</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.fieldLabel}>수익금 (추정)</Text>
+          <TextInput
+            style={[styles.input, styles.inputInCard]}
+            placeholder="순손익 금액"
+            placeholderTextColor="#888"
+            keyboardType="decimal-pad"
+            value={profitWonStr}
+            onChangeText={handleProfitWonChange}
+          />
+          {profitUsdKrwHintParts != null ? (
+            <Text style={[styles.hintBelowInput, styles.profitKrwHintRow]}>
+              <Text style={styles.profitKrwHintLead}>원화 환산 약 </Text>
+              <Text style={styles.profitKrwHintAmount}>{profitUsdKrwHintParts.wonFormatted}원</Text>
+              <Text style={styles.profitKrwHintTail}>
+                {' '}
+                (수익금 USD × {profitUsdKrwHintParts.rateStr})
+              </Text>
+            </Text>
+          ) : null}
+        </View>
+
         {showResults ? (
           <>
             <View style={styles.sectionCard}>
-              <Text style={styles.sectionHeading}>요약</Text>
+              <Text style={styles.sectionHeading}>기간 단위</Text>
+              <View style={[styles.periodAndFxRow, styles.rowInCard]}>
+                <View style={styles.chipRow}>
+                  <TouchableOpacity
+                    style={[styles.chip, granularity === 'quarter' && styles.chipOn]}
+                    onPress={() => setGranularity('quarter')}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.chipText, granularity === 'quarter' && styles.chipTextOn]}>분기</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.chip, granularity === 'year' && styles.chipOn]}
+                    onPress={() => setGranularity('year')}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.chipText, granularity === 'year' && styles.chipTextOn]}>연도</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.fxPill} accessibilityLabel="적용 달러 환율">
+                  <Text style={styles.fxPillText} numberOfLines={1}>
+                    1 USD = {usdKrwApplied.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}원
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.sheetLead}>
+                실적 기준 PER/POR에 쓰입니다. 분기는 당분기 손익 ×4 연율화, 연도는 연간 손익 그대로입니다. 바꾸면 아래 수치가 자동으로 다시 맞춰집니다.
+              </Text>
+            </View>
+
+            <View style={styles.sectionCard}>
+              <Text style={styles.sectionHeading}>요약 (불러온 종목)</Text>
               <View style={[styles.card, styles.cardInSection]}>
                 <Text style={styles.mono}>{mockKeyResolved}</Text>
                 {stockDisplayName ? <Text style={styles.stockNameLine}>{stockDisplayName}</Text> : null}
@@ -1088,11 +1112,9 @@ export default function CapPerPorCalculatorScreen() {
                 </Text>
                 {fsPeriodLabel ? <Text style={styles.fsLabel}>{fsPeriodLabel}</Text> : null}
                 <Text style={styles.line}>
-                  <Text style={styles.summaryLblPrice}>현재가: </Text>
+                  <Text style={styles.summaryLblPrice}>위 입력 기준 현재가: </Text>
                   <Text style={styles.summaryVal}>
-                    {price != null
-                      ? `${quoteCurrency === 'USD' ? '$' : ''}${price.toLocaleString('ko-KR', { maximumFractionDigits: quoteCurrency === 'USD' ? 2 : 0 })}${quoteCurrency === 'USD' ? '' : ' 원'}`
-                      : '—'}
+                    {formatPriceLine(parseMoneyInput(currentPriceStr), quoteCurrency)}
                   </Text>
                 </Text>
                 <Text style={styles.line}>
@@ -1131,36 +1153,18 @@ export default function CapPerPorCalculatorScreen() {
 
             <View style={styles.sectionCard}>
               <Text style={[styles.sectionHeading, styles.sectionHeadingUserInput]}>
-                주가 시나리오{' '}
-                <Text style={styles.sectionHeadingUserInputSuffix}>(%)</Text>
+                시나리오 시총 · PER · POR{' '}
+                <Text style={styles.sectionHeadingUserInputSuffix}>(위 목표가 반영)</Text>
               </Text>
               <Text style={styles.sheetLead}>
-                현재가·시총에 같은 비율 적용(유통주식수 불변). 양수 상승, 음수 하락.
+                시가총액에 (목표 주가 ÷ 입력 현재가) 비율을 곱합니다. 유통주식수 불변 가정입니다.
               </Text>
-              <View style={[styles.percentRow, styles.percentRowInCard]}>
-                <TextInput
-                  style={[styles.input, styles.inputInCard, styles.percentInput]}
-                  placeholder="예: 5 또는 -5"
-                  placeholderTextColor="#888"
-                  keyboardType="numeric"
-                  value={scenarioPct}
-                  onChangeText={handleScenarioPctInputChange}
-                />
-                <TouchableOpacity
-                  style={styles.signToggleBtn}
-                  onPress={() => togglePlainPercentSign(scenarioPct, handleScenarioPctInputChange)}
-                  activeOpacity={0.75}
-                  accessibilityLabel="부호 바꾸기"
-                >
-                  <Text style={styles.signToggleText}>±</Text>
-                </TouchableOpacity>
-              </View>
               <View style={[styles.card, styles.cardInSection]}>
                 <Text style={styles.line}>
                   <Text style={styles.summaryLblPrice}>목표 주가: </Text>
                   <Text style={styles.summaryVal}>
-                    {scenarioPrice != null
-                      ? `${quoteCurrency === 'USD' ? '$' : ''}${scenarioPrice.toLocaleString('ko-KR', { maximumFractionDigits: quoteCurrency === 'USD' ? 2 : 0 })}`
+                    {parseMoneyInput(targetPriceStr) != null
+                      ? formatPriceLine(parseMoneyInput(targetPriceStr), quoteCurrency)
                       : '—'}
                   </Text>
                 </Text>
@@ -1182,7 +1186,7 @@ export default function CapPerPorCalculatorScreen() {
             <View style={styles.sectionCard}>
               <Text style={[styles.sectionHeading, styles.sectionHeadingUserInput]}>
                 잠정 분기 영업이익 ×4 (선택){' '}
-                <Text style={styles.sectionHeadingUserInputSuffix}>계산기</Text>
+                <Text style={styles.sectionHeadingUserInputSuffix}>시총계산기와 동일 저장</Text>
               </Text>
               <Text style={styles.sheetLead}>분기 영업이익 숫자·단위 입력 → ×4 연율화 후 POR만 표시.</Text>
               <View style={[styles.unitRow, styles.unitRowInCard]}>
@@ -1221,7 +1225,7 @@ export default function CapPerPorCalculatorScreen() {
             <View style={styles.sectionCard}>
               <Text style={[styles.sectionHeading, styles.sectionHeadingUserInput]}>
                 가이던스 분기 영업이익 ×4 (선택){' '}
-                <Text style={styles.sectionHeadingUserInputSuffix}>계산기</Text>
+                <Text style={styles.sectionHeadingUserInputSuffix}>동일 저장 키</Text>
               </Text>
               <Text style={styles.sheetLead}>잠정과 동일 규칙으로 가이던스 분기 영업이익을 넣으면 POR을 봅니다.</Text>
               <View style={[styles.unitRow, styles.unitRowInCard]}>
@@ -1300,7 +1304,6 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: '#42a5f5',
   },
-  /** 기업 실적 비교와 동일 — 사용자 입력·시나리오 섹션 */
   sectionHeadingUserInput: {
     borderLeftColor: '#ffb74d',
     color: '#ffe0b2',
@@ -1315,6 +1318,18 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: 10,
   },
+  fieldLabel: { color: '#90a4ae', fontSize: 13, marginBottom: 6, marginTop: 4 },
+  hintMuted: { color: '#78909c', fontSize: 12, marginBottom: 8 },
+  hintBelowInput: { marginTop: -4, marginBottom: 6 },
+  profitKrwHintRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline' },
+  profitKrwHintLead: { color: '#90a4ae', fontSize: 13 },
+  profitKrwHintAmount: {
+    color: '#fff9c4',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  profitKrwHintTail: { color: '#78909c', fontSize: 12 },
   rowInCard: { marginHorizontal: 0 },
   bleedInCard: { marginHorizontal: 0 },
   inputInCard: { marginHorizontal: 0 },
@@ -1391,14 +1406,8 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 1,
   },
-  stockTabsPortfolioWrap: {
-    marginBottom: 4,
-    marginTop: 0,
-  },
-  stockTabsRecentWrap: {
-    marginBottom: 8,
-    marginTop: 0,
-  },
+  stockTabsPortfolioWrap: { marginBottom: 4, marginTop: 0 },
+  stockTabsRecentWrap: { marginBottom: 8, marginTop: 0 },
   recentChipWrap: {
     flexDirection: 'row',
     alignItems: 'stretch',
@@ -1541,7 +1550,6 @@ const styles = StyleSheet.create({
   summaryLblMuted: { color: '#90a4ae', fontSize: 15 },
   summaryLblPrice: { color: '#64b5f6', fontSize: 15, fontWeight: '600' },
   summaryLblCap: { color: '#ffb74d', fontSize: 15, fontWeight: '600' },
-  /** 주가 시나리오·잠정/가이던스 내 시나리오 시총 — 기본 시가총액(주황)과 혼동 방지 */
   summaryLblScenarioCap: { color: '#4dd0e1', fontSize: 15, fontWeight: '600' },
   summaryVal: { color: '#eceff1', fontSize: 15 },
   summaryValStrong: { color: '#fff', fontSize: 15, fontWeight: '600' },
@@ -1552,7 +1560,6 @@ const styles = StyleSheet.create({
   metricLblNet: { color: '#81c784', fontSize: 15, fontWeight: '600' },
   metricVal: { color: '#fafafa', fontSize: 15, fontWeight: '600' },
   fsLabel: { color: '#90caf9', fontSize: 13, marginBottom: 8 },
-  /** PER/POR 분모(연율화 등) 설명 — emRow 바로 위 */
   perPorNote: {
     color: '#90a4ae',
     fontSize: 12,

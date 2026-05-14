@@ -371,6 +371,12 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="price-scenario-profit"
+          options={{
+            title: '주가 시나리오 수익 계산기',
+          }}
+        />
+        <Stack.Screen
           name="cap-per-por-calculator"
           options={{
             title: '시총·PER·POR 계산기',
