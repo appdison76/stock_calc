@@ -243,12 +243,6 @@ export default function PriceScenarioProfitScreen() {
       setProvisionalUnit('jo');
       setGuidanceOpEok('');
       setGuidanceUnit('jo');
-      setBuyPriceStr('');
-      setQtyStr('');
-      setTargetPriceStr('');
-      setDeltaPctStr('');
-      setMyReturnPctStr('');
-      setProfitWonStr('');
       return;
     }
     scenarioPersistReadyRef.current = null;
@@ -692,6 +686,30 @@ export default function PriceScenarioProfitScreen() {
     ]
   );
 
+  const clearStockConnection = useCallback(() => {
+    setLoading(false);
+    setError(null);
+    scenarioPersistReadyRef.current = null;
+    setMockKeyResolved(null);
+    setStockDisplayName(null);
+    setPickedOfficialName(null);
+    setTickerInput('');
+    setCapWon(null);
+    setQuotePrice(null);
+    setQuoteCurrency('KRW');
+    setPeriodKeyUsed(null);
+    setFsPeriodLabel(null);
+    setNetIncomeWon(null);
+    setOperatingIncomeWon(null);
+    setDisplayRevenueKr(null);
+    setDisplayOperatingIncomeKr(null);
+    setDisplayNetIncomeKr(null);
+    setRevenueWon(null);
+    setRevenuePeriodSuffix(null);
+    setOperatingPeriodSuffix(null);
+    setNetIncomePeriodSuffix(null);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -973,14 +991,47 @@ export default function PriceScenarioProfitScreen() {
             autoCapitalize="characters"
             autoCorrect={false}
           />
-          <TouchableOpacity
-            style={[styles.primaryBtn, styles.primaryBtnInCard]}
-            onPress={() => void fetchFundamentals()}
-            disabled={loading}
-            activeOpacity={0.85}
-          >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>불러오기</Text>}
-          </TouchableOpacity>
+          {mockKeyResolved != null ? (
+            <Text style={styles.connectedStockHint} numberOfLines={2}>
+              연결됨: {stockDisplayName ? `${stockDisplayName} · ` : ''}
+              {mockKeyResolved}
+            </Text>
+          ) : null}
+          {mockKeyResolved != null ? (
+            <View style={styles.stockActionRow}>
+              <TouchableOpacity
+                style={[styles.primaryBtn, styles.primaryBtnInCard, styles.stockActionBtnFlex]}
+                onPress={() => void fetchFundamentals()}
+                disabled={loading}
+                activeOpacity={0.85}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryBtnText}>불러오기</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.disconnectStockBtn, styles.stockActionBtnFlex]}
+                onPress={clearStockConnection}
+                disabled={loading}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="종목 연결 해제"
+              >
+                <Text style={styles.disconnectStockBtnText}>종목 연결 해제</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.primaryBtn, styles.primaryBtnInCard]}
+              onPress={() => void fetchFundamentals()}
+              disabled={loading}
+              activeOpacity={0.85}
+            >
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>불러오기</Text>}
+            </TouchableOpacity>
+          )}
 
           {error ? <Text style={[styles.errorText, styles.errorInCard]}>{error}</Text> : null}
         </View>
@@ -1415,6 +1466,38 @@ const styles = StyleSheet.create({
   bleedInCard: { marginHorizontal: 0 },
   inputInCard: { marginHorizontal: 0 },
   primaryBtnInCard: { marginHorizontal: 0, marginBottom: 0 },
+  connectedStockHint: {
+    color: '#90a4ae',
+    fontSize: 13,
+    marginBottom: 10,
+    lineHeight: 18,
+  },
+  stockActionRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 10,
+  },
+  stockActionBtnFlex: {
+    flex: 1,
+    minWidth: 0,
+  },
+  disconnectStockBtn: {
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 183, 77, 0.45)',
+  },
+  disconnectStockBtnText: {
+    color: '#ffcc80',
+    fontWeight: '600',
+    fontSize: 14,
+    textAlign: 'center',
+  },
   errorInCard: { marginHorizontal: 0, marginTop: 8, marginBottom: 0 },
   percentRowInCard: { marginHorizontal: 0 },
   unitRowInCard: { marginHorizontal: 0 },
