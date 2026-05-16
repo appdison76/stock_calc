@@ -421,10 +421,44 @@ export default function PriceScenarioProfitScreen() {
     return P1 / P0;
   }, [currentPriceStr, targetPriceStr]);
 
+  /** 불러온 시총·시세 기준 → 입력 현재가에 맞게 비례 조정(유통주식수 불변) */
+  const inputBasisCapWon = useMemo(() => {
+    if (capWon == null || !Number.isFinite(capWon)) return null;
+    const P0 = parseMoneyInput(currentPriceStr);
+    if (
+      quotePrice == null ||
+      !Number.isFinite(quotePrice) ||
+      quotePrice <= 0 ||
+      P0 == null ||
+      P0 <= 0
+    ) {
+      return capWon;
+    }
+    return capWon * (P0 / quotePrice);
+  }, [capWon, currentPriceStr, quotePrice]);
+
+  /** 입력한 현재가가 시세와 다를 때만 입력 기준 시가총액을 따로 표시 */
+  const inputPriceDiffersFromQuote = useMemo(() => {
+    const P0 = parseMoneyInput(currentPriceStr);
+    if (
+      quotePrice == null ||
+      !Number.isFinite(quotePrice) ||
+      quotePrice <= 0 ||
+      P0 == null ||
+      P0 <= 0
+    ) {
+      return false;
+    }
+    const tol = quoteCurrency === 'USD' ? 0.005 : 0.5;
+    return Math.abs(P0 - quotePrice) > tol;
+  }, [currentPriceStr, quotePrice, quoteCurrency]);
+
   const scenarioCapWon = useMemo(() => {
-    if (capWon == null || !Number.isFinite(capWon) || scenarioRatio == null) return null;
-    return capWon * scenarioRatio;
-  }, [capWon, scenarioRatio]);
+    if (inputBasisCapWon == null || !Number.isFinite(inputBasisCapWon) || scenarioRatio == null) {
+      return null;
+    }
+    return inputBasisCapWon * scenarioRatio;
+  }, [inputBasisCapWon, scenarioRatio]);
 
   const provisionalQOp = useMemo(
     () => parseScenarioToQuarterlyOpEok(provisionalOpEok, provisionalUnit),
@@ -435,8 +469,8 @@ export default function PriceScenarioProfitScreen() {
     [guidanceOpEok, guidanceUnit]
   );
 
-  const perCurrent = formatPerFromCapAndNet(capWon, perDenominator);
-  const porCurrent = formatPorFromCapAndOp(capWon, porDenominator);
+  const perCurrent = formatPerFromCapAndNet(inputBasisCapWon, perDenominator);
+  const porCurrent = formatPorFromCapAndOp(inputBasisCapWon, porDenominator);
   const perScenario = formatPerFromCapAndNet(scenarioCapWon, perDenominator);
   const porScenario = formatPorFromCapAndOp(scenarioCapWon, porDenominator);
 
@@ -1111,20 +1145,57 @@ export default function PriceScenarioProfitScreen() {
                   </Text>
                 </Text>
                 {fsPeriodLabel ? <Text style={styles.fsLabel}>{fsPeriodLabel}</Text> : null}
-                <Text style={styles.line}>
-                  <Text style={styles.summaryLblPrice}>위 입력 기준 현재가: </Text>
-                  <Text style={styles.summaryVal}>
-                    {formatPriceLine(parseMoneyInput(currentPriceStr), quoteCurrency)}
-                  </Text>
-                </Text>
-                <Text style={styles.line}>
-                  <Text style={styles.summaryLblCap}>시가총액: </Text>
-                  <Text style={styles.summaryValStrong}>
-                    {capWon != null
-                      ? formatWonShortKr(capWon, { maxAbsWon: FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS })
-                      : '—'}
-                  </Text>
-                </Text>
+                {inputPriceDiffersFromQuote && quotePrice != null ? (
+                  <>
+                    <Text style={styles.line}>
+                      <Text style={styles.summaryLblPrice}>현재가: </Text>
+                      <Text style={styles.summaryVal}>
+                        {formatPriceLine(quotePrice, quoteCurrency)}
+                      </Text>
+                    </Text>
+                    <Text style={styles.line}>
+                      <Text style={styles.summaryLblCap}>시가총액: </Text>
+                      <Text style={styles.summaryValStrong}>
+                        {capWon != null
+                          ? formatWonShortKr(capWon, { maxAbsWon: FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS })
+                          : '—'}
+                      </Text>
+                    </Text>
+                    <Text style={styles.line}>
+                      <Text style={styles.summaryLblPrice}>입력한 현재가: </Text>
+                      <Text style={styles.summaryVal}>
+                        {formatPriceLine(parseMoneyInput(currentPriceStr), quoteCurrency)}
+                      </Text>
+                    </Text>
+                    <Text style={styles.line}>
+                      <Text style={styles.summaryLblCap}>시가총액(입력한 현재가 기준): </Text>
+                      <Text style={styles.summaryValStrong}>
+                        {inputBasisCapWon != null
+                          ? formatWonShortKr(inputBasisCapWon, {
+                              maxAbsWon: FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS,
+                            })
+                          : '—'}
+                      </Text>
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.line}>
+                      <Text style={styles.summaryLblPrice}>현재가: </Text>
+                      <Text style={styles.summaryVal}>
+                        {formatPriceLine(parseMoneyInput(currentPriceStr), quoteCurrency)}
+                      </Text>
+                    </Text>
+                    <Text style={styles.line}>
+                      <Text style={styles.summaryLblCap}>시가총액: </Text>
+                      <Text style={styles.summaryValStrong}>
+                        {capWon != null
+                          ? formatWonShortKr(capWon, { maxAbsWon: FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS })
+                          : '—'}
+                      </Text>
+                    </Text>
+                  </>
+                )}
                 <Text style={styles.metricRow}>
                   <Text style={styles.metricLblRev}>매출 ({fsAmountPeriodLabel}): </Text>
                   <Text style={styles.metricVal}>{displayRevenueKrEff}</Text>
@@ -1157,7 +1228,9 @@ export default function PriceScenarioProfitScreen() {
                 <Text style={styles.sectionHeadingUserInputSuffix}>(위 목표가 반영)</Text>
               </Text>
               <Text style={styles.sheetLead}>
-                시가총액에 (목표 주가 ÷ 입력 현재가) 비율을 곱합니다. 유통주식수 불변 가정입니다.
+                {inputPriceDiffersFromQuote
+                  ? '시가총액(입력한 현재가 기준)에 (목표 주가 ÷ 입력 현재가) 비율을 곱합니다. 유통주식수 불변 가정입니다.'
+                  : '시가총액에 (목표 주가 ÷ 입력 현재가) 비율을 곱합니다. 유통주식수 불변 가정입니다.'}
               </Text>
               <View style={[styles.card, styles.cardInSection]}>
                 <Text style={styles.line}>
@@ -1210,8 +1283,12 @@ export default function PriceScenarioProfitScreen() {
               />
               <View style={[styles.card, styles.cardInSection]}>
                 <Text style={styles.line}>
-                  <Text style={styles.summaryLblPrice}>현재 시총 기준 POR: </Text>
-                  <Text style={styles.summaryValStrong}>{formatPorFromQuarterlyOpEok(capWon, provisionalQOp)}</Text>
+                  <Text style={styles.summaryLblPrice}>
+                    {inputPriceDiffersFromQuote ? '입력한 현재가 시총 기준 POR: ' : '현재 시총 기준 POR: '}
+                  </Text>
+                  <Text style={styles.summaryValStrong}>
+                    {formatPorFromQuarterlyOpEok(inputBasisCapWon, provisionalQOp)}
+                  </Text>
                 </Text>
                 <Text style={styles.line}>
                   <Text style={styles.summaryLblScenarioCap}>시나리오 시총 기준 POR: </Text>
@@ -1249,8 +1326,12 @@ export default function PriceScenarioProfitScreen() {
               />
               <View style={[styles.card, styles.cardInSection]}>
                 <Text style={styles.line}>
-                  <Text style={styles.summaryLblPrice}>현재 시총 기준 POR: </Text>
-                  <Text style={styles.summaryValStrong}>{formatPorFromQuarterlyOpEok(capWon, guidanceQOp)}</Text>
+                  <Text style={styles.summaryLblPrice}>
+                    {inputPriceDiffersFromQuote ? '입력한 현재가 시총 기준 POR: ' : '현재 시총 기준 POR: '}
+                  </Text>
+                  <Text style={styles.summaryValStrong}>
+                    {formatPorFromQuarterlyOpEok(inputBasisCapWon, guidanceQOp)}
+                  </Text>
                 </Text>
                 <Text style={styles.line}>
                   <Text style={styles.summaryLblScenarioCap}>시나리오 시총 기준 POR: </Text>
