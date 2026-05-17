@@ -408,6 +408,35 @@ export default function PriceScenarioProfitScreen() {
     };
   }, [quoteCurrency, profitWonStr, usdKrwApplied]);
 
+  /** 매수가×수량 — 총 매수금액 힌트(미국 종목은 원화 환산) */
+  const totalBuyAmountHint = useMemo(() => {
+    const buy = parseMoneyInput(buyPriceStr);
+    const qty = parseMoneyInput(qtyStr);
+    if (buy == null || !Number.isFinite(buy) || buy <= 0) return null;
+    if (qty == null || !Number.isFinite(qty) || qty <= 0) return null;
+    const total = buy * qty;
+    if (!Number.isFinite(total) || total <= 0) return null;
+    const isUsd = quoteCurrency === 'USD';
+    const totalLine =
+      isUsd
+        ? `$${total.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}`
+        : `${addCommas(String(Math.round(total)))}원`;
+    if (
+      isUsd &&
+      usdKrwApplied != null &&
+      Number.isFinite(usdKrwApplied) &&
+      usdKrwApplied > 0
+    ) {
+      const won = Math.round(total * usdKrwApplied);
+      return {
+        totalLine,
+        krwWonFormatted: addCommas(String(won)),
+        rateStr: usdKrwApplied.toLocaleString('ko-KR', { maximumFractionDigits: 2 }),
+      };
+    }
+    return { totalLine, krwWonFormatted: null as string | null, rateStr: null as string | null };
+  }, [buyPriceStr, qtyStr, quoteCurrency, usdKrwApplied]);
+
   const scenarioRatio = useMemo(() => {
     const P0 = parseMoneyInput(currentPriceStr);
     const P1 = parseMoneyInput(targetPriceStr);
@@ -1112,6 +1141,24 @@ export default function PriceScenarioProfitScreen() {
             value={qtyStr}
             onChangeText={handleQtyChange}
           />
+          {totalBuyAmountHint != null ? (
+            <>
+              <Text style={[styles.hintBelowInput, styles.totalBuyHintRow]}>
+                <Text style={styles.totalBuyHintLabel}>총 매수금액: </Text>
+                <Text style={styles.totalBuyHintAmount}>{totalBuyAmountHint.totalLine}</Text>
+              </Text>
+              {totalBuyAmountHint.krwWonFormatted != null ? (
+                <Text style={[styles.hintBelowInput, styles.profitKrwHintRow]}>
+                  <Text style={styles.profitKrwHintLead}>원화 환산 약 </Text>
+                  <Text style={styles.profitKrwHintAmount}>{totalBuyAmountHint.krwWonFormatted}원</Text>
+                  <Text style={styles.profitKrwHintTail}>
+                    {' '}
+                    (총 매수금액 USD × {totalBuyAmountHint.rateStr})
+                  </Text>
+                </Text>
+              ) : null}
+            </>
+          ) : null}
           <Text style={styles.fieldLabel}>내 수익률 (%)</Text>
           <View style={[styles.percentRow, styles.percentRowInCard]}>
             <TextInput
@@ -1453,6 +1500,9 @@ const styles = StyleSheet.create({
   fieldLabel: { color: '#90a4ae', fontSize: 13, marginBottom: 6, marginTop: 4 },
   hintMuted: { color: '#78909c', fontSize: 12, marginBottom: 8 },
   hintBelowInput: { marginTop: -4, marginBottom: 6 },
+  totalBuyHintRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline' },
+  totalBuyHintLabel: { color: '#90a4ae', fontSize: 13 },
+  totalBuyHintAmount: { color: '#eceff1', fontSize: 14, fontWeight: '600' },
   profitKrwHintRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline' },
   profitKrwHintLead: { color: '#90a4ae', fontSize: 13 },
   profitKrwHintAmount: {
