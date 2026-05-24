@@ -243,3 +243,21 @@ export function fundamentalsDefaultQuarterWithinChoices(
   }
   return { quarterYear: y, periodKey: `${y}Q${raw.quarter}` };
 }
+
+/** 분기 모드 초기 연도·분기 — `buildDartLatestQuarterCandidates` 선두(달력 직전 분기). 4~6월 전년 Q4 강제 없음 */
+export function fundamentalsDefaultQuarterFromLatestCandidate(
+  referenceDate: Date,
+  choices: number[]
+): { quarterYear: number; periodKey: string } {
+  const latestPk =
+    buildDartLatestQuarterCandidates(referenceDate, 12)[0] ??
+    fundamentalsDefaultPreviousCalendarQuarter(referenceDate).periodKey;
+  const qm = /^(\d{4})Q([1-4])$/.exec(latestPk);
+  if (qm) {
+    const y = Number(qm[1]);
+    if (choices.length === 0 || choices.includes(y)) {
+      return { quarterYear: y, periodKey: latestPk };
+    }
+  }
+  return fundamentalsDefaultQuarterWithinChoices(referenceDate, choices);
+}

@@ -24,12 +24,14 @@ import {
   buildYearPeriodRowsForChoices,
   fundamentalsDefaultPreviousCalendarQuarter,
   fundamentalsDefaultPreviousCalendarYear,
+  fundamentalsDefaultQuarterFromLatestCandidate,
   fundamentalsDefaultQuarterWithinChoices,
   fundamentalsMockKey,
   fundamentalsPickYearPeriodKeyForTarget,
   fundamentalsQuarterYearChoices,
   FUNDAMENTALS_CALENDAR_YEAR_SPAN,
   buildDartLatestQuarterCandidates,
+  buildFundamentalsSnapshotFetchQuarterPeriodKeys,
   type FundamentalsPeriodMetricTab,
   type MockFundamentalsPeriodRow,
 } from '../src/data/fundamentalsCompareMock';
@@ -158,8 +160,34 @@ function quarterPeriodKeyForChipYear(
 function initFundamentalsPeriodState(): { periodKey: string; quarterYear: number } {
   const d = new Date();
   const yChoices = fundamentalsQuarterYearChoices(d, FUNDAMENTALS_CALENDAR_YEAR_SPAN);
-  const qInit = fundamentalsDefaultQuarterWithinChoices(d, yChoices);
-  return { periodKey: qInit.periodKey, quarterYear: qInit.quarterYear };
+  return fundamentalsDefaultQuarterFromLatestCandidate(d, yChoices);
+}
+
+/** 포트폴리오 스냅샷 periodKey → 연도 칩·표 강조 행 */
+function periodTableStateFromSnapshotPk(
+  pk: string,
+  granularity: 'year' | 'quarter',
+  quarterYearChoices: number[]
+): { quarterYear: number; periodKey: string } | null {
+  if (granularity === 'quarter') {
+    const qm = /^(\d{4})Q([1-4])$/.exec(pk);
+    if (!qm) return null;
+    const y = Number(qm[1]);
+    if (!quarterYearChoices.includes(y)) return null;
+    return { quarterYear: y, periodKey: pk };
+  }
+  if (/^\d{4}$/.test(pk) && quarterYearChoices.includes(Number(pk))) {
+    return { quarterYear: Number(pk), periodKey: pk };
+  }
+  return null;
+}
+
+/** 아래 요약 표용 — 연도 칩(2025 등)과 무관하게 최신 분기 키 포함 */
+function summarySnapshotQuarterPeriodKeys(referenceDate = new Date()): string[] {
+  return buildFundamentalsSnapshotFetchQuarterPeriodKeys(
+    referenceDate,
+    referenceDate.getFullYear()
+  );
 }
 
 function formatFundamentalsMarketCapKr(q: StockQuote | null, usdKrw: number): string {
@@ -366,9 +394,14 @@ export default function FundamentalsCompareScreen() {
   const [quarterYear, setQuarterYear] = useState<number>(() => initPeriod.quarterYear);
   const [metricTab, setMetricTab] = useState<FundamentalsPeriodMetricTab>('revenue');
 
-  /** 분기 연도 칩·강조 행 동기화용 (달력 직전 분기) — 시총/PER 실적 분기와 별개 */
+  /** 분기 연도 칩·강조 행 — 달력 직전 분기(연도 칩 수동 탭 시 Q4 등 보조) */
   const snapshotQuarterInfo = useMemo(() => fundamentalsDefaultPreviousCalendarQuarter(new Date()), []);
   const latestQuarterCandidates = useMemo(() => buildDartLatestQuarterCandidates(new Date(), 12), []);
+  /** 스냅샷·요약용 — 선택 연도 칩과 무관하게 올해 기준 후보 */
+  const calendarYearForSnapshot = useMemo(() => new Date().getFullYear(), []);
+  /** 연도 칩을 사용자가 직접 누르면 true — 선택 종목·실적 갱신 전까지 자동 동기화 안 함 */
+  const periodTablePinnedByUserRef = useRef(false);
+  const periodTableAutoSyncKeyRef = useRef('');
 
   const [dartGrid, setDartGrid] = useState<DartFundamentalsGrid | null>(null);
   const [dartLoading, setDartLoading] = useState(false);
@@ -486,7 +519,7 @@ export default function FundamentalsCompareScreen() {
         return;
       }
       const d = new Date();
-      const { quarterYear: qy, periodKey: pk } = fundamentalsDefaultQuarterWithinChoices(
+      const { quarterYear: qy, periodKey: pk } = fundamentalsDefaultQuarterFromLatestCandidate(
         d,
         quarterYearChoices
       );
@@ -520,6 +553,7 @@ export default function FundamentalsCompareScreen() {
   /** 분기 연도 칩만 사용(Q1~Q4 칩 없음) — 같은 해면 직전 달력 분기, 아니면 해당 연도 Q4 */
   const setQuarterYearFromChip = useCallback(
     (y: number) => {
+      periodTablePinnedByUserRef.current = true;
       setQuarterYear(y);
       setPeriodKey(quarterPeriodKeyForChipYear(y, snapshotQuarterInfo));
     },
@@ -530,6 +564,16 @@ export default function FundamentalsCompareScreen() {
     () => deduped.filter((r) => selectedKeys.has(r.mockKey)),
     [deduped, selectedKeys]
   );
+
+  const selectedKeysSig = useMemo(
+    () => [...selectedKeys].sort().join(','),
+    [selectedKeys]
+  );
+
+  useEffect(() => {
+    periodTablePinnedByUserRef.current = false;
+    periodTableAutoSyncKeyRef.current = '';
+  }, [selectedKeysSig]);
 
   const dedupedKeysSig = useMemo(() => deduped.map((d) => d.mockKey).join('|'), [deduped]);
   const [opScenarioReady, setOpScenarioReady] = useState(false);
@@ -679,10 +723,42 @@ export default function FundamentalsCompareScreen() {
         granularity,
         latestQuarterCandidates,
         yearPeriodRows,
-        { quarterYear }
+        { quarterYear: calendarYearForSnapshot }
       ) ?? (granularity === 'year' ? yearFallback : quarterFallback)
     );
-  }, [dartGrid, yahooGrid, granularity, latestQuarterCandidates, selectedRows, yearPeriodRows, quarterYear]);
+  }, [dartGrid, yahooGrid, granularity, latestQuarterCandidates, selectedRows, yearPeriodRows, calendarYearForSnapshot]);
+
+  /**
+   * 선택 종목 실적 로드 후 — 포트폴리오 최신 분기/연도로 연도 칩·표 강조 행 동기화.
+   * 연도 칩을 사용자가 직접 고른 경우(`periodTablePinnedByUserRef`)에는 건드리지 않음.
+   */
+  useEffect(() => {
+    if (periodTablePinnedByUserRef.current) return;
+    if (selectedRows.length === 0) return;
+    if (!dartGrid && !yahooGrid) return;
+    if (dartLoading || yahooLoading) return;
+
+    const pk = dartCapTableSnapshotPeriodKey;
+    const syncKey = `${selectedKeysSig}|${granularity}|${pk}`;
+    if (periodTableAutoSyncKeyRef.current === syncKey) return;
+
+    const next = periodTableStateFromSnapshotPk(pk, granularity, quarterYearChoices);
+    if (next == null) return;
+
+    periodTableAutoSyncKeyRef.current = syncKey;
+    setQuarterYear(next.quarterYear);
+    setPeriodKey(next.periodKey);
+  }, [
+    dartCapTableSnapshotPeriodKey,
+    dartGrid,
+    yahooGrid,
+    dartLoading,
+    yahooLoading,
+    selectedRows.length,
+    selectedKeysSig,
+    granularity,
+    quarterYearChoices,
+  ]);
 
   /** 종목별 실적 스냅샷 키 — 그리드에 있는 데이터 중 마감일 최신 */
   const capSummaryPeriodKeyByStock = useMemo(() => {
@@ -701,11 +777,11 @@ export default function FundamentalsCompareScreen() {
       }
       out[mk] =
         pickSnapshotPeriodKey(grid, mk, granularity, latestQuarterCandidates, yearPeriodRows, {
-          quarterYear,
+          quarterYear: calendarYearForSnapshot,
         }) ?? (granularity === 'year' ? yearFallback : quarterFallback);
     }
     return out;
-  }, [dartGrid, yahooGrid, granularity, latestQuarterCandidates, selectedRows, yearPeriodRows, quarterYear]);
+  }, [dartGrid, yahooGrid, granularity, latestQuarterCandidates, selectedRows, yearPeriodRows, calendarYearForSnapshot]);
 
   /** PER 순이익 탐색 순서(연도 모드=최근 연도 우선, 분기=최근 분기 우선) */
   const perNetIncomeSearchPeriodKeys = useMemo(() => {
@@ -1183,11 +1259,23 @@ export default function FundamentalsCompareScreen() {
           });
           if (cancelled) return;
 
+          /** 연도 칩이 2025여도 요약 표는 2026Q2(해외) 등 최신 분기 필요 */
+          const gridSnapshot = await buildDartFundamentalsGrid({
+            apiKey,
+            domesticTickerKeys: tickerKeys,
+            periodKeys: summarySnapshotQuarterPeriodKeys(),
+            granularity: 'quarter',
+          });
+          if (cancelled) return;
+
           const gridLatest = await fetchLatestQuarterOverlay();
           if (cancelled) return;
 
-          const merged = mergeDartFundamentalsGrids(gridTable, gridLatest);
-          traceDone(merged, 'quarter+latestQuarterOverlay');
+          const merged = mergeDartFundamentalsGrids(
+            mergeDartFundamentalsGrids(gridTable, gridSnapshot),
+            gridLatest
+          );
+          traceDone(merged, 'quarter+snapshotOverlay');
           setDartGrid(merged);
         }
         if (!cancelled) setDartLoading(false);
@@ -1233,7 +1321,12 @@ export default function FundamentalsCompareScreen() {
         ).map((r) => r.periodKey);
         const periodKeysForYahoo =
           g === 'quarter'
-            ? [...new Set([...pks, ...buildDartLatestQuarterCandidates(new Date(), 24)])]
+            ? [
+                ...new Set([
+                  ...pks,
+                  ...summarySnapshotQuarterPeriodKeys(),
+                ]),
+              ]
             : [...new Set([...pks, ...widenedYearKeys])];
         /** 한 종목 실패 시 전체 Yahoo 그리드가 비지 않도록 개별 처리(순서 유지·동시성 제한) */
         const settled = await mapWithConcurrency(foreign, YAHOO_FUNDAMENTALS_FOREIGN_CONCURRENCY, async (row) => {
@@ -1778,6 +1871,8 @@ export default function FundamentalsCompareScreen() {
               onPress={() => {
                 if (granularity === 'quarter') return;
                 const choices = fundamentalsQuarterYearChoices(new Date(), FUNDAMENTALS_CALENDAR_YEAR_SPAN);
+                periodTablePinnedByUserRef.current = false;
+                periodTableAutoSyncKeyRef.current = '';
                 setGranularity('quarter');
                 const yFromYearMode = /^(\d{4})$/.exec(periodKey);
                 if (yFromYearMode) {
@@ -1788,7 +1883,7 @@ export default function FundamentalsCompareScreen() {
                     return;
                   }
                 }
-                const next = fundamentalsDefaultQuarterWithinChoices(new Date(), choices);
+                const next = fundamentalsDefaultQuarterFromLatestCandidate(new Date(), choices);
                 setQuarterYear(next.quarterYear);
                 setPeriodKey(next.periodKey);
               }}
@@ -1800,6 +1895,8 @@ export default function FundamentalsCompareScreen() {
               style={[styles.chip, granularity === 'year' && styles.chipOn]}
               onPress={() => {
                 if (granularity === 'year') return;
+                periodTablePinnedByUserRef.current = false;
+                periodTableAutoSyncKeyRef.current = '';
                 setGranularity('year');
               }}
               activeOpacity={0.85}
