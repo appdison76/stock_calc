@@ -28,6 +28,24 @@ function isIncomeStatementRow(row: DartFnlttRow): boolean {
   return nm.includes('포괄손익') || nm.includes('손익계산서');
 }
 
+function normalizeAccountName(name: string): string {
+  return name.replace(/\s/g, '');
+}
+
+/** PER·표시용 당기순이익에서 제외할 계정 (주당·비지배·세전 등) */
+function isExcludedNetIncomeAccount(name: string): boolean {
+  const n = normalizeAccountName(name);
+  if (n.includes('주당')) return true;
+  if (/eps/i.test(name)) return true;
+  if (n.includes('비지배')) return true;
+  if (n.includes('법인세') && n.includes('차감전')) return true;
+  if (n.includes('법인세차감전')) return true;
+  if (n.includes('총포괄손익')) return true;
+  if (n.includes('기타포괄')) return true;
+  if (n.includes('영업이익') || n.includes('매출')) return true;
+  return false;
+}
+
 /** 매출·영업이익·당기순이익 후보 행에서 금액 추출 (천원) */
 export function extractRevenueOperatingThousandWon(
   rows: DartFnlttRow[],
@@ -65,30 +83,26 @@ export function extractRevenueOperatingThousandWon(
     return 0;
   };
 
-  /** PER용 당기순이익 — 세전·총포괄 등 제외 */
+  /** PER용 당기순이익 — 세전·총포괄·주당(EPS) 등 제외 */
   const netIncomeScore = (name: string): number => {
-    const n = name.replace(/\s/g, '');
-    if (n.includes('법인세차감전')) return 0;
-    if (n.includes('총포괄손익')) return 0;
+    if (isExcludedNetIncomeAccount(name)) return 0;
+    const n = normalizeAccountName(name);
     if (n === '당기순이익') return 100;
     if (n.includes('지배기업의소유주에게귀속되는당기순이익')) return 99;
     if (n.includes('지배기업') && n.includes('당기순이익')) return 97;
     if (n.includes('지배') && n.includes('순이익') && n.includes('귀속')) return 96;
     if (n === '연결당기순이익') return 94;
-    /** 분기·반기 공시에서 흔한 표기 (당기순이익과 별도 줄) */
-    if (n.includes('분기순이익') || n.includes('분기순손익')) return 92;
-    if (n.includes('반기순이익') || n.includes('반기순손익')) return 91;
+    /** 분기·반기 공시 표기 — `기본주당분기순이익` 등 주당 줄과 구분 (주당은 위에서 제외) */
+    if (n === '분기순이익' || n === '분기순손익') return 92;
+    if (n === '반기순이익' || n === '반기순손익') return 91;
     if (n.includes('당기순이익')) return 85;
     return 0;
   };
 
   /** 주 계정명 매칭 실패 시 — 매출·영업 줄과 겹치지 않게 보수적으로 */
   const netIncomeScoreRelaxed = (name: string): number => {
-    const n = name.replace(/\s/g, '');
-    if (n.includes('법인세차감전')) return 0;
-    if (n.includes('총포괄손익')) return 0;
-    if (n.includes('영업이익') || n.includes('매출')) return 0;
-    if (n.includes('기타포괄')) return 0;
+    if (isExcludedNetIncomeAccount(name)) return 0;
+    const n = normalizeAccountName(name);
     if (n.includes('당기순이익') || n.includes('분기순이익') || n.includes('반기순이익')) return 55;
     if (n.includes('귀속') && n.includes('순이익')) return 50;
     if (n.includes('순이익') && (n.includes('지배') || n.includes('계속'))) return 48;
@@ -132,7 +146,11 @@ export function extractRevenueOperatingThousandWon(
         op = amt;
       }
       const ns = netIncomeScore(name);
-      if (ns > 0 && ns > bestN) {
+      if (
+        ns > 0 &&
+        (ns > bestN ||
+          (ns === bestN && net != null && amt != null && Math.abs(amt) > Math.abs(net)))
+      ) {
         bestN = ns;
         net = amt;
       }
@@ -160,7 +178,46 @@ export function extractRevenueOperatingThousandWon(
       if (ns <= 0) continue;
       const amt = rowAmtAlt(row);
       if (amt == null) continue;
-      if (ns > bestN) {
+      if (
+        ns > bestN ||
+        (ns === bestN && net != null && amt != null && Math.abs(amt) > Math.abs(net))
+      ) {
+        bestN = ns;
+        net = amt;
+      }
+    }
+    return net;
+  };
+
+  /** 영업·매출 대비 지나치게 작은 순이익은 주당(EPS) 오인식 등 — 후보 재탐색 */
+  const netIncomeLooksImplausible = (
+    netTw: number | null,
+    opTw: number | null,
+    revTw: number | null
+  ): boolean => {
+    if (netTw == null || !Number.isFinite(netTw)) return false;
+    const netWon = Math.abs(dartFnlttNumericToWon(netTw));
+    const refTw = opTw ?? revTw;
+    if (refTw == null || !Number.isFinite(refTw)) return false;
+    const refWon = Math.abs(dartFnlttNumericToWon(refTw));
+    if (refWon < 1e10) return false;
+    return netWon < refWon * 0.05;
+  };
+
+  const rescanNetIncome = (candidates: DartFnlttRow[]): number | null => {
+    let bestN = -1;
+    let net: number | null = null;
+    for (const row of candidates) {
+      const name = (row.account_nm || '').trim();
+      if (!name) continue;
+      const ns = Math.max(netIncomeScore(name), netIncomeScoreRelaxed(name));
+      if (ns <= 0) continue;
+      const amt = rowAmount(row);
+      if (amt == null) continue;
+      if (
+        ns > bestN ||
+        (ns === bestN && net != null && Math.abs(amt) > Math.abs(net))
+      ) {
         bestN = ns;
         net = amt;
       }
@@ -216,6 +273,24 @@ export function extractRevenueOperatingThousandWon(
     netIncomeThousand =
       scanNetAlternateAmountKey(pool, 'thstrm_add_amount') ??
       scanNetAlternateAmountKey(pool, 'thstrm_amount');
+  }
+
+  if (netIncomeLooksImplausible(netIncomeThousand, operatingThousand, revenueThousand)) {
+    const cisOnly = rows.filter((r) => {
+      const d = (r.sj_div || '').toUpperCase();
+      return d === 'CIS' || d === 'IS' || d === 'MCIS';
+    });
+    const pool = cisOnly.length > 0 ? cisOnly : income;
+    const retry =
+      rescanNetIncome(pool) ??
+      scanNetAlternateAmountKey(pool, 'thstrm_add_amount') ??
+      scanNetAlternateAmountKey(pool, 'thstrm_amount');
+    if (
+      retry != null &&
+      !netIncomeLooksImplausible(retry, operatingThousand, revenueThousand)
+    ) {
+      netIncomeThousand = retry;
+    }
   }
 
   return { revenueThousand, operatingThousand, netIncomeThousand };
