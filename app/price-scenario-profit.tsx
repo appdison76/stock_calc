@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { getStockQuote, type StockQuote } from '../src/services/YahooFinanceService';
 import { fetchDomesticMarketCapWonFromNaver } from '../src/services/naverFinanceStock';
 import { buildYahooFundamentalsGridColumn } from '../src/services/yahooFundamentalsGrid';
-import { buildDartFundamentalsGrid } from '../src/services/dart/dartFundamentalsGrid';
+import { buildDartFundamentalsGridForSnapshot } from '../src/services/dart/dartFundamentalsGrid';
 import { getDartApiKey } from '../src/services/dart/dartConfig';
 import {
   FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS,
@@ -25,9 +25,9 @@ import {
   FUNDAMENTALS_USD_KRW_RATE,
   fundamentalsMockKey,
   buildDartLatestQuarterCandidates,
+  buildFundamentalsSnapshotFetchQuarterPeriodKeys,
   fundamentalsQuarterYearChoices,
   buildYearPeriodRowsForChoices,
-  buildQuarterPeriodRowsForYear,
   fundamentalsDefaultQuarterWithinChoices,
   FUNDAMENTALS_CALENDAR_YEAR_SPAN,
 } from '../src/data/fundamentalsCompareMock';
@@ -582,20 +582,17 @@ export default function PriceScenarioProfitScreen() {
             return;
           }
           const periodKeysYear = yearPeriodRows.map((r) => r.periodKey);
-          const periodKeysQ = [
-            ...new Set([
-              ...buildQuarterPeriodRowsForYear(quarterYear).map((r) => r.periodKey),
-              ...latestQuarterCandidates,
-            ]),
-          ];
+          const periodKeysQ = buildFundamentalsSnapshotFetchQuarterPeriodKeys(new Date(), quarterYear);
           const periodKeys = granularity === 'year' ? periodKeysYear : periodKeysQ;
+          const overlayCandidates = buildDartLatestQuarterCandidates(new Date(), 12);
 
           const [grid, naverCap] = await Promise.all([
-            buildDartFundamentalsGrid({
+            buildDartFundamentalsGridForSnapshot({
               apiKey,
               domesticTickerKeys: [mk],
               periodKeys,
               granularity,
+              overlayCandidates,
             }),
             fetchDomesticMarketCapWonFromNaver(mk),
           ]);
@@ -610,7 +607,8 @@ export default function PriceScenarioProfitScreen() {
             mk,
             granularity,
             latestQuarterCandidates,
-            yearPeriodRows
+            yearPeriodRows,
+            { quarterYear }
           );
           if (!resolved) {
             setError('해당 종목의 실적 데이터를 찾지 못했습니다.');
@@ -644,7 +642,7 @@ export default function PriceScenarioProfitScreen() {
           ).map((r) => r.periodKey);
           const periodKeysForYahoo =
             granularity === 'quarter'
-              ? [...new Set([...buildQuarterPeriodRowsForYear(quarterYear).map((r) => r.periodKey), ...buildDartLatestQuarterCandidates(new Date(), 24)])]
+              ? buildFundamentalsSnapshotFetchQuarterPeriodKeys(new Date(), quarterYear)
               : [...new Set([...widenedYearKeys])];
 
           const col = await buildYahooFundamentalsGridColumn({
@@ -662,7 +660,8 @@ export default function PriceScenarioProfitScreen() {
             mk,
             granularity,
             latestQuarterCandidates,
-            yearPeriodRows
+            yearPeriodRows,
+            { quarterYear }
           );
           if (!resolved) {
             setError('해당 종목의 실적 데이터를 찾지 못했습니다.');

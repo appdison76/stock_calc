@@ -1,4 +1,8 @@
 import type { FundamentalsMetricTab } from '../../data/fundamentalsCompareMock';
+import {
+  sortQuarterPeriodKeysNewestFirst,
+  sortYearPeriodKeysNewestFirst,
+} from '../../data/fundamentalsCompareMock';
 import { DART_REPRT, fetchFnlttSinglAcntAll } from './dartFinancialClient';
 import { extractRevenueOperatingThousandWon, type DartFnlttRow } from './dartIncomeExtract';
 import {
@@ -26,6 +30,108 @@ export type DartCellBundle = {
 
 /** periodKey → tickerKey(6자리) → 셀 묶음 */
 export type DartFundamentalsGrid = Record<string, Record<string, DartCellBundle>>;
+
+/** 한 번에 너무 많은 기간을 치면 느려지므로 DART 조회 periodKey 상한 */
+export const DART_FUNDAMENTALS_GRID_MAX_PERIOD_KEYS = 10;
+
+export function dartCellHasFundamentals(b: DartCellBundle | undefined): boolean {
+  return !!(
+    b &&
+    (b.revenueKr !== '—' ||
+      b.operatingIncomeKr !== '—' ||
+      (b.netIncomeWon != null && Number.isFinite(b.netIncomeWon)))
+  );
+}
+
+/** 연·분기 그리드 병합 — 실적이 있는 쪽 유지(빈 오버레이가 메인 표를 덮지 않음) */
+export function mergeDartFundamentalsGrids(
+  a: DartFundamentalsGrid,
+  b: DartFundamentalsGrid
+): DartFundamentalsGrid {
+  const out: DartFundamentalsGrid = { ...a };
+  for (const pk of Object.keys(b)) {
+    const ar = out[pk] ?? {};
+    const br = b[pk] ?? {};
+    const merged: Record<string, DartCellBundle> = { ...ar };
+    for (const tk of Object.keys(br)) {
+      const left = merged[tk];
+      const right = br[tk];
+      if (right == null) continue;
+      if (left == null) {
+        merged[tk] = right;
+        continue;
+      }
+      merged[tk] = dartCellHasFundamentals(left) ? left : right;
+    }
+    out[pk] = merged;
+  }
+  return out;
+}
+
+function trimPeriodKeysForDartFetch(
+  periodKeys: string[],
+  granularity: 'year' | 'quarter'
+): string[] {
+  if (periodKeys.length <= DART_FUNDAMENTALS_GRID_MAX_PERIOD_KEYS) return periodKeys;
+  if (granularity === 'quarter') {
+    return sortQuarterPeriodKeysNewestFirst(periodKeys).slice(0, DART_FUNDAMENTALS_GRID_MAX_PERIOD_KEYS);
+  }
+  return sortYearPeriodKeysNewestFirst(periodKeys).slice(0, DART_FUNDAMENTALS_GRID_MAX_PERIOD_KEYS);
+}
+
+/** 최신 분기 후보를 순서대로 조회해 실적이 있는 **한** 분기만 반환(기업실적비교 오버레이와 동일) */
+export async function fetchDartLatestQuarterOverlayGrid(params: {
+  apiKey: string;
+  domesticTickerKeys: string[];
+  overlayCandidates: string[];
+}): Promise<DartFundamentalsGrid> {
+  const batchSize = DART_FUNDAMENTALS_GRID_MAX_PERIOD_KEYS;
+  for (let start = 0; start < params.overlayCandidates.length; start += batchSize) {
+    const batch = params.overlayCandidates.slice(start, start + batchSize);
+    if (batch.length === 0) break;
+    const gridMaybe = await buildDartFundamentalsGrid({
+      apiKey: params.apiKey,
+      domesticTickerKeys: params.domesticTickerKeys,
+      periodKeys: batch,
+      granularity: 'quarter',
+    });
+    for (const pk of batch) {
+      const ok = params.domesticTickerKeys.some((tk) =>
+        dartCellHasFundamentals(gridMaybe[pk]?.[tk])
+      );
+      if (ok) {
+        dartTrace('dart_latest_quarter_resolved', { periodKey: pk });
+        return { [pk]: gridMaybe[pk] ?? {} };
+      }
+    }
+  }
+  return {};
+}
+
+/**
+ * 시총·시나리오 등 스냅샷용 DART 그리드 — 최신 분기 우선 trim + (분기·연) 최신 분기 오버레이.
+ */
+export async function buildDartFundamentalsGridForSnapshot(params: {
+  apiKey: string;
+  domesticTickerKeys: string[];
+  periodKeys: string[];
+  granularity: 'year' | 'quarter';
+  overlayCandidates: string[];
+}): Promise<DartFundamentalsGrid> {
+  const trimmed = trimPeriodKeysForDartFetch(params.periodKeys, params.granularity);
+  const gridMain = await buildDartFundamentalsGrid({
+    apiKey: params.apiKey,
+    domesticTickerKeys: params.domesticTickerKeys,
+    periodKeys: trimmed,
+    granularity: params.granularity,
+  });
+  const overlay = await fetchDartLatestQuarterOverlayGrid({
+    apiKey: params.apiKey,
+    domesticTickerKeys: params.domesticTickerKeys,
+    overlayCandidates: params.overlayCandidates,
+  });
+  return mergeDartFundamentalsGrids(gridMain, overlay);
+}
 
 const fnlttCache = new Map<string, DartFnlttRow[]>();
 
@@ -326,9 +432,6 @@ async function runPool<T>(items: T[], limit: number, worker: (item: T) => Promis
  * 선택 종목(6자리)·기간 행마다 DART에서 매출·영업이익 채움. 시총·PER은 항상 '—'.
  * API 키 없음·해외 티커는 호출하지 않음.
  */
-/** 한 번에 너무 많은 기간을 치면 느려지므로 최근 N개만 DART 조회 */
-export const DART_FUNDAMENTALS_GRID_MAX_PERIOD_KEYS = 10;
-
 /** 분기 셀 조회 시 티커별 동시 DART 호출 상한(너무 높이면 API·앱이 불안정해질 수 있음) */
 const DART_TICKER_POOL_LIMIT = 2;
 
@@ -351,10 +454,7 @@ export async function buildDartFundamentalsGrid(params: {
     periodCount: params.periodKeys.length,
     periodsSample: params.periodKeys.slice(0, 6),
   });
-  const periodKeys =
-    params.periodKeys.length > DART_FUNDAMENTALS_GRID_MAX_PERIOD_KEYS
-      ? params.periodKeys.slice(-DART_FUNDAMENTALS_GRID_MAX_PERIOD_KEYS)
-      : params.periodKeys;
+  const periodKeys = trimPeriodKeysForDartFetch(params.periodKeys, granularity);
   const grid: DartFundamentalsGrid = {};
 
   const corpByTicker = new Map<string, string>();

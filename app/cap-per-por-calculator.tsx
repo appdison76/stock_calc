@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { getStockQuote, normalizeYahooTickerKey, type StockQuote } from '../src/services/YahooFinanceService';
 import { fetchDomesticMarketCapWonFromNaver } from '../src/services/naverFinanceStock';
 import { buildYahooFundamentalsGridColumn } from '../src/services/yahooFundamentalsGrid';
-import { buildDartFundamentalsGrid, type DartCellBundle, type DartFundamentalsGrid } from '../src/services/dart/dartFundamentalsGrid';
+import { buildDartFundamentalsGridForSnapshot, type DartFundamentalsGrid } from '../src/services/dart/dartFundamentalsGrid';
 import { getDartApiKey } from '../src/services/dart/dartConfig';
 import {
   FORMAT_WON_SHORT_KR_MARKET_CAP_MAX_ABS,
@@ -25,9 +25,9 @@ import {
   FUNDAMENTALS_USD_KRW_RATE,
   fundamentalsMockKey,
   buildDartLatestQuarterCandidates,
+  buildFundamentalsSnapshotFetchQuarterPeriodKeys,
   fundamentalsQuarterYearChoices,
   buildYearPeriodRowsForChoices,
-  buildQuarterPeriodRowsForYear,
   fundamentalsDefaultQuarterWithinChoices,
   FUNDAMENTALS_CALENDAR_YEAR_SPAN,
 } from '../src/data/fundamentalsCompareMock';
@@ -44,6 +44,7 @@ import {
   type CapPerPorRecentEntry,
 } from '../src/services/CapPerPorRecentService';
 import { SettingsService, type OpScenarioPersistRow, type OpScenarioPersistUnit } from '../src/services/SettingsService';
+import { applyFundamentalsSnapshotFromGrid } from '../src/lib/capFundamentalsGridResolve';
 
 /** 비율 표시 — 기업실적비교와 동일 규칙 */
 function formatRatioLocale(n: number): string {
@@ -161,220 +162,6 @@ async function resolveUsdKrwRate(): Promise<number> {
     /* ignore */
   }
   return FUNDAMENTALS_USD_KRW_RATE;
-}
-
-function cellAt(
-  grid: DartFundamentalsGrid,
-  periodKey: string,
-  mockKey: string
-): DartCellBundle | undefined {
-  return grid[periodKey]?.[mockKey];
-}
-
-function gridHasAnyFundamentals(grid: DartFundamentalsGrid, mockKey: string): boolean {
-  for (const pk of Object.keys(grid)) {
-    const b = grid[pk]?.[mockKey];
-    if (
-      b &&
-      (b.revenueKr !== '—' ||
-        b.operatingIncomeKr !== '—' ||
-        (b.netIncomeWon != null && Number.isFinite(b.netIncomeWon)))
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
-/**
- * 기업실적비교 `capSummaryPeriodKeyByStock`(종목 1개)·`dartCapTableSnapshotPeriodKey` 와 동일:
- * 연도·분기 모두 **매출이 있는 기간을 최우선**(손익보다 공시·파싱에서 먼저 채워지는 경우가 많음).
- * 그다음 순이익 → 그다음 매출·영업·순이익 중 하나.
- */
-function pickSnapshotPeriodKey(
-  grid: DartFundamentalsGrid,
-  mockKey: string,
-  granularity: 'year' | 'quarter',
-  latestQuarterCandidates: string[],
-  yearPeriodRows: Array<{ periodKey: string }>
-): string | null {
-  const hasRevenue = (pk: string) => {
-    const r = cellAt(grid, pk, mockKey)?.revenueKr;
-    return r != null && r !== '—';
-  };
-  const hasNet = (pk: string) => {
-    const n = cellAt(grid, pk, mockKey)?.netIncomeWon;
-    return n != null && Number.isFinite(n);
-  };
-  const hasAnyFs = (pk: string) => {
-    const b = cellAt(grid, pk, mockKey);
-    return !!(
-      b &&
-      (b.revenueKr !== '—' ||
-        (b.netIncomeWon != null && Number.isFinite(b.netIncomeWon)) ||
-        b.operatingIncomeKr !== '—')
-    );
-  };
-
-  if (granularity === 'year') {
-    for (const r of yearPeriodRows) {
-      if (hasRevenue(r.periodKey)) return r.periodKey;
-    }
-    for (const r of yearPeriodRows) {
-      if (hasNet(r.periodKey)) return r.periodKey;
-    }
-    for (const r of yearPeriodRows) {
-      if (hasAnyFs(r.periodKey)) return r.periodKey;
-    }
-    return yearPeriodRows[0]?.periodKey ?? null;
-  }
-  for (const pk of latestQuarterCandidates) {
-    if (hasRevenue(pk)) return pk;
-  }
-  for (const pk of latestQuarterCandidates) {
-    if (hasNet(pk)) return pk;
-  }
-  for (const pk of latestQuarterCandidates) {
-    if (hasAnyFs(pk)) return pk;
-  }
-  return latestQuarterCandidates[0] ?? null;
-}
-
-/** 기업실적비교 `perNetIncomeSearchPeriodKeys` 와 동일 */
-function buildPerNetIncomeSearchPeriodKeys(
-  granularity: 'year' | 'quarter',
-  snapshotPeriodKey: string,
-  latestQuarterCandidates: string[],
-  yearPeriodRows: Array<{ periodKey: string }>
-): string[] {
-  if (granularity === 'year') {
-    const ys = yearPeriodRows.map((r) => r.periodKey);
-    return [...new Set([snapshotPeriodKey, ...ys])];
-  }
-  return [...new Set([snapshotPeriodKey, ...latestQuarterCandidates])];
-}
-
-/** 요약 표 `netIncomeWonForPer`와 동일: 스냅샷 분기가 리스트 선두 → 순서대로 탐색 */
-function resolveNetIncomeWon(
-  grid: DartFundamentalsGrid,
-  mockKey: string,
-  searchKeys: string[]
-): { value: number | null; periodKey: string | null } {
-  for (const pk of searchKeys) {
-    const n = cellAt(grid, pk, mockKey)?.netIncomeWon;
-    if (n != null && Number.isFinite(n)) return { value: n, periodKey: pk };
-  }
-  return { value: null, periodKey: null };
-}
-
-/** `revenueKrForSummary` 와 동일 분기·동일 셀 — 원 단위는 `revenueWon` */
-function resolveRevenue(
-  grid: DartFundamentalsGrid,
-  mockKey: string,
-  searchKeys: string[]
-): { kr: string | null; won: number | null; periodKey: string | null } {
-  for (const pk of searchKeys) {
-    const b = cellAt(grid, pk, mockKey);
-    if (!b) continue;
-    if (b.revenueKr != null && b.revenueKr !== '—') {
-      const won = b.revenueWon;
-      return {
-        kr: b.revenueKr,
-        won: won != null && Number.isFinite(won) ? won : null,
-        periodKey: pk,
-      };
-    }
-  }
-  return { kr: null, won: null, periodKey: null };
-}
-
-/** `operatingIncomeWonForPor` / `operatingIncomeKrForSummary` 와 동일 */
-function resolveOperatingIncome(
-  grid: DartFundamentalsGrid,
-  mockKey: string,
-  searchKeys: string[]
-): { kr: string | null; won: number | null; periodKey: string | null } {
-  for (const pk of searchKeys) {
-    const b = cellAt(grid, pk, mockKey);
-    if (!b) continue;
-    if (b.operatingIncomeKr !== '—' && b.operatingIncomeWon != null && Number.isFinite(b.operatingIncomeWon)) {
-      return { kr: b.operatingIncomeKr, won: b.operatingIncomeWon, periodKey: pk };
-    }
-  }
-  return { kr: null, won: null, periodKey: null };
-}
-
-/** 스냅샷과 출처 분기가 다를 때 숫자 옆 표시. 해외(Yahoo)는 해당 칸 fsPeriodLabel(from–to) 우선 */
-function metricPeriodSuffixFromGrid(
-  grid: DartFundamentalsGrid,
-  mockKey: string,
-  sourcePk: string | null,
-  snapshotPk: string | null,
-  granularity: 'year' | 'quarter'
-): string | null {
-  if (!sourcePk || !snapshotPk || sourcePk === snapshotPk) return null;
-  const domestic = /^\d{6}$/.test(mockKey.trim());
-  const b = cellAt(grid, sourcePk, mockKey);
-  if (!domestic && b?.fsPeriodLabel?.trim()) return b.fsPeriodLabel.trim();
-  return formatCapBadge(sourcePk, granularity);
-}
-
-function applyFundamentalsSnapshotFromGrid(
-  grid: DartFundamentalsGrid,
-  mockKey: string,
-  granularity: 'year' | 'quarter',
-  latestQuarterCandidates: string[],
-  yearPeriodRows: Array<{ periodKey: string }>
-): {
-  snapshotPk: string;
-  netIncomeWon: number | null;
-  operatingIncomeWon: number | null;
-  revenueWon: number | null;
-  revenueKr: string;
-  operatingIncomeKr: string;
-  netIncomeKr: string;
-  fsPeriodLabel: string | null;
-  revenuePeriodSuffix: string | null;
-  operatingPeriodSuffix: string | null;
-  netIncomePeriodSuffix: string | null;
-} | null {
-  if (!gridHasAnyFundamentals(grid, mockKey)) return null;
-
-  const snapshotPk = pickSnapshotPeriodKey(grid, mockKey, granularity, latestQuarterCandidates, yearPeriodRows);
-  if (snapshotPk == null) return null;
-
-  const searchKeys = buildPerNetIncomeSearchPeriodKeys(
-    granularity,
-    snapshotPk,
-    latestQuarterCandidates,
-    yearPeriodRows
-  );
-  const net = resolveNetIncomeWon(grid, mockKey, searchKeys);
-  const rev = resolveRevenue(grid, mockKey, searchKeys);
-  const op = resolveOperatingIncome(grid, mockKey, searchKeys);
-
-  const hasResolved =
-    (net.value != null && Number.isFinite(net.value)) ||
-    (rev.kr != null && rev.kr !== '—') ||
-    (op.won != null && Number.isFinite(op.won));
-  if (!hasResolved) return null;
-
-  const netKr =
-    net.value != null && Number.isFinite(net.value) ? formatWonShortKr(net.value) : '—';
-
-  return {
-    snapshotPk,
-    netIncomeWon: net.value,
-    operatingIncomeWon: op.won,
-    revenueWon: rev.won,
-    revenueKr: rev.kr ?? '—',
-    operatingIncomeKr: op.kr ?? '—',
-    netIncomeKr: netKr,
-    fsPeriodLabel: cellAt(grid, snapshotPk, mockKey)?.fsPeriodLabel ?? null,
-    revenuePeriodSuffix: metricPeriodSuffixFromGrid(grid, mockKey, rev.periodKey, snapshotPk, granularity),
-    operatingPeriodSuffix: metricPeriodSuffixFromGrid(grid, mockKey, op.periodKey, snapshotPk, granularity),
-    netIncomePeriodSuffix: metricPeriodSuffixFromGrid(grid, mockKey, net.periodKey, snapshotPk, granularity),
-  };
 }
 
 function marketCapWonFromQuote(q: StockQuote | null, usdKrw: number): number | null {
@@ -681,20 +468,17 @@ export default function CapPerPorCalculatorScreen() {
             return;
           }
           const periodKeysYear = yearPeriodRows.map((r) => r.periodKey);
-          const periodKeysQ = [
-            ...new Set([
-              ...buildQuarterPeriodRowsForYear(quarterYear).map((r) => r.periodKey),
-              ...latestQuarterCandidates,
-            ]),
-          ];
+          const periodKeysQ = buildFundamentalsSnapshotFetchQuarterPeriodKeys(new Date(), quarterYear);
           const periodKeys = granularity === 'year' ? periodKeysYear : periodKeysQ;
+          const overlayCandidates = buildDartLatestQuarterCandidates(new Date(), 12);
 
           const [grid, naverCap] = await Promise.all([
-            buildDartFundamentalsGrid({
+            buildDartFundamentalsGridForSnapshot({
               apiKey,
               domesticTickerKeys: [mk],
               periodKeys,
               granularity,
+              overlayCandidates,
             }),
             fetchDomesticMarketCapWonFromNaver(mk),
           ]);
@@ -709,7 +493,8 @@ export default function CapPerPorCalculatorScreen() {
             mk,
             granularity,
             latestQuarterCandidates,
-            yearPeriodRows
+            yearPeriodRows,
+            { quarterYear }
           );
           if (!resolved) {
             setError('해당 종목의 실적 데이터를 찾지 못했습니다.');
@@ -744,7 +529,7 @@ export default function CapPerPorCalculatorScreen() {
           ).map((r) => r.periodKey);
           const periodKeysForYahoo =
             granularity === 'quarter'
-              ? [...new Set([...buildQuarterPeriodRowsForYear(quarterYear).map((r) => r.periodKey), ...buildDartLatestQuarterCandidates(new Date(), 24)])]
+              ? buildFundamentalsSnapshotFetchQuarterPeriodKeys(new Date(), quarterYear)
               : [...new Set([...widenedYearKeys])];
 
           const col = await buildYahooFundamentalsGridColumn({
@@ -762,7 +547,8 @@ export default function CapPerPorCalculatorScreen() {
             mk,
             granularity,
             latestQuarterCandidates,
-            yearPeriodRows
+            yearPeriodRows,
+            { quarterYear }
           );
           if (!resolved) {
             setError('해당 종목의 실적 데이터를 찾지 못했습니다.');

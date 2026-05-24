@@ -145,6 +145,53 @@ export function buildDartLatestQuarterCandidates(referenceDate: Date, maxDepth =
   return out;
 }
 
+/**
+ * 시총·시나리오 등 **자동 최신 실적** 조회용 분기 periodKey.
+ * `quarterYear`만 쓰면(초기값이 전년도인 경우) 올해 Q2+ 해외 실적 키(예: NVDA 4/30 → `2026Q2`)가 빠질 수 있음.
+ */
+export function buildFundamentalsSnapshotFetchQuarterPeriodKeys(
+  referenceDate: Date,
+  quarterYear: number,
+  candidateDepth = 12
+): string[] {
+  const cy = referenceDate.getFullYear();
+  const years = new Set<number>([quarterYear, cy]);
+  if (cy - 1 !== quarterYear) years.add(cy - 1);
+  const keys: string[] = [];
+  for (const y of years) {
+    keys.push(...buildQuarterPeriodRowsForYear(y).map((r) => r.periodKey));
+  }
+  keys.push(...buildDartLatestQuarterCandidates(referenceDate, candidateDepth));
+  return [...new Set(keys)];
+}
+
+/**
+ * 요약·PER/POR **스냅샷 선택**에만 쓸 분기 키(조회 범위보다 좁음).
+ * 깊은 과거(예: 2022Q4)는 그리드에 있어도 최신 실적 후보에서 제외.
+ */
+export function buildFundamentalsSnapshotSelectionQuarterPeriodKeys(
+  referenceDate: Date,
+  quarterYear: number,
+  candidateDepth = 12
+): string[] {
+  return buildFundamentalsSnapshotFetchQuarterPeriodKeys(referenceDate, quarterYear, candidateDepth);
+}
+
+/** `2026Q2` > `2026Q1` > `2025Q4` … DART 조회 상한(10)에서 **최신** 분기를 남길 때 사용 */
+export function sortQuarterPeriodKeysNewestFirst(periodKeys: string[]): string[] {
+  const score = (pk: string): number => {
+    const m = /^(\d{4})Q([1-4])$/.exec(pk);
+    if (!m) return 0;
+    return Number(m[1]) * 10 + Number(m[2]);
+  };
+  return [...periodKeys].sort((a, b) => score(b) - score(a));
+}
+
+/** 연도 키(`2026` 등) — 숫자 내림차순 */
+export function sortYearPeriodKeysNewestFirst(periodKeys: string[]): string[] {
+  return [...periodKeys].sort((a, b) => Number(b) - Number(a));
+}
+
 /** 목 연도 행에 없을 때: target 이하 중 가장 큰 연도, 없으면 가장 이른 연도 */
 export function fundamentalsPickYearPeriodKeyForTarget(
   targetYear: number,

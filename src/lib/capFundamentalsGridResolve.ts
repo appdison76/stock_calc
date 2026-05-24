@@ -1,7 +1,16 @@
 import { formatWonShortKr } from '../services/dart/dartFormatKr';
 import type { DartCellBundle, DartFundamentalsGrid } from '../services/dart/dartFundamentalsGrid';
 import { getStockQuote, normalizeYahooTickerKey, type StockQuote } from '../services/YahooFinanceService';
-import { FUNDAMENTALS_USD_KRW_RATE } from '../data/fundamentalsCompareMock';
+import {
+  FUNDAMENTALS_USD_KRW_RATE,
+  buildFundamentalsSnapshotSelectionQuarterPeriodKeys,
+} from '../data/fundamentalsCompareMock';
+
+export type FundamentalsSnapshotPickContext = {
+  referenceDate?: Date;
+  /** 분기 스냅샷 후보 연도(계산기 초기값·기업실적비교 연도 칩) */
+  quarterYear?: number;
+};
 
 export function formatRatioLocale(n: number): string {
   const maxFrac = n >= 100 ? 0 : n >= 10 ? 1 : 2;
@@ -123,45 +132,146 @@ function cellAt(grid: DartFundamentalsGrid, periodKey: string, mockKey: string):
   return grid[periodKey]?.[mockKey];
 }
 
+function cellHasFundamentalsData(b: DartCellBundle | undefined): boolean {
+  return !!(
+    b &&
+    (b.revenueKr !== '—' ||
+      (b.netIncomeWon != null && Number.isFinite(b.netIncomeWon)) ||
+      b.operatingIncomeKr !== '—')
+  );
+}
+
+function cellHasRevenue(b: DartCellBundle | undefined): boolean {
+  return b?.revenueKr != null && b.revenueKr !== '—';
+}
+
+function cellHasNetIncome(b: DartCellBundle | undefined): boolean {
+  return b?.netIncomeWon != null && Number.isFinite(b.netIncomeWon);
+}
+
+function calendarQuarterEndUtcMs(year: number, quarter: 1 | 2 | 3 | 4): number {
+  return Date.UTC(year, quarter * 3, 0);
+}
+
+function periodKeyEndUtcMs(periodKey: string): number | null {
+  const qm = /^(\d{4})Q([1-4])$/.exec(periodKey);
+  if (qm) {
+    const y = Number(qm[1]);
+    const q = Number(qm[2]) as 1 | 2 | 3 | 4;
+    if (!Number.isFinite(y)) return null;
+    return calendarQuarterEndUtcMs(y, q);
+  }
+  const ym = /^(\d{4})$/.exec(periodKey);
+  if (ym) {
+    const y = Number(ym[1]);
+    if (!Number.isFinite(y)) return null;
+    return Date.UTC(y, 12, 0);
+  }
+  return null;
+}
+
+function fsPeriodLabelEndUtcMs(label: string): number | null {
+  const trimmed = label.trim();
+  if (!trimmed) return null;
+  const endPart = (trimmed.includes('~') ? trimmed.split('~').pop() : trimmed)?.trim() ?? '';
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(endPart);
+  if (iso) {
+    return Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  }
+  const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(endPart);
+  if (us) {
+    return Date.UTC(Number(us[3]), Number(us[1]) - 1, Number(us[2]));
+  }
+  return null;
+}
+
+/** 그리드 칸·periodKey에서 실적 **마감일**(UTC ms). 해외는 Yahoo `fsPeriodLabel` 종료일 우선. */
+export function fundamentalsPeriodEndUtcMs(
+  _mockKey: string,
+  periodKey: string,
+  bundle: DartCellBundle | undefined,
+  _granularity: 'year' | 'quarter'
+): number | null {
+  const fromLabel = bundle?.fsPeriodLabel?.trim()
+    ? fsPeriodLabelEndUtcMs(bundle.fsPeriodLabel)
+    : null;
+  if (fromLabel != null) return fromLabel;
+  return periodKeyEndUtcMs(periodKey);
+}
+
+function periodKeyMatchesGranularity(periodKey: string, granularity: 'year' | 'quarter'): boolean {
+  if (granularity === 'year') return /^\d{4}$/.test(periodKey);
+  return /^\d{4}Q[1-4]$/.test(periodKey);
+}
+
+type RankedFundamentalsPeriod = {
+  pk: string;
+  end: number;
+  hasRev: boolean;
+  hasNet: boolean;
+};
+
+function compareRankedFundamentalsPeriods(a: RankedFundamentalsPeriod, b: RankedFundamentalsPeriod): number {
+  if (b.end !== a.end) return b.end - a.end;
+  if (a.hasRev !== b.hasRev) return (b.hasRev ? 1 : 0) - (a.hasRev ? 1 : 0);
+  if (a.hasNet !== b.hasNet) return (b.hasNet ? 1 : 0) - (a.hasNet ? 1 : 0);
+  return b.pk.localeCompare(a.pk);
+}
+
+function snapshotSelectionQuarterKeySet(
+  referenceDate: Date,
+  quarterYear: number,
+  candidateDepth: number
+): Set<string> {
+  return new Set(
+    buildFundamentalsSnapshotSelectionQuarterPeriodKeys(referenceDate, quarterYear, candidateDepth)
+  );
+}
+
+function listFundamentalPeriodKeysByEndDateDesc(
+  grid: DartFundamentalsGrid,
+  mockKey: string,
+  granularity: 'year' | 'quarter',
+  eligibleQuarterKeys?: Set<string>
+): string[] {
+  const rows: RankedFundamentalsPeriod[] = [];
+  for (const pk of Object.keys(grid)) {
+    if (!periodKeyMatchesGranularity(pk, granularity)) continue;
+    if (granularity === 'quarter' && eligibleQuarterKeys != null && !eligibleQuarterKeys.has(pk)) {
+      continue;
+    }
+    const b = cellAt(grid, pk, mockKey);
+    if (!cellHasFundamentalsData(b)) continue;
+    const end = fundamentalsPeriodEndUtcMs(mockKey, pk, b, granularity);
+    if (end == null) continue;
+    rows.push({
+      pk,
+      end,
+      hasRev: cellHasRevenue(b),
+      hasNet: cellHasNetIncome(b),
+    });
+  }
+  rows.sort(compareRankedFundamentalsPeriods);
+  return rows.map((r) => r.pk);
+}
+
 function gridHasAnyFundamentals(grid: DartFundamentalsGrid, mockKey: string): boolean {
   for (const pk of Object.keys(grid)) {
-    const b = grid[pk]?.[mockKey];
-    if (
-      b &&
-      (b.revenueKr !== '—' ||
-        b.operatingIncomeKr !== '—' ||
-        (b.netIncomeWon != null && Number.isFinite(b.netIncomeWon)))
-    ) {
-      return true;
-    }
+    if (cellHasFundamentalsData(grid[pk]?.[mockKey])) return true;
   }
   return false;
 }
 
-export function pickSnapshotPeriodKey(
+function pickSnapshotPeriodKeyLegacy(
   grid: DartFundamentalsGrid,
   mockKey: string,
   granularity: 'year' | 'quarter',
   latestQuarterCandidates: string[],
   yearPeriodRows: Array<{ periodKey: string }>
 ): string | null {
-  const hasRevenue = (pk: string) => {
-    const r = cellAt(grid, pk, mockKey)?.revenueKr;
-    return r != null && r !== '—';
-  };
-  const hasNet = (pk: string) => {
-    const n = cellAt(grid, pk, mockKey)?.netIncomeWon;
-    return n != null && Number.isFinite(n);
-  };
-  const hasAnyFs = (pk: string) => {
-    const b = cellAt(grid, pk, mockKey);
-    return !!(
-      b &&
-      (b.revenueKr !== '—' ||
-        (b.netIncomeWon != null && Number.isFinite(b.netIncomeWon)) ||
-        b.operatingIncomeKr !== '—')
-    );
-  };
+  const hasRevenue = (pk: string) => cellHasRevenue(cellAt(grid, pk, mockKey));
+  const hasNet = (pk: string) => cellHasNetIncome(cellAt(grid, pk, mockKey));
+  const hasAnyFs = (pk: string) => cellHasFundamentalsData(cellAt(grid, pk, mockKey));
 
   if (granularity === 'year') {
     for (const r of yearPeriodRows) {
@@ -187,17 +297,155 @@ export function pickSnapshotPeriodKey(
   return latestQuarterCandidates[0] ?? null;
 }
 
+function pickSnapshotPeriodKeyDomesticQuarter(
+  grid: DartFundamentalsGrid,
+  mockKey: string,
+  latestQuarterCandidates: string[],
+  eligibleQuarterKeys: Set<string>
+): string | null {
+  const cell = (pk: string) => cellAt(grid, pk, mockKey);
+
+  for (const pk of latestQuarterCandidates) {
+    if (!eligibleQuarterKeys.has(pk)) continue;
+    if (cellHasRevenue(cell(pk))) return pk;
+  }
+  for (const pk of latestQuarterCandidates) {
+    if (!eligibleQuarterKeys.has(pk)) continue;
+    if (cellHasNetIncome(cell(pk))) return pk;
+  }
+  for (const pk of latestQuarterCandidates) {
+    if (!eligibleQuarterKeys.has(pk)) continue;
+    if (cellHasFundamentalsData(cell(pk))) return pk;
+  }
+  return null;
+}
+
+/** 그리드에 있는 실적 중 **마감일이 가장 늦은** periodKey (한·미 공통). */
+export function pickSnapshotPeriodKey(
+  grid: DartFundamentalsGrid,
+  mockKey: string,
+  granularity: 'year' | 'quarter',
+  latestQuarterCandidates: string[],
+  yearPeriodRows: Array<{ periodKey: string }>,
+  pickContext?: FundamentalsSnapshotPickContext
+): string | null {
+  const domestic = /^\d{6}$/.test(mockKey.trim());
+  const ref = pickContext?.referenceDate ?? new Date();
+  const qy = pickContext?.quarterYear ?? ref.getFullYear();
+  const candidateDepth = Math.max(12, latestQuarterCandidates.length);
+  const eligibleQuarterKeys =
+    granularity === 'quarter'
+      ? snapshotSelectionQuarterKeySet(ref, qy, candidateDepth)
+      : undefined;
+
+  if (domestic && granularity === 'year') {
+    return pickSnapshotPeriodKeyLegacy(grid, mockKey, granularity, latestQuarterCandidates, yearPeriodRows);
+  }
+  if (domestic && granularity === 'quarter' && eligibleQuarterKeys != null) {
+    const domesticPk = pickSnapshotPeriodKeyDomesticQuarter(
+      grid,
+      mockKey,
+      latestQuarterCandidates,
+      eligibleQuarterKeys
+    );
+    if (domesticPk != null) return domesticPk;
+    return pickSnapshotPeriodKeyLegacy(grid, mockKey, granularity, latestQuarterCandidates, yearPeriodRows);
+  }
+
+  const ranked = listFundamentalPeriodKeysByEndDateDesc(
+    grid,
+    mockKey,
+    granularity,
+    eligibleQuarterKeys
+  );
+  if (ranked.length > 0) return ranked[0];
+  return pickSnapshotPeriodKeyLegacy(grid, mockKey, granularity, latestQuarterCandidates, yearPeriodRows);
+}
+
+/** 포트폴리오 요약용 — 선택 종목 그리드 전체에서 마감일 최신 periodKey */
+export function pickPortfolioSnapshotPeriodKey(
+  getGridForStock: (mockKey: string) => DartFundamentalsGrid | null | undefined,
+  mockKeys: string[],
+  granularity: 'year' | 'quarter',
+  latestQuarterCandidates: string[],
+  yearPeriodRows: Array<{ periodKey: string }>,
+  pickContext?: FundamentalsSnapshotPickContext
+): string | null {
+  const ref = pickContext?.referenceDate ?? new Date();
+  const qy = pickContext?.quarterYear ?? ref.getFullYear();
+  const candidateDepth = Math.max(12, latestQuarterCandidates.length);
+  const eligibleQuarterKeys =
+    granularity === 'quarter'
+      ? snapshotSelectionQuarterKeySet(ref, qy, candidateDepth)
+      : undefined;
+  const merged = new Map<string, RankedFundamentalsPeriod>();
+
+  for (const mk of mockKeys) {
+    const grid = getGridForStock(mk);
+    if (!grid) continue;
+    for (const pk of Object.keys(grid)) {
+      if (!periodKeyMatchesGranularity(pk, granularity)) continue;
+      if (granularity === 'quarter' && eligibleQuarterKeys != null && !eligibleQuarterKeys.has(pk)) {
+        continue;
+      }
+      const b = grid[pk]?.[mk];
+      if (!cellHasFundamentalsData(b)) continue;
+      const end = fundamentalsPeriodEndUtcMs(mk, pk, b, granularity);
+      if (end == null) continue;
+      const prev = merged.get(pk);
+      if (!prev) {
+        merged.set(pk, {
+          pk,
+          end,
+          hasRev: cellHasRevenue(b),
+          hasNet: cellHasNetIncome(b),
+        });
+      } else {
+        prev.end = Math.max(prev.end, end);
+        prev.hasRev = prev.hasRev || cellHasRevenue(b);
+        prev.hasNet = prev.hasNet || cellHasNetIncome(b);
+      }
+    }
+  }
+
+  const ranked = [...merged.values()].sort(compareRankedFundamentalsPeriods);
+  if (ranked.length > 0) return ranked[0].pk;
+  return pickSnapshotPeriodKeyLegacy(
+    getGridForStock(mockKeys[0] ?? '') ?? {},
+    mockKeys[0] ?? '',
+    granularity,
+    latestQuarterCandidates,
+    yearPeriodRows
+  );
+}
+
 export function buildPerNetIncomeSearchPeriodKeys(
+  grid: DartFundamentalsGrid,
+  mockKey: string,
   granularity: 'year' | 'quarter',
   snapshotPeriodKey: string,
   latestQuarterCandidates: string[],
-  yearPeriodRows: Array<{ periodKey: string }>
+  yearPeriodRows: Array<{ periodKey: string }>,
+  pickContext?: FundamentalsSnapshotPickContext
 ): string[] {
+  const ref = pickContext?.referenceDate ?? new Date();
+  const qy = pickContext?.quarterYear ?? ref.getFullYear();
+  const candidateDepth = Math.max(12, latestQuarterCandidates.length);
+  const eligibleQuarterKeys =
+    granularity === 'quarter'
+      ? snapshotSelectionQuarterKeySet(ref, qy, candidateDepth)
+      : undefined;
+  const sorted = listFundamentalPeriodKeysByEndDateDesc(
+    grid,
+    mockKey,
+    granularity,
+    eligibleQuarterKeys
+  );
   if (granularity === 'year') {
     const ys = yearPeriodRows.map((r) => r.periodKey);
-    return [...new Set([snapshotPeriodKey, ...ys])];
+    return [...new Set([snapshotPeriodKey, ...sorted, ...ys])];
   }
-  return [...new Set([snapshotPeriodKey, ...latestQuarterCandidates])];
+  return [...new Set([snapshotPeriodKey, ...sorted, ...latestQuarterCandidates])];
 }
 
 function resolveNetIncomeWon(
@@ -266,7 +514,8 @@ export function applyFundamentalsSnapshotFromGrid(
   mockKey: string,
   granularity: 'year' | 'quarter',
   latestQuarterCandidates: string[],
-  yearPeriodRows: Array<{ periodKey: string }>
+  yearPeriodRows: Array<{ periodKey: string }>,
+  pickContext?: FundamentalsSnapshotPickContext
 ): {
   snapshotPk: string;
   netIncomeWon: number | null;
@@ -282,14 +531,24 @@ export function applyFundamentalsSnapshotFromGrid(
 } | null {
   if (!gridHasAnyFundamentals(grid, mockKey)) return null;
 
-  const snapshotPk = pickSnapshotPeriodKey(grid, mockKey, granularity, latestQuarterCandidates, yearPeriodRows);
+  const snapshotPk = pickSnapshotPeriodKey(
+    grid,
+    mockKey,
+    granularity,
+    latestQuarterCandidates,
+    yearPeriodRows,
+    pickContext
+  );
   if (snapshotPk == null) return null;
 
   const searchKeys = buildPerNetIncomeSearchPeriodKeys(
+    grid,
+    mockKey,
     granularity,
     snapshotPk,
     latestQuarterCandidates,
-    yearPeriodRows
+    yearPeriodRows,
+    pickContext
   );
   const net = resolveNetIncomeWon(grid, mockKey, searchKeys);
   const rev = resolveRevenue(grid, mockKey, searchKeys);

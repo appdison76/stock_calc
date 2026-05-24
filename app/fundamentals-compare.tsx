@@ -61,6 +61,10 @@ import { buildYahooFundamentalsGridColumn } from '../src/services/yahooFundament
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
 import { SettingsService, type FundamentalsCompareSelectionPersisted, type OpScenarioPersistUnit } from '../src/services/SettingsService';
+import {
+  pickPortfolioSnapshotPeriodKey,
+  pickSnapshotPeriodKey,
+} from '../src/lib/capFundamentalsGridResolve';
 
 /** 해외 실적 컬럼 동시 조회 상한 — 무제한 병렬은 Yahoo 차단·메모리 스파이크 위험 */
 const YAHOO_FUNDAMENTALS_FOREIGN_CONCURRENCY = 4;
@@ -653,7 +657,7 @@ export default function FundamentalsCompareScreen() {
 
   /**
    * 상단 시총·PER·실적 요약에 쓰는 실적 기준 기간(국내 DART / 해외 Yahoo 손익).
-   * 연도·분기 모두 **매출이 있는 기간을 최우선**(손익보다 먼저 채워지는 경우가 많음) → 순이익 → 기타 실적.
+   * 선택 종목 그리드에서 **마감일이 가장 늦은** periodKey.
    */
   const dartCapTableSnapshotPeriodKey = useMemo(() => {
     const yearFallback =
@@ -663,161 +667,45 @@ export default function FundamentalsCompareScreen() {
       return granularity === 'year' ? yearFallback : quarterFallback;
     }
 
-    const cellAt = (pk: string, mockKey: string): DartCellBundle | undefined => {
+    const getGridForStock = (mockKey: string): DartFundamentalsGrid | null | undefined => {
       const dom = /^\d{6}$/.test(mockKey);
-      if (dom) return dartGrid?.[pk]?.[mockKey];
-      return yahooGrid?.[pk]?.[mockKey];
+      return dom ? dartGrid : yahooGrid;
     };
 
-    const hasNetIncome = (pk: string): boolean => {
-      for (const row of selectedRows) {
-        const c = cellAt(pk, row.mockKey);
-        if (c?.netIncomeWon != null && Number.isFinite(c.netIncomeWon)) return true;
-      }
-      return false;
-    };
+    return (
+      pickPortfolioSnapshotPeriodKey(
+        getGridForStock,
+        selectedRows.map((r) => r.mockKey),
+        granularity,
+        latestQuarterCandidates,
+        yearPeriodRows,
+        { quarterYear }
+      ) ?? (granularity === 'year' ? yearFallback : quarterFallback)
+    );
+  }, [dartGrid, yahooGrid, granularity, latestQuarterCandidates, selectedRows, yearPeriodRows, quarterYear]);
 
-    const hasRevenue = (pk: string): boolean => {
-      for (const row of selectedRows) {
-        const c = cellAt(pk, row.mockKey);
-        if (c?.revenueKr != null && c.revenueKr !== '—') return true;
-      }
-      return false;
-    };
-
-    const hasAnyFs = (pk: string): boolean => {
-      for (const row of selectedRows) {
-        const c = cellAt(pk, row.mockKey);
-        if (
-          c &&
-          (c.revenueKr !== '—' ||
-            (c.netIncomeWon != null && Number.isFinite(c.netIncomeWon)) ||
-            c.operatingIncomeKr !== '—')
-        ) {
-          return true;
-        }
-      }
-      return false;
-    };
-
-    if (granularity === 'year') {
-      for (const r of yearPeriodRows) {
-        if (hasRevenue(r.periodKey)) return r.periodKey;
-      }
-      for (const r of yearPeriodRows) {
-        if (hasNetIncome(r.periodKey)) return r.periodKey;
-      }
-      for (const r of yearPeriodRows) {
-        if (hasAnyFs(r.periodKey)) return r.periodKey;
-      }
-      return yearFallback;
-    }
-
-    for (const pk of latestQuarterCandidates) {
-      if (hasRevenue(pk)) return pk;
-    }
-    for (const pk of latestQuarterCandidates) {
-      if (hasNetIncome(pk)) return pk;
-    }
-    for (const pk of latestQuarterCandidates) {
-      if (hasAnyFs(pk)) return pk;
-    }
-    return quarterFallback;
-  }, [dartGrid, yahooGrid, granularity, latestQuarterCandidates, selectedRows, yearPeriodRows]);
-
-  /** 종목별 실적 스냅샷 키 — `dartCapTableSnapshotPeriodKey`와 동일 규칙을 종목 하나에만 적용 */
+  /** 종목별 실적 스냅샷 키 — 그리드에 있는 데이터 중 마감일 최신 */
   const capSummaryPeriodKeyByStock = useMemo(() => {
     const yearFallback =
       yearPeriodRows[0]?.periodKey ?? String(fundamentalsDefaultPreviousCalendarYear(new Date()));
     const quarterFallback = latestQuarterCandidates[0] ?? '2025Q4';
 
-    const cellAt = (pk: string, mockKey: string): DartCellBundle | undefined => {
-      const dom = /^\d{6}$/.test(mockKey);
-      if (dom) return dartGrid?.[pk]?.[mockKey];
-      return yahooGrid?.[pk]?.[mockKey];
-    };
-
-    const hasNetIncomeOne = (pk: string, mockKey: string): boolean => {
-      const c = cellAt(pk, mockKey);
-      return c?.netIncomeWon != null && Number.isFinite(c.netIncomeWon);
-    };
-
-    const hasRevenueOne = (pk: string, mockKey: string): boolean => {
-      const c = cellAt(pk, mockKey);
-      return c?.revenueKr != null && c.revenueKr !== '—';
-    };
-
-    const hasAnyFsOne = (pk: string, mockKey: string): boolean => {
-      const c = cellAt(pk, mockKey);
-      return !!(
-        c &&
-        (c.revenueKr !== '—' ||
-          (c.netIncomeWon != null && Number.isFinite(c.netIncomeWon)) ||
-          c.operatingIncomeKr !== '—')
-      );
-    };
-
     const out: Record<string, string> = {};
     for (const row of selectedRows) {
       const mk = row.mockKey;
-      if (!dartGrid && !yahooGrid) {
+      const dom = /^\d{6}$/.test(mk);
+      const grid = dom ? dartGrid : yahooGrid;
+      if (!grid) {
         out[mk] = granularity === 'year' ? yearFallback : quarterFallback;
         continue;
       }
-      if (granularity === 'year') {
-        let pk: string | null = null;
-        for (const r of yearPeriodRows) {
-          if (hasRevenueOne(r.periodKey, mk)) {
-            pk = r.periodKey;
-            break;
-          }
-        }
-        if (!pk) {
-          for (const r of yearPeriodRows) {
-            if (hasNetIncomeOne(r.periodKey, mk)) {
-              pk = r.periodKey;
-              break;
-            }
-          }
-        }
-        if (!pk) {
-          for (const r of yearPeriodRows) {
-            if (hasAnyFsOne(r.periodKey, mk)) {
-              pk = r.periodKey;
-              break;
-            }
-          }
-        }
-        out[mk] = pk ?? yearFallback;
-      } else {
-        let pk: string | null = null;
-        for (const cand of latestQuarterCandidates) {
-          if (hasRevenueOne(cand, mk)) {
-            pk = cand;
-            break;
-          }
-        }
-        if (!pk) {
-          for (const cand of latestQuarterCandidates) {
-            if (hasNetIncomeOne(cand, mk)) {
-              pk = cand;
-              break;
-            }
-          }
-        }
-        if (!pk) {
-          for (const cand of latestQuarterCandidates) {
-            if (hasAnyFsOne(cand, mk)) {
-              pk = cand;
-              break;
-            }
-          }
-        }
-        out[mk] = pk ?? quarterFallback;
-      }
+      out[mk] =
+        pickSnapshotPeriodKey(grid, mk, granularity, latestQuarterCandidates, yearPeriodRows, {
+          quarterYear,
+        }) ?? (granularity === 'year' ? yearFallback : quarterFallback);
     }
     return out;
-  }, [dartGrid, yahooGrid, granularity, latestQuarterCandidates, selectedRows, yearPeriodRows]);
+  }, [dartGrid, yahooGrid, granularity, latestQuarterCandidates, selectedRows, yearPeriodRows, quarterYear]);
 
   /** PER 순이익 탐색 순서(연도 모드=최근 연도 우선, 분기=최근 분기 우선) */
   const perNetIncomeSearchPeriodKeys = useMemo(() => {
