@@ -6,7 +6,7 @@ import Constants from 'expo-constants';
 const GITHUB_PAGES_URL = 'https://appdison76.github.io/stock_calc/min-version.json';
 
 // Fallback 최소 필수 버전 (서버 접근 실패 시 사용)
-const FALLBACK_MIN_REQUIRED_VERSION = '1.4.0';
+const FALLBACK_MIN_REQUIRED_VERSION = '1.4.1';
 
 // Google Play Store URL (패키지명으로 변경 필요)
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.neovisioning.stockcalc';
