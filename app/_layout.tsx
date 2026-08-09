@@ -17,10 +17,13 @@ import { getNotificationToken, setupNotificationListeners, saveNotificationToLoc
 import { initializeFirebase } from '../src/services/FirebaseService';
 import { checkAllNotifications } from '../src/services/NotificationCheckService';
 import { initDatabase } from '../src/services/DatabaseService';
+import { AppOpenAdController } from '../src/components/AppOpenAdController';
 
 export default function RootLayout() {
   const router = useRouter();
   const [forceUpdateVisible, setForceUpdateVisible] = useState(false);
+  const [adsReady, setAdsReady] = useState(false);
+  const [versionCheckDone, setVersionCheckDone] = useState(false);
   const [versionInfo, setVersionInfo] = useState<{
     currentVersion: string;
     requiredVersion: string;
@@ -61,6 +64,7 @@ export default function RootLayout() {
       } else {
         console.log('[Version Check] Skipping version check (not a release build - nativeVersion is null/undefined)');
       }
+      setVersionCheckDone(true);
     };
     
     checkVersion();
@@ -82,6 +86,9 @@ export default function RootLayout() {
       })
       .catch(error => {
         console.error('Google Mobile Ads initialization error:', error);
+      })
+      .finally(() => {
+        setAdsReady(true);
       });
 
     // 알림 초기화 (Firebase 초기화 후 실행)
@@ -318,6 +325,9 @@ export default function RootLayout() {
   return (
     <>
       <StatusBar style="light" />
+      <AppOpenAdController
+        enabled={adsReady && versionCheckDone && !forceUpdateVisible}
+      />
       {versionInfo && (
         <ForceUpdateModal
           visible={forceUpdateVisible}
