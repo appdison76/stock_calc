@@ -18,6 +18,7 @@ import { CalculationResultCard } from '../src/components/CalculationResultCard';
 import { SharedResultSection } from '../src/components/SharedResultSection';
 import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
 import { CompoundStepTable } from '../src/components/baseCompound/CompoundStepTable';
+import { PathTimeline } from '../src/components/baseCompound/PathTimeline';
 import { baseCompoundStyles as s } from '../src/components/baseCompound/baseCompoundStyles';
 import {
   calcBaseRecovery,
@@ -35,6 +36,7 @@ import {
   type BaseRecoveryFieldStrings,
   type CompoundStepsResult,
   type ContinuousScenarioResult,
+  type CompoundStepRow,
 } from '../src/lib/baseCompoundCalc';
 import { addCommas, formatCurrency } from '../src/utils/formatUtils';
 import { togglePlainPercentSign } from '../src/utils/percentSignToggle';
@@ -652,6 +654,7 @@ export default function BaseCompoundCalculatorView() {
                   />
                 ) : null}
               </View>
+              <Text style={s.stepTableSectionTitle}>단계별 상세</Text>
               <CompoundStepTable steps={result.steps} currency={selectedCurrency} />
               {result.breakevenToStartPct != null ? (
                 <View style={s.insightBox}>
@@ -670,6 +673,79 @@ export default function BaseCompoundCalculatorView() {
           </SharedResultSection>
         )}
       </>
+    );
+  };
+
+  const renderPathResultBody = (
+    drops: CompoundStepsResult,
+    options?: { recoveryStep?: CompoundStepRow; recoveryMultiplier?: number },
+  ) => {
+    const recoveryStep = options?.recoveryStep;
+    const recoveryMultiplier = options?.recoveryMultiplier;
+
+    return (
+    <>
+      <PathTimeline
+        start={drops.start}
+        steps={drops.steps}
+        currency={selectedCurrency}
+        recoveryStep={recoveryStep}
+      />
+      <View style={s.resultGrid}>
+        {!recoveryStep ? (
+          <>
+            <CalculationResultCard
+              title="변동 후 가격"
+              value={formatCurrency(drops.final, selectedCurrency)}
+            />
+            <CalculationResultCard
+              title="경로 누적"
+              value={signedPctDisplay(drops.totalPct)}
+              valueColor={drops.totalPct >= 0 ? '#66BB6A' : '#EF5350'}
+            />
+            <CalculationResultCard
+              title="배수"
+              value={`${formatMultiplierDisplay(drops.multiplier)}배`}
+            />
+            {drops.breakevenToStartPct != null ? (
+              <CalculationResultCard
+                title="원래가까지"
+                value={signedPctDisplay(drops.breakevenToStartPct)}
+                valueColor="#FFB74D"
+                icon="↩"
+              />
+            ) : null}
+          </>
+        ) : (
+          <>
+            <CalculationResultCard
+              title="변동 후 가격"
+              value={formatCurrency(drops.final, selectedCurrency)}
+            />
+            <CalculationResultCard
+              title="경로 누적"
+              value={signedPctDisplay(drops.totalPct)}
+              valueColor={drops.totalPct >= 0 ? '#66BB6A' : '#EF5350'}
+            />
+            <CalculationResultCard
+              title="최종 가격까지"
+              value={signedPctDisplay(recoveryStep.stepPct)}
+              valueColor={recoveryStep.stepPct >= 0 ? '#66BB6A' : '#EF5350'}
+            />
+            <CalculationResultCard
+              title="변동 후→최종 배수"
+              value={`${formatMultiplierDisplay(recoveryMultiplier ?? recoveryStep.priceAfter / drops.final)}배`}
+            />
+          </>
+        )}
+      </View>
+      <Text style={s.stepTableSectionTitle}>단계별 상세</Text>
+      <CompoundStepTable
+        steps={drops.steps}
+        currency={selectedCurrency}
+        recoveryStep={recoveryStep}
+      />
+    </>
     );
   };
 
@@ -747,7 +823,7 @@ export default function BaseCompoundCalculatorView() {
             style={[s.modeChip, pathTargetMode === 'percent' && s.modeChipActive]}
             onPress={() => setPathTargetMode('percent')}
           >
-            <Text style={[s.modeChipText, pathTargetMode === 'percent' && s.modeChipTextActive]}>변동 후 대비 +%</Text>
+            <Text style={[s.modeChipText, pathTargetMode === 'percent' && s.modeChipTextActive]}>변동 후 최종 %</Text>
           </TouchableOpacity>
         </View>
         {pathTargetMode === 'price' ? (
@@ -769,10 +845,10 @@ export default function BaseCompoundCalculatorView() {
           </>
         ) : pathTargetMode === 'percent' ? (
           renderPercentField(
-            '변동 후 대비 최종까지 (%)',
+            '변동 후 → 최종 (%)',
             pathProfitPct,
             (t) => handlePctInput(t, setPathProfitPct),
-            '변동 후 가격에서 최종까지 추가로 오를 %',
+            '경로 끝(변동 후) 가격에서 최종까지의 %',
           )
         ) : null}
       </View>
@@ -781,94 +857,12 @@ export default function BaseCompoundCalculatorView() {
         <SharedResultSection onTextShare={handleTextShare}>
           <View style={s.card}>
             <Text style={s.cardTitle}>경로 타임라인</Text>
-            {pathResult.kind === 'pathOnly' ? (
-              <>
-                <Text style={s.timelineText}>
-                  {formatCurrency(pathResult.drops.start, selectedCurrency)}
-                </Text>
-                {pathResult.drops.steps.map((step) => (
-                  <React.Fragment key={step.index}>
-                    <Text style={[s.helperText, { textAlign: 'center', marginTop: 0 }]}>
-                      ↓ {step.index} {signedPctDisplay(step.stepPct)}
-                    </Text>
-                    <Text style={s.timelineText}>
-                      {formatCurrency(step.priceAfter, selectedCurrency)}
-                    </Text>
-                  </React.Fragment>
-                ))}
-                <View style={s.resultGrid}>
-                  <CalculationResultCard
-                    title="변동 후 가격"
-                    value={formatCurrency(pathResult.drops.final, selectedCurrency)}
-                  />
-                  <CalculationResultCard
-                    title="경로 누적"
-                    value={signedPctDisplay(pathResult.drops.totalPct)}
-                    valueColor={pathResult.drops.totalPct >= 0 ? '#66BB6A' : '#EF5350'}
-                  />
-                  <CalculationResultCard
-                    title="배수"
-                    value={`${formatMultiplierDisplay(pathResult.drops.multiplier)}배`}
-                  />
-                  {pathResult.drops.breakevenToStartPct != null ? (
-                    <CalculationResultCard
-                      title="원래가까지"
-                      value={signedPctDisplay(pathResult.drops.breakevenToStartPct)}
-                      valueColor="#FFB74D"
-                      icon="↩"
-                    />
-                  ) : null}
-                </View>
-                <CompoundStepTable steps={pathResult.drops.steps} currency={selectedCurrency} />
-              </>
-            ) : (
-              <>
-                <Text style={s.timelineText}>
-                  {formatCurrency(pathResult.scenario.drops.start, selectedCurrency)}
-                </Text>
-                {pathResult.scenario.drops.steps.map((step) => (
-                  <React.Fragment key={step.index}>
-                    <Text style={[s.helperText, { textAlign: 'center', marginTop: 0 }]}>
-                      ↓ {step.index} {signedPctDisplay(step.stepPct)}
-                    </Text>
-                    <Text style={s.timelineText}>
-                      {formatCurrency(step.priceAfter, selectedCurrency)}
-                    </Text>
-                  </React.Fragment>
-                ))}
-                <Text style={[s.helperText, { textAlign: 'center', marginTop: 0 }]}>
-                  ↑ 최종 가격까지 {signedPctDisplay(pathResult.scenario.recoveryPct)}
-                </Text>
-                <Text style={s.timelineText}>
-                  {formatCurrency(pathResult.scenario.target, selectedCurrency)}
-                </Text>
-                <View style={s.resultGrid}>
-                  <CalculationResultCard
-                    title="변동 후 가격"
-                    value={formatCurrency(pathResult.scenario.bottom, selectedCurrency)}
-                  />
-                  <CalculationResultCard
-                    title="경로 누적"
-                    value={signedPctDisplay(pathResult.scenario.drops.totalPct)}
-                    valueColor={pathResult.scenario.drops.totalPct >= 0 ? '#66BB6A' : '#EF5350'}
-                  />
-                  <CalculationResultCard
-                    title="최종 가격까지"
-                    value={signedPctDisplay(pathResult.scenario.recoveryPct)}
-                    valueColor={pathResult.scenario.recoveryPct >= 0 ? '#66BB6A' : '#EF5350'}
-                  />
-                  <CalculationResultCard
-                    title="변동 후→최종 배수"
-                    value={`${formatMultiplierDisplay(pathResult.scenario.multiplier)}배`}
-                  />
-                </View>
-                <CompoundStepTable
-                  steps={pathResult.scenario.drops.steps}
-                  currency={selectedCurrency}
-                  recoveryStep={buildRecoveryStepRow(pathResult.scenario)}
-                />
-              </>
-            )}
+            {pathResult.kind === 'pathOnly'
+              ? renderPathResultBody(pathResult.drops)
+              : renderPathResultBody(pathResult.scenario.drops, {
+                  recoveryStep: buildRecoveryStepRow(pathResult.scenario),
+                  recoveryMultiplier: pathResult.scenario.multiplier,
+                })}
           </View>
         </SharedResultSection>
       )}

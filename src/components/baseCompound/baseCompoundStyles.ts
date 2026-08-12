@@ -158,8 +158,15 @@ export const baseCompoundStyles = StyleSheet.create({
     fontWeight: '600',
   },
   stepTable: {
-    marginTop: 8,
+    marginTop: 0,
     marginBottom: 8,
+  },
+  stepTableSectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#90CAF9',
+    marginTop: 12,
+    marginBottom: 6,
   },
   stepHeader: {
     flexDirection: 'row',
@@ -339,6 +346,117 @@ export const baseCompoundStyles = StyleSheet.create({
     color: '#90CAF9',
     fontSize: 13,
     fontWeight: '600',
+  },
+  pathTimeline: {
+    marginBottom: 12,
+    paddingVertical: 4,
+  },
+  pathTimelineNodeRow: {
+    flexDirection: 'row',
+    minHeight: 72,
+  },
+  pathTimelineConnectorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 36,
+  },
+  pathTimelineRailCol: {
+    width: 28,
+    alignItems: 'center',
+    alignSelf: 'stretch',
+  },
+  pathTimelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    backgroundColor: '#121212',
+  },
+  pathTimelineDotStart: {
+    borderColor: '#42A5F5',
+    backgroundColor: 'rgba(66, 165, 245, 0.35)',
+  },
+  pathTimelineDotStep: {
+    borderColor: '#78909C',
+  },
+  pathTimelineDotRecovery: {
+    borderColor: '#FFB74D',
+  },
+  pathTimelineDotFinal: {
+    borderColor: '#FFB74D',
+    backgroundColor: 'rgba(255, 183, 77, 0.25)',
+  },
+  pathTimelineLine: {
+    width: 2,
+    flex: 1,
+    minHeight: 20,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  pathTimelineLineFlex: {
+    width: 2,
+    flex: 1,
+    minHeight: 24,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  pathTimelinePctChip: {
+    flex: 1,
+    marginLeft: 8,
+    marginVertical: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(51, 51, 51, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    alignSelf: 'flex-start',
+  },
+  pathTimelinePctChipRecovery: {
+    borderColor: 'rgba(255, 183, 77, 0.35)',
+    backgroundColor: 'rgba(255, 183, 77, 0.08)',
+  },
+  pathTimelinePctChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  pathTimelineCard: {
+    flex: 1,
+    marginLeft: 8,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(51, 51, 51, 0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  pathTimelineCardStart: {
+    borderColor: 'rgba(66, 165, 245, 0.35)',
+    backgroundColor: 'rgba(66, 165, 245, 0.08)',
+  },
+  pathTimelineCardFinal: {
+    borderColor: 'rgba(255, 183, 77, 0.4)',
+    backgroundColor: 'rgba(255, 183, 77, 0.08)',
+  },
+  pathTimelineCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 8,
+  },
+  pathTimelineLabel: {
+    fontSize: 12,
+    color: '#90CAF9',
+    fontWeight: '700',
+  },
+  pathTimelineCumulative: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  pathTimelinePrice: {
+    fontSize: 17,
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
   disclaimer: {
     fontSize: 11,
