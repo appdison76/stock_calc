@@ -2117,10 +2117,7 @@ export default function FundamentalsCompareScreen() {
             <View style={styles.sectionCard}>
             <Text style={styles.sectionHeading}>시총·PER·실적 요약</Text>
             <Text style={styles.sheetLead}>
-              {granularity === 'year'
-                ? '연 실적 기준. PER·POR·PSR 분모는 연간 이익·매출.'
-                : '분기 금액 표시. PER·POR·PSR은 ×4 연율.'}{' '}
-              {fundamentalsValuationFormulasLine(granularity)}. 출처는 숫자 아래.
+              {granularity === 'year' ? '연 실적 기준.' : '분기 금액 표시.'} 출처는 숫자 아래.
               {hasForeignSelected ? ' 해외: Yahoo 구간' : ''}
               {hasDomesticSelected ? ' · 국내: DART' : ''}
             </Text>
