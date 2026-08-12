@@ -252,6 +252,15 @@ function formatPorFromCapAndOp(marketCapWon: number | null, operatingIncomeWon: 
   return formatRatioLocale(por);
 }
 
+function formatPbrFromCapAndEquity(marketCapWon: number | null, equityWon: number | null): string {
+  if (marketCapWon == null || !Number.isFinite(marketCapWon)) return '—';
+  if (equityWon == null || !Number.isFinite(equityWon)) return '—';
+  if (equityWon <= 0) return '—';
+  const pbr = marketCapWon / equityWon;
+  if (!Number.isFinite(pbr) || pbr <= 0) return '—';
+  return formatRatioLocale(pbr);
+}
+
 /**
  * 분기 모드: DART 분기 순이익·영업이익을 연율화(×4)한 값으로 PER/POR 분모에 사용.
  * 연도 모드: 연간 실적 그대로.
@@ -321,10 +330,11 @@ function formatPorFromQuarterlyOpEok(capWon: number | null, quarterlyOpEok: numb
   return formatRatioLocale(por);
 }
 
-const CAP_PER_TABLE_ROWS: { id: 'cap' | 'por' | 'per' | 'net' | 'op' | 'rev'; label: string }[] = [
+const CAP_PER_TABLE_ROWS: { id: 'cap' | 'por' | 'per' | 'pbr' | 'net' | 'op' | 'rev'; label: string }[] = [
   { id: 'cap', label: '시가총액' },
   { id: 'por', label: 'POR' },
   { id: 'per', label: 'PER' },
+  { id: 'pbr', label: 'PBR' },
   { id: 'rev', label: '매출' },
   { id: 'op', label: '영업이익' },
   { id: 'net', label: '당기순이익' },
@@ -1428,7 +1438,7 @@ export default function FundamentalsCompareScreen() {
 
   const resolveCapSummaryTableCell = useCallback(
     (
-      rowId: 'cap' | 'por' | 'per' | 'net' | 'op' | 'rev',
+      rowId: 'cap' | 'por' | 'per' | 'pbr' | 'net' | 'op' | 'rev',
       s: DedupedStockRow
     ): { text: string; hint: string | null } => {
       const k = s.mockKey;
@@ -1540,6 +1550,32 @@ export default function FundamentalsCompareScreen() {
         return null;
       };
 
+      const pickEquityPk = (): string | null => {
+        if (!grid) return null;
+        const eH = headlineBundle?.equityWon;
+        if (eH != null && Number.isFinite(eH)) return headlinePk;
+        if (!headlineHasAny) return null;
+        for (const pk of orderedKeys) {
+          if (pk === headlinePk) continue;
+          const e = grid[pk]?.[k]?.equityWon;
+          if (e != null && Number.isFinite(e)) return pk;
+        }
+        return null;
+      };
+
+      const equityWonForPbr = (): number | null => {
+        if (!grid) return null;
+        const eH = headlineBundle?.equityWon;
+        if (eH != null && Number.isFinite(eH)) return eH;
+        if (!headlineHasAny) return null;
+        for (const pk of orderedKeys) {
+          if (pk === headlinePk) continue;
+          const e = grid[pk]?.[k]?.equityWon;
+          if (e != null && Number.isFinite(e)) return e;
+        }
+        return null;
+      };
+
       const revenueKrForSummary = (): string => {
         if (!grid) return '—';
         const pk = pickRevPk();
@@ -1593,6 +1629,16 @@ export default function FundamentalsCompareScreen() {
           return {
             text: net != null ? formatPerFromCapAndNet(capWon, net) : '—',
             hint: hintIfDifferent(netPk),
+          };
+        }
+        case 'pbr': {
+          const eqPk = pickEquityPk();
+          const eqRaw = equityWonForPbr();
+          const sc = scaleAtPk(eqPk);
+          const eqAdj = eqRaw != null && Number.isFinite(eqRaw) ? eqRaw * sc : null;
+          return {
+            text: eqAdj != null ? formatPbrFromCapAndEquity(capWon, eqAdj) : '—',
+            hint: hintIfDifferent(eqPk),
           };
         }
         case 'net': {
@@ -1998,7 +2044,7 @@ export default function FundamentalsCompareScreen() {
                 ? '연 실적 기준. PER·POR 분모도 연간 이익.'
                 : '분기 금액 표시, PER·POR은 분기 이익×4(연율).'}
               {' '}
-              PER=시총÷당기순이익, POR=시총÷영업이익. 출처는 숫자 아래.
+              PER=시총÷당기순이익, POR=시총÷영업이익, PBR=시총÷순자산(자본). 출처는 숫자 아래.
               {hasForeignSelected ? ' 해외: Yahoo 구간' : ''}
               {hasDomesticSelected ? ' · 국내: DART' : ''}
             </Text>
@@ -2056,8 +2102,8 @@ export default function FundamentalsCompareScreen() {
             </ScrollView>
             <Text style={styles.tableHintMuted}>
               {granularity === 'year'
-                ? '시총·조회 시점. POR·PER 분모는 연간 이익.'
-                : '시총·조회 시점. PER·POR은 이익×4 연율.'}
+                ? '시총·조회 시점. POR·PER 분모는 연간 이익. PBR 분모는 연말 순자산.'
+                : '시총·조회 시점. PER·POR은 이익×4 연율. PBR은 해당 분기 순자산.'}
             </Text>
             </View>
 

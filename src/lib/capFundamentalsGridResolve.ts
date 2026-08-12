@@ -44,6 +44,16 @@ export function formatPorFromCapAndOp(marketCapWon: number | null, operatingInco
   return formatRatioLocale(por);
 }
 
+/** PBR = 시가총액 ÷ 순자산(자본). 연율화 없음. */
+export function formatPbrFromCapAndEquity(marketCapWon: number | null, equityWon: number | null): string {
+  if (marketCapWon == null || !Number.isFinite(marketCapWon)) return '—';
+  if (equityWon == null || !Number.isFinite(equityWon)) return '—';
+  if (equityWon <= 0) return '—';
+  const pbr = marketCapWon / equityWon;
+  if (!Number.isFinite(pbr) || pbr <= 0) return '—';
+  return formatRatioLocale(pbr);
+}
+
 export type OpScenarioUnit = 'jo' | 'eok' | 'cheonman' | 'baekman';
 
 export const OP_SCENARIO_UNITS: { id: OpScenarioUnit; label: string }[] = [
@@ -495,6 +505,18 @@ function resolveOperatingIncome(
   return { kr: null, won: null, periodKey: null };
 }
 
+function resolveEquityWon(
+  grid: DartFundamentalsGrid,
+  mockKey: string,
+  searchKeys: string[]
+): { value: number | null; periodKey: string | null } {
+  for (const pk of searchKeys) {
+    const eq = cellAt(grid, pk, mockKey)?.equityWon;
+    if (eq != null && Number.isFinite(eq)) return { value: eq, periodKey: pk };
+  }
+  return { value: null, periodKey: null };
+}
+
 function metricPeriodSuffixFromGrid(
   grid: DartFundamentalsGrid,
   mockKey: string,
@@ -520,14 +542,17 @@ export function applyFundamentalsSnapshotFromGrid(
   snapshotPk: string;
   netIncomeWon: number | null;
   operatingIncomeWon: number | null;
+  equityWon: number | null;
   revenueWon: number | null;
   revenueKr: string;
   operatingIncomeKr: string;
   netIncomeKr: string;
+  equityKr: string;
   fsPeriodLabel: string | null;
   revenuePeriodSuffix: string | null;
   operatingPeriodSuffix: string | null;
   netIncomePeriodSuffix: string | null;
+  equityPeriodSuffix: string | null;
 } | null {
   if (!gridHasAnyFundamentals(grid, mockKey)) return null;
 
@@ -553,27 +578,34 @@ export function applyFundamentalsSnapshotFromGrid(
   const net = resolveNetIncomeWon(grid, mockKey, searchKeys);
   const rev = resolveRevenue(grid, mockKey, searchKeys);
   const op = resolveOperatingIncome(grid, mockKey, searchKeys);
+  const eq = resolveEquityWon(grid, mockKey, searchKeys);
 
   const hasResolved =
     (net.value != null && Number.isFinite(net.value)) ||
     (rev.kr != null && rev.kr !== '—') ||
-    (op.won != null && Number.isFinite(op.won));
+    (op.won != null && Number.isFinite(op.won)) ||
+    (eq.value != null && Number.isFinite(eq.value));
   if (!hasResolved) return null;
 
   const netKr = net.value != null && Number.isFinite(net.value) ? formatWonShortKr(net.value) : '—';
+  const equityKr =
+    eq.value != null && Number.isFinite(eq.value) ? formatWonShortKr(eq.value) : '—';
 
   return {
     snapshotPk,
     netIncomeWon: net.value,
     operatingIncomeWon: op.won,
+    equityWon: eq.value,
     revenueWon: rev.won,
     revenueKr: rev.kr ?? '—',
     operatingIncomeKr: op.kr ?? '—',
     netIncomeKr: netKr,
+    equityKr,
     fsPeriodLabel: cellAt(grid, snapshotPk, mockKey)?.fsPeriodLabel ?? null,
     revenuePeriodSuffix: metricPeriodSuffixFromGrid(grid, mockKey, rev.periodKey, snapshotPk, granularity),
     operatingPeriodSuffix: metricPeriodSuffixFromGrid(grid, mockKey, op.periodKey, snapshotPk, granularity),
     netIncomePeriodSuffix: metricPeriodSuffixFromGrid(grid, mockKey, net.periodKey, snapshotPk, granularity),
+    equityPeriodSuffix: metricPeriodSuffixFromGrid(grid, mockKey, eq.periodKey, snapshotPk, granularity),
   };
 }
 

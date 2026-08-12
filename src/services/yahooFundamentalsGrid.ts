@@ -308,6 +308,18 @@ function extractUsdLine(row: Record<string, unknown>): {
   };
 }
 
+function extractEquityUsdFromBalanceRow(row: Record<string, unknown>): number | null {
+  const n =
+    readFirstNumericFromRow(row, [
+      'totalStockholderEquity',
+      'commonStockholdersEquity',
+      'stockholdersEquity',
+      'totalEquityGrossMinorityInterest',
+      'StockholdersEquity',
+    ]) ?? null;
+  return n != null && Number.isFinite(n) ? n : null;
+}
+
 /** 연결 재무제표가 표시하는 통화(ADR라도 본사 결산 통화가 TWD 등일 수 있음) */
 function extractStatementReportingCurrency(r0: Record<string, unknown> | undefined): string {
   if (r0 == null) return 'USD';
@@ -489,13 +501,15 @@ function bundleFromStatementCurrency(
   operatingStmt: number | null,
   netStmt: number | null,
   krwPerStmtUnit: number,
-  fsPeriodLabel?: string | null
+  fsPeriodLabel?: string | null,
+  equityStmt?: number | null
 ): DartCellBundle {
   const toWon = (raw: number | null) =>
     raw != null && Number.isFinite(raw) ? raw * krwPerStmtUnit : null;
   const revWon = toWon(revenueStmt);
   const opWon = toWon(operatingStmt);
   const netWon = toWon(netStmt);
+  const equityWon = toWon(equityStmt ?? null);
 
   return {
     revenueKr: revWon != null ? formatWonShortKr(revWon) : '—',
@@ -505,6 +519,8 @@ function bundleFromStatementCurrency(
     per: '—',
     netIncomeWon: netWon,
     operatingIncomeWon: opWon,
+    equityWon: equityWon != null && Number.isFinite(equityWon) ? equityWon : null,
+    equityKr: equityWon != null ? formatWonShortKr(equityWon) : '—',
     ...(fsPeriodLabel ? { fsPeriodLabel } : {}),
   };
 }
@@ -576,6 +592,8 @@ type YahooFundamentalsTimeseriesPayload = {
   annualOperating: TsPointEntry[];
   quarterlyRevenue: TsPointEntry[];
   annualRevenue: TsPointEntry[];
+  quarterlyEquity: TsPointEntry[];
+  annualEquity: TsPointEntry[];
 };
 
 /** 2000-01-01 UTC — 너무 짧은 period1이면 과거 달력 분기(예: 2024 Q1~3) 시계열이 비는 경우가 있음 */
@@ -605,6 +623,15 @@ function appendFundamentalsTimeseriesBlocks(
     if (typ === 'annualTotalRevenue' && Array.isArray(block.annualTotalRevenue)) {
       out.annualRevenue.push(...(block.annualTotalRevenue as TsPointEntry[]));
     }
+    if (typ === 'quarterlyStockholdersEquity' && Array.isArray(block.quarterlyStockholdersEquity)) {
+      out.quarterlyEquity.push(...(block.quarterlyStockholdersEquity as TsPointEntry[]));
+    }
+    if (typ === 'quarterlyCommonStockEquity' && Array.isArray(block.quarterlyCommonStockEquity)) {
+      out.quarterlyEquity.push(...(block.quarterlyCommonStockEquity as TsPointEntry[]));
+    }
+    if (typ === 'annualStockholdersEquity' && Array.isArray(block.annualStockholdersEquity)) {
+      out.annualEquity.push(...(block.annualStockholdersEquity as TsPointEntry[]));
+    }
   }
 }
 
@@ -622,19 +649,22 @@ async function fetchYahooFundamentalsTimeseriesMaps(symbol: string): Promise<Yah
     annualOperating: [],
     quarterlyRevenue: [],
     annualRevenue: [],
+    quarterlyEquity: [],
+    annualEquity: [],
   });
   try {
     const typesAll =
-      'quarterlyOperatingIncome,annualOperatingIncome,quarterlyTotalRevenue,annualTotalRevenue';
-    const [resAll, resQop, resQrev] = await Promise.all([
+      'quarterlyOperatingIncome,annualOperatingIncome,quarterlyTotalRevenue,annualTotalRevenue,quarterlyStockholdersEquity,annualStockholdersEquity';
+    const [resAll, resQop, resQrev, resQeq] = await Promise.all([
       fetch(`${base}&type=${encodeURIComponent(typesAll)}`, { headers: TS_FETCH_HEADERS }),
       fetch(`${base}&type=${encodeURIComponent('quarterlyOperatingIncome')}`, { headers: TS_FETCH_HEADERS }),
       fetch(`${base}&type=${encodeURIComponent('quarterlyTotalRevenue')}`, { headers: TS_FETCH_HEADERS }),
+      fetch(`${base}&type=${encodeURIComponent('quarterlyStockholdersEquity')}`, { headers: TS_FETCH_HEADERS }),
     ]);
 
     const out = empty();
     let anyOk = false;
-    for (const res of [resAll, resQop, resQrev]) {
+    for (const res of [resAll, resQop, resQrev, resQeq]) {
       if (!res.ok) continue;
       anyOk = true;
       const data = (await res.json()) as {
@@ -649,6 +679,7 @@ async function fetchYahooFundamentalsTimeseriesMaps(symbol: string): Promise<Yah
         statusAll: resAll.status,
         statusQop: resQop.status,
         statusQrev: resQrev.status,
+        statusQeq: resQeq.status,
       });
       return empty();
     }
@@ -659,6 +690,8 @@ async function fetchYahooFundamentalsTimeseriesMaps(symbol: string): Promise<Yah
       aOp: out.annualOperating.length,
       qRev: out.quarterlyRevenue.length,
       aRev: out.annualRevenue.length,
+      qEq: out.quarterlyEquity.length,
+      aEq: out.annualEquity.length,
       period1,
     });
     return out;
@@ -695,6 +728,8 @@ function mergeFundamentalsTimeseriesIntoParsed(
       revenueWon: Number.isFinite(revWon) ? revWon : null,
     };
   };
+  const mergeEq = (b: DartCellBundle, eqStmt: number): DartCellBundle =>
+    mergeEquityIntoBundle(b, eqStmt, krwPerStmtUnit);
 
   const accumulateQuarterly = (
     entries: TsPointEntry[],
@@ -732,12 +767,14 @@ function mergeFundamentalsTimeseriesIntoParsed(
 
   const accumulateAnnual = (
     entries: TsPointEntry[],
-    pick: (b: DartCellBundle, raw: number) => DartCellBundle
+    pick: (b: DartCellBundle, raw: number) => DartCellBundle,
+    opts?: { createIfMissing?: boolean; skipZeroRaw?: boolean }
   ): Map<string, { sec: number; raw: number; asOfDate: string }> => {
     const best = new Map<string, { sec: number; raw: number; asOfDate: string }>();
     for (const entry of entries) {
       const raw = entry.reportedValue?.raw;
       if (typeof raw !== 'number' || !Number.isFinite(raw)) continue;
+      if (opts?.skipZeroRaw && raw === 0) continue;
       const ad = entry.asOfDate;
       if (typeof ad !== 'string') continue;
       const yk = annualYearKeyFromTsAsOfDate(ad);
@@ -750,31 +787,35 @@ function mergeFundamentalsTimeseriesIntoParsed(
       if (!prev || sec >= prev.sec) best.set(yk, { sec, raw, asOfDate: ad.trim() });
     }
     for (const [yk, v] of best) {
-      const b = parsed.annualByYear.get(yk);
-      if (b) {
-        const picked = pick(b, v.raw);
-        const tsLabel = `~ ${v.asOfDate}`;
-        parsed.annualByYear.set(yk, {
-          ...picked,
-          ...(!picked.fsPeriodLabel ? { fsPeriodLabel: tsLabel } : {}),
-        });
-      }
+      const existing = parsed.annualByYear.get(yk);
+      if (!existing && !opts?.createIfMissing) continue;
+      const base = existing ?? bundleFromStatementCurrency(null, null, null, krwPerStmtUnit);
+      const picked = pick(base, v.raw);
+      const tsLabel = `~ ${v.asOfDate}`;
+      parsed.annualByYear.set(yk, {
+        ...picked,
+        ...(!picked.fsPeriodLabel ? { fsPeriodLabel: tsLabel } : {}),
+      });
     }
     return best;
   };
 
   const qOp = accumulateQuarterly(ts.quarterlyOperating, mergeOp, { skipZeroRaw: true });
   const qRev = accumulateQuarterly(ts.quarterlyRevenue, mergeRev);
-  const aOp = accumulateAnnual(ts.annualOperating, mergeOp);
+  const qEq = accumulateQuarterly(ts.quarterlyEquity, mergeEq, { skipZeroRaw: true });
+  const aOp = accumulateAnnual(ts.annualOperating, mergeOp, { skipZeroRaw: true });
   const aRev = accumulateAnnual(ts.annualRevenue, mergeRev);
+  const aEq = accumulateAnnual(ts.annualEquity, mergeEq, { createIfMissing: true, skipZeroRaw: true });
 
   if (logSymbol) {
     yahooFsTrace('ts_fundamentals_merged', {
       symbol: logSymbol,
       quarterlyKeysOp: [...qOp.keys()],
       quarterlyKeysRev: [...qRev.keys()],
+      quarterlyKeysEq: [...qEq.keys()],
       annualKeysOp: [...aOp.keys()],
       annualKeysRev: [...aRev.keys()],
+      annualKeysEq: [...aEq.keys()],
     });
   }
 }
@@ -892,13 +933,99 @@ function parseIncomeHistoryModules(
   return { annualByYear, quarterlyByPeriod };
 }
 
+function mergeEquityIntoBundle(bundle: DartCellBundle, equityStmt: number | null, krwPerStmtUnit: number): DartCellBundle {
+  if (equityStmt == null || !Number.isFinite(equityStmt)) return bundle;
+  const equityWon = equityStmt * krwPerStmtUnit;
+  return {
+    ...bundle,
+    equityWon,
+    equityKr: formatWonShortKr(equityWon),
+  };
+}
+
+/** quoteSummary 재무상태표 — Yahoo가 키 이름을 바꾼 경우(`balanceSheetStatements`)도 읽음 */
+function balanceSheetStatementRows(mod: unknown): Record<string, unknown>[] {
+  if (mod == null || typeof mod !== 'object') return [];
+  const o = mod as Record<string, unknown>;
+  for (const k of ['balanceSheetStatements', 'balanceSheetHistory', 'balanceSheetHistoryQuarterly']) {
+    const arr = o[k];
+    if (Array.isArray(arr)) return arr as Record<string, unknown>[];
+  }
+  return [];
+}
+
+/** 손익 파싱 후 같은 periodKey에 재무상태표 순자산 병합 */
+function mergeBalanceSheetIntoParsed(
+  parsed: ParsedMaps,
+  r0: Record<string, unknown> | undefined,
+  krwPerStmtUnit: number,
+  logSymbol?: string
+): void {
+  if (!r0) return;
+
+  const annualRows = balanceSheetStatementRows(r0.balanceSheetHistory);
+
+  const annualBest = new Map<string, { sec: number; equity: number | null }>();
+  for (const row of annualRows) {
+    const sec = endDateToUnixSeconds(row.endDate);
+    if (sec == null) continue;
+    const yearKey = annualYearKeyFromIncomeStatementRow(row);
+    if (yearKey == null || yearKey === '') continue;
+    const equity = extractEquityUsdFromBalanceRow(row);
+    const prev = annualBest.get(yearKey);
+    if (!prev || sec >= prev.sec) annualBest.set(yearKey, { sec, equity });
+  }
+  for (const [yearKey, v] of annualBest) {
+    const existing = parsed.annualByYear.get(yearKey);
+    if (existing) {
+      parsed.annualByYear.set(yearKey, mergeEquityIntoBundle(existing, v.equity, krwPerStmtUnit));
+    } else if (v.equity != null) {
+      parsed.annualByYear.set(
+        yearKey,
+        mergeEquityIntoBundle(bundleFromStatementCurrency(null, null, null, krwPerStmtUnit), v.equity, krwPerStmtUnit)
+      );
+    }
+  }
+
+  const qRows = balanceSheetStatementRows(r0.balanceSheetHistoryQuarterly);
+
+  const quarterBest = new Map<string, { sec: number; equity: number | null }>();
+  for (const row of qRows) {
+    const sec = endDateToUnixSeconds(row.endDate);
+    if (sec == null) continue;
+    const quarterKey = yahooQuarterPeriodKeyFromEndDateUnix(sec);
+    const equity = extractEquityUsdFromBalanceRow(row);
+    const prev = quarterBest.get(quarterKey);
+    if (!prev || sec >= prev.sec) quarterBest.set(quarterKey, { sec, equity });
+  }
+  for (const [quarterKey, v] of quarterBest) {
+    const existing = parsed.quarterlyByPeriod.get(quarterKey);
+    if (existing) {
+      parsed.quarterlyByPeriod.set(quarterKey, mergeEquityIntoBundle(existing, v.equity, krwPerStmtUnit));
+    } else if (v.equity != null) {
+      parsed.quarterlyByPeriod.set(
+        quarterKey,
+        mergeEquityIntoBundle(bundleFromStatementCurrency(null, null, null, krwPerStmtUnit), v.equity, krwPerStmtUnit)
+      );
+    }
+  }
+
+  if (logSymbol) {
+    yahooFsTrace('balance_sheet_merged', {
+      symbol: logSymbol,
+      annualEquityKeys: [...annualBest.keys()],
+      quarterlyEquityKeys: [...quarterBest.keys()],
+    });
+  }
+}
+
 export async function fetchYahooIncomeStatementModules(
   normalizedSymbol: string,
   usdKrwRate: number
 ): Promise<YahooFundamentalsFetchResult> {
   /** 손익 + 시총 한 번에 — 기초비교 화면에서 해외 종목마다 getStockQuote(차트+요약)와 이중 quoteSummary 호출 제거 */
   const modules =
-    'incomeStatementHistoryQuarterly,incomeStatementHistory,summaryDetail,defaultKeyStatistics,price';
+    'incomeStatementHistoryQuarterly,incomeStatementHistory,balanceSheetHistoryQuarterly,balanceSheetHistory,summaryDetail,defaultKeyStatistics,price';
   const path = `/v10/finance/quoteSummary/${encodeURIComponent(normalizedSymbol)}?modules=${modules}`;
 
   const tsPromise = fetchYahooFundamentalsTimeseriesMaps(normalizedSymbol);
@@ -960,6 +1087,7 @@ export async function fetchYahooIncomeStatementModules(
           usdKrwForRef: usdKrwRate,
         });
         const parsed = parseIncomeHistoryModules(r0, krwPerStmt, normalizedSymbol);
+        mergeBalanceSheetIntoParsed(parsed, r0, krwPerStmt, normalizedSymbol);
         const tsMaps = await tsPromise;
         mergeFundamentalsTimeseriesIntoParsed(parsed, tsMaps, krwPerStmt, normalizedSymbol);
         return {
@@ -1016,6 +1144,8 @@ export async function buildYahooFundamentalsGridColumn(params: {
     per: '—',
     netIncomeWon: null,
     operatingIncomeWon: null,
+    equityWon: null,
+    equityKr: '—',
   });
 
   if (!parsed) {

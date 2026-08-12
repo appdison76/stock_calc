@@ -5,6 +5,7 @@ import {
 } from '../../data/fundamentalsCompareMock';
 import { DART_REPRT, fetchFnlttSinglAcntAll } from './dartFinancialClient';
 import { extractRevenueOperatingThousandWon, type DartFnlttRow } from './dartIncomeExtract';
+import { extractEquityThousandWon } from './dartEquityExtract';
 import {
   dartFnlttNumericToWon,
   dartFnlttNumericToWonWithRevenue,
@@ -24,6 +25,9 @@ export type DartCellBundle = {
   netIncomeWon?: number | null;
   /** 해당 기간 영업이익(원) — POR 계산용 */
   operatingIncomeWon?: number | null;
+  /** 해당 기간 순자산·자본(원) — PBR 계산용 (연율화 없음) */
+  equityWon?: number | null;
+  equityKr?: string;
   /** 해외 Yahoo: 공시 기간 표시(예: 시작 ~ 종료, 또는 ~ 종료) */
   fsPeriodLabel?: string;
 };
@@ -170,6 +174,7 @@ const emptyBundle = (): DartCellBundle => ({
   per: '—',
   netIncomeWon: null,
   operatingIncomeWon: null,
+  equityWon: null,
 });
 
 function sjDivHistogram(rows: DartFnlttRow[]): Record<string, number> {
@@ -206,6 +211,11 @@ function bundleFromRows(rows: DartFnlttRow[], ctx?: string): DartCellBundle {
     operatingIncomeWon == null || !Number.isFinite(operatingIncomeWon)
       ? '—'
       : formatWonShortKr(operatingIncomeWon);
+  const equityThousand = extractEquityThousandWon(rows);
+  const equityWon =
+    equityThousand == null ? null : dartFnlttNumericToWonWithRevenue(equityThousand, revRaw);
+  const equityKr =
+    equityWon == null || !Number.isFinite(equityWon) ? '—' : formatWonShortKr(equityWon);
   return {
     revenueKr,
     revenueWon: revWon != null && Number.isFinite(revWon) ? revWon : null,
@@ -214,6 +224,8 @@ function bundleFromRows(rows: DartFnlttRow[], ctx?: string): DartCellBundle {
     per: '—',
     netIncomeWon,
     operatingIncomeWon,
+    equityWon,
+    equityKr,
   };
 }
 
@@ -360,6 +372,13 @@ async function calendarQuarterBundle(
   };
   const netIncomeWon = nWon == null || !Number.isFinite(nWon) ? null : nWon;
   const operatingIncomeWon = oWon == null || !Number.isFinite(oWon) ? null : oWon;
+  const equityFromAnn = extractEquityThousandWon(annRows);
+  const equityWon =
+    equityFromAnn == null
+      ? null
+      : dartFnlttNumericToWonWithRevenue(equityFromAnn, ann.revenueThousand);
+  const equityKr =
+    equityWon == null || !Number.isFinite(equityWon) ? '—' : formatWonShortKr(equityWon);
   if (
     (rWon == null || f.revenueKr === '—') &&
     (annRows.length > 0 || q3Rows.length > 0) &&
@@ -383,6 +402,8 @@ async function calendarQuarterBundle(
     netIncomeWon,
     operatingIncomeWon,
     revenueWon: rWon != null && Number.isFinite(rWon) ? rWon : null,
+    equityWon,
+    equityKr,
   };
 }
 

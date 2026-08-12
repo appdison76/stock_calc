@@ -44,7 +44,10 @@ import {
   type CapPerPorRecentEntry,
 } from '../src/services/CapPerPorRecentService';
 import { SettingsService, type OpScenarioPersistRow, type OpScenarioPersistUnit } from '../src/services/SettingsService';
-import { applyFundamentalsSnapshotFromGrid } from '../src/lib/capFundamentalsGridResolve';
+import {
+  applyFundamentalsSnapshotFromGrid,
+  formatPbrFromCapAndEquity,
+} from '../src/lib/capFundamentalsGridResolve';
 
 /** 비율 표시 — 기업실적비교와 동일 규칙 */
 function formatRatioLocale(n: number): string {
@@ -192,6 +195,7 @@ export default function CapPerPorCalculatorScreen() {
   const [fsPeriodLabel, setFsPeriodLabel] = useState<string | null>(null);
   const [netIncomeWon, setNetIncomeWon] = useState<number | null>(null);
   const [operatingIncomeWon, setOperatingIncomeWon] = useState<number | null>(null);
+  const [equityWon, setEquityWon] = useState<number | null>(null);
   /** 요약 카드 — 선택 실적 기간의 매출·영업이익(포맷 문자열), 당기순이익 표시용 */
   const [displayRevenueKr, setDisplayRevenueKr] = useState<string | null>(null);
   /** 요약과 동일 스냅샷의 매출(원) — 시총 대비 이상치 경고 */
@@ -327,6 +331,11 @@ export default function CapPerPorCalculatorScreen() {
     return annualizeIncomeForPerPor(o, granularity);
   }, [operatingIncomeWon, granularity, dartWonScaleDown]);
 
+  const pbrDenominator = useMemo(() => {
+    if (equityWon == null || !Number.isFinite(equityWon)) return null;
+    return equityWon * dartWonScaleDown;
+  }, [equityWon, dartWonScaleDown]);
+
   const displayRevenueKrEff = useMemo(() => {
     if (revenueWon != null && Number.isFinite(revenueWon)) {
       return formatWonShortKr(revenueWon * dartWonScaleDown);
@@ -352,8 +361,8 @@ export default function CapPerPorCalculatorScreen() {
   const perPorBasisFootnote = useMemo(
     () =>
       granularity === 'quarter'
-        ? '※ PER·POR는 분기 당기순이익·영업이익을 각각 ×4(연율화)한 금액을 분모로 씁니다.'
-        : '※ PER·POR는 연간 당기순이익·영업이익을 분모로 씁니다.',
+        ? '※ PER·POR는 분기 당기순이익·영업이익을 각각 ×4(연율화)한 금액을 분모로 씁니다. PBR은 해당 분기 순자산(자본)을 분모로 씁니다.'
+        : '※ PER·POR는 연간 당기순이익·영업이익을 분모로 씁니다. PBR은 연말 순자산(자본)을 분모로 씁니다.',
     [granularity]
   );
 
@@ -437,6 +446,7 @@ export default function CapPerPorCalculatorScreen() {
         setFsPeriodLabel(null);
         setNetIncomeWon(null);
         setOperatingIncomeWon(null);
+        setEquityWon(null);
         setDisplayRevenueKr(null);
         setDisplayOperatingIncomeKr(null);
         setDisplayNetIncomeKr(null);
@@ -508,6 +518,7 @@ export default function CapPerPorCalculatorScreen() {
 
           setNetIncomeWon(resolved.netIncomeWon);
           setOperatingIncomeWon(resolved.operatingIncomeWon);
+          setEquityWon(resolved.equityWon);
           setRevenueWon(resolved.revenueWon ?? null);
           setDisplayRevenueKr(resolved.revenueKr);
           setDisplayOperatingIncomeKr(resolved.operatingIncomeKr);
@@ -561,6 +572,7 @@ export default function CapPerPorCalculatorScreen() {
 
           setNetIncomeWon(resolved.netIncomeWon);
           setOperatingIncomeWon(resolved.operatingIncomeWon);
+          setEquityWon(resolved.equityWon);
           setRevenueWon(resolved.revenueWon ?? null);
           setDisplayRevenueKr(resolved.revenueKr);
           setDisplayOperatingIncomeKr(resolved.operatingIncomeKr);
@@ -690,8 +702,10 @@ export default function CapPerPorCalculatorScreen() {
 
   const perCurrent = formatPerFromCapAndNet(capWon, perDenominator);
   const porCurrent = formatPorFromCapAndOp(capWon, porDenominator);
+  const pbrCurrent = formatPbrFromCapAndEquity(capWon, pbrDenominator);
   const perScenario = formatPerFromCapAndNet(scenarioCapWon, perDenominator);
   const porScenario = formatPorFromCapAndOp(scenarioCapWon, porDenominator);
+  const pbrScenario = formatPbrFromCapAndEquity(scenarioCapWon, pbrDenominator);
 
   const showResults = mockKeyResolved != null && periodKeyUsed != null;
 
@@ -702,9 +716,9 @@ export default function CapPerPorCalculatorScreen() {
     >
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <LinearGradient colors={['#1e3a5f', '#121212']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-          <Text style={styles.heroTitle}>시총·PER·POR 계산기</Text>
+          <Text style={styles.heroTitle}>시총·PER·POR·PBR 계산기</Text>
           <Text style={styles.heroSub}>
-            시총·실적 기준 PER/POR, 주가 % 시나리오와 잠정·가이던스 POR을 한 화면에서 확인합니다.
+            시총·실적 기준 PER/POR/PBR, 주가 % 시나리오와 잠정·가이던스 POR을 한 화면에서 확인합니다.
           </Text>
         </LinearGradient>
 
@@ -734,7 +748,7 @@ export default function CapPerPorCalculatorScreen() {
             </View>
           </View>
           <Text style={styles.sheetLead}>
-            분기: 당분기 손익을 ×4 연율화해 PER/POR. 연도: 연간 손익 그대로. 종목을 불러둔 뒤 분기↔연도만 바꿔도 자동으로 다시 맞춥니다.
+            분기: 당분기 손익을 ×4 연율화해 PER/POR. PBR은 해당 분기 순자산. 연도: 연간 손익·연말 순자산. 종목을 불러둔 뒤 분기↔연도만 바꿔도 자동으로 다시 맞춥니다.
           </Text>
         </View>
 
@@ -911,7 +925,7 @@ export default function CapPerPorCalculatorScreen() {
                   ) : null}
                 </Text>
                 <Text style={styles.perPorNote}>{perPorBasisFootnote}</Text>
-                <Text style={styles.emRow}>PER {perCurrent} · POR {porCurrent}</Text>
+                <Text style={styles.emRow}>PER {perCurrent} · POR {porCurrent} · PBR {pbrCurrent}</Text>
               </View>
             </View>
 
@@ -960,7 +974,7 @@ export default function CapPerPorCalculatorScreen() {
                 </Text>
                 <Text style={styles.perPorNote}>{perPorBasisFootnote}</Text>
                 <Text style={styles.emRowScenario}>
-                  PER {perScenario} · POR {porScenario}
+                  PER {perScenario} · POR {porScenario} · PBR {pbrScenario}
                 </Text>
               </View>
             </View>

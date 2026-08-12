@@ -51,6 +51,7 @@ import {
   formatCapBadge,
   formatPerFromCapAndNet,
   formatPorFromCapAndOp,
+  formatPbrFromCapAndEquity,
   formatPorFromQuarterlyOpEok,
   marketCapWonFromQuote,
   OP_SCENARIO_UNITS,
@@ -133,6 +134,7 @@ export default function PriceScenarioProfitScreen() {
   const [fsPeriodLabel, setFsPeriodLabel] = useState<string | null>(null);
   const [netIncomeWon, setNetIncomeWon] = useState<number | null>(null);
   const [operatingIncomeWon, setOperatingIncomeWon] = useState<number | null>(null);
+  const [equityWon, setEquityWon] = useState<number | null>(null);
   const [displayRevenueKr, setDisplayRevenueKr] = useState<string | null>(null);
   const [displayOperatingIncomeKr, setDisplayOperatingIncomeKr] = useState<string | null>(null);
   const [displayNetIncomeKr, setDisplayNetIncomeKr] = useState<string | null>(null);
@@ -363,6 +365,11 @@ export default function PriceScenarioProfitScreen() {
     return annualizeIncomeForPerPor(o, granularity);
   }, [operatingIncomeWon, granularity, dartWonScaleDown]);
 
+  const pbrDenominator = useMemo(() => {
+    if (equityWon == null || !Number.isFinite(equityWon)) return null;
+    return equityWon * dartWonScaleDown;
+  }, [equityWon, dartWonScaleDown]);
+
   const displayRevenueKrEff = useMemo(() => {
     if (revenueWon != null && Number.isFinite(revenueWon)) {
       return formatWonShortKr(revenueWon * dartWonScaleDown);
@@ -387,8 +394,8 @@ export default function PriceScenarioProfitScreen() {
   const perPorBasisFootnote = useMemo(
     () =>
       granularity === 'quarter'
-        ? '※ PER·POR는 분기 당기순이익·영업이익을 각각 ×4(연율화)한 금액을 분모로 씁니다.'
-        : '※ PER·POR는 연간 당기순이익·영업이익을 분모로 씁니다.',
+        ? '※ PER·POR는 분기 당기순이익·영업이익을 각각 ×4(연율화)한 금액을 분모로 씁니다. PBR은 해당 분기 순자산(자본)을 분모로 씁니다.'
+        : '※ PER·POR는 연간 당기순이익·영업이익을 분모로 씁니다. PBR은 연말 순자산(자본)을 분모로 씁니다.',
     [granularity]
   );
 
@@ -494,8 +501,10 @@ export default function PriceScenarioProfitScreen() {
 
   const perCurrent = formatPerFromCapAndNet(inputBasisCapWon, perDenominator);
   const porCurrent = formatPorFromCapAndOp(inputBasisCapWon, porDenominator);
+  const pbrCurrent = formatPbrFromCapAndEquity(inputBasisCapWon, pbrDenominator);
   const perScenario = formatPerFromCapAndNet(scenarioCapWon, perDenominator);
   const porScenario = formatPorFromCapAndOp(scenarioCapWon, porDenominator);
+  const pbrScenario = formatPbrFromCapAndEquity(scenarioCapWon, pbrDenominator);
 
   const showResults = mockKeyResolved != null && periodKeyUsed != null;
 
@@ -537,6 +546,7 @@ export default function PriceScenarioProfitScreen() {
         setFsPeriodLabel(null);
         setNetIncomeWon(null);
         setOperatingIncomeWon(null);
+        setEquityWon(null);
         setDisplayRevenueKr(null);
         setDisplayOperatingIncomeKr(null);
         setDisplayNetIncomeKr(null);
@@ -622,6 +632,7 @@ export default function PriceScenarioProfitScreen() {
 
           setNetIncomeWon(resolved.netIncomeWon);
           setOperatingIncomeWon(resolved.operatingIncomeWon);
+          setEquityWon(resolved.equityWon);
           setRevenueWon(resolved.revenueWon ?? null);
           setDisplayRevenueKr(resolved.revenueKr);
           setDisplayOperatingIncomeKr(resolved.operatingIncomeKr);
@@ -674,6 +685,7 @@ export default function PriceScenarioProfitScreen() {
 
           setNetIncomeWon(resolved.netIncomeWon);
           setOperatingIncomeWon(resolved.operatingIncomeWon);
+          setEquityWon(resolved.equityWon);
           setRevenueWon(resolved.revenueWon ?? null);
           setDisplayRevenueKr(resolved.revenueKr);
           setDisplayOperatingIncomeKr(resolved.operatingIncomeKr);
@@ -729,6 +741,7 @@ export default function PriceScenarioProfitScreen() {
     setFsPeriodLabel(null);
     setNetIncomeWon(null);
     setOperatingIncomeWon(null);
+    setEquityWon(null);
     setDisplayRevenueKr(null);
     setDisplayOperatingIncomeKr(null);
     setDisplayNetIncomeKr(null);
@@ -906,7 +919,7 @@ export default function PriceScenarioProfitScreen() {
         <LinearGradient colors={['#1565c0', '#121212']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
           <Text style={styles.heroTitle}>주가 시나리오 수익 계산기</Text>
           <Text style={styles.heroSub}>
-            ① 현재가·등락률·목표 주가와 ② 매수가·수량·수익률·수익금이 서로 연동됩니다. 종목은 선택 사항이며, 불러오면 시총·PER·POR·잠정·가이던스를 함께 볼 수 있습니다.
+            ① 현재가·등락률·목표 주가와 ② 매수가·수량·수익률·수익금이 서로 연동됩니다. 종목은 선택 사항이며, 불러오면 시총·PER·POR·PBR·잠정·가이던스를 함께 볼 수 있습니다.
           </Text>
         </LinearGradient>
 
@@ -1007,7 +1020,7 @@ export default function PriceScenarioProfitScreen() {
 
           <Text style={styles.sheetLead}>
             {portfolioStocks.length > 0
-              ? '포트폴리오·검색·최근에서 불러오면 시세로 현재가를 채우고, 더 아래에 기간 단위·요약·시총·PER·POR이 나타납니다. 현재가는 아래 주가 시나리오에서 언제든 수정할 수 있습니다.'
+              ? '포트폴리오·검색·최근에서 불러오면 시세로 현재가를 채우고, 더 아래에 기간 단위·요약·시총·PER·POR·PBR이 나타납니다. 현재가는 아래 주가 시나리오에서 언제든 수정할 수 있습니다.'
               : '검색·최근·티커 입력 후 불러오기를 사용하세요. 최근 항목 ✕는 목록에서만 삭제합니다.'}
           </Text>
           <TextInput
@@ -1315,13 +1328,13 @@ export default function PriceScenarioProfitScreen() {
                   ) : null}
                 </Text>
                 <Text style={styles.perPorNote}>{perPorBasisFootnote}</Text>
-                <Text style={styles.emRow}>PER {perCurrent} · POR {porCurrent}</Text>
+                <Text style={styles.emRow}>PER {perCurrent} · POR {porCurrent} · PBR {pbrCurrent}</Text>
               </View>
             </View>
 
             <View style={styles.sectionCard}>
               <Text style={[styles.sectionHeading, styles.sectionHeadingUserInput]}>
-                시나리오 시총 · PER · POR{' '}
+                시나리오 시총 · PER · POR · PBR{' '}
                 <Text style={styles.sectionHeadingUserInputSuffix}>(위 목표가 반영)</Text>
               </Text>
               <Text style={styles.sheetLead}>
@@ -1348,7 +1361,7 @@ export default function PriceScenarioProfitScreen() {
                 </Text>
                 <Text style={styles.perPorNote}>{perPorBasisFootnote}</Text>
                 <Text style={styles.emRowScenario}>
-                  PER {perScenario} · POR {porScenario}
+                  PER {perScenario} · POR {porScenario} · PBR {pbrScenario}
                 </Text>
               </View>
             </View>

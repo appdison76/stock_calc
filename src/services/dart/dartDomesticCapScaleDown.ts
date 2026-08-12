@@ -92,6 +92,8 @@ export function applyDartDomesticCapScaleToBundle(
   const revW = rev != null && Number.isFinite(rev) ? rev * scale : null;
   const opW = op != null && Number.isFinite(op) ? op * scale : null;
   const netW = net != null && Number.isFinite(net) ? net * scale : null;
+  const eq = bundle.equityWon;
+  const eqW = eq != null && Number.isFinite(eq) ? eq * scale : null;
   return {
     ...bundle,
     revenueKr: revW != null ? formatWonShortKr(revW) : bundle.revenueKr,
@@ -99,5 +101,7 @@ export function applyDartDomesticCapScaleToBundle(
     operatingIncomeKr: opW != null ? formatWonShortKr(opW) : bundle.operatingIncomeKr,
     operatingIncomeWon: opW ?? bundle.operatingIncomeWon,
     netIncomeWon: netW ?? bundle.netIncomeWon,
+    equityWon: eqW ?? bundle.equityWon,
+    equityKr: eqW != null ? formatWonShortKr(eqW) : bundle.equityKr,
   };
 }
