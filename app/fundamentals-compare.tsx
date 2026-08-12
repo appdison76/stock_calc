@@ -2209,7 +2209,7 @@ export default function FundamentalsCompareScreen() {
                   ))}
                 </View>
                 <View style={styles.tableBodyRow}>
-                  <Text style={[styles.td, styles.thScenarioLabel]}>분기 영업이익</Text>
+                  <Text style={[styles.td, styles.thScenarioLabel, styles.scenarioRowLblOp]}>분기 영업이익</Text>
                   {selectedRows.map((s) => (
                     <View key={`prov-op-${s.mockKey}`} style={[styles.thStock, styles.scenarioStockCol]}>
                       <View style={styles.unitGrid}>
@@ -2245,7 +2245,7 @@ export default function FundamentalsCompareScreen() {
                   ))}
                 </View>
                 <View style={styles.tableBodyRow}>
-                  <Text style={[styles.td, styles.thScenarioLabel]}>연율 영업이익 (×4)</Text>
+                  <Text style={[styles.td, styles.thScenarioLabel, styles.scenarioRowLblOp]}>연율 영업이익 (×4)</Text>
                   {selectedRows.map((s) => (
                     <Text
                       key={`prov-ann-op-${s.mockKey}`}
@@ -2261,7 +2261,7 @@ export default function FundamentalsCompareScreen() {
                   ))}
                 </View>
                 <View style={styles.tableBodyRow}>
-                  <Text style={[styles.td, styles.thScenarioLabel]}>POR (×4)</Text>
+                  <Text style={[styles.td, styles.thScenarioLabel, styles.scenarioRowLblOp]}>POR (×4)</Text>
                   {selectedRows.map((s) => (
                     <Text
                       key={`prov-por-${s.mockKey}`}
@@ -2278,7 +2278,7 @@ export default function FundamentalsCompareScreen() {
                   ))}
                 </View>
                 <View style={styles.tableBodyRow}>
-                  <Text style={[styles.td, styles.thScenarioLabel]}>분기 매출</Text>
+                  <Text style={[styles.td, styles.thScenarioLabel, styles.scenarioRowLblRev]}>분기 매출</Text>
                   {selectedRows.map((s) => (
                     <View key={`prov-rev-${s.mockKey}`} style={[styles.thStock, styles.scenarioStockCol]}>
                       <View style={styles.unitGrid}>
@@ -2314,7 +2314,7 @@ export default function FundamentalsCompareScreen() {
                   ))}
                 </View>
                 <View style={styles.tableBodyRow}>
-                  <Text style={[styles.td, styles.thScenarioLabel]}>연율 매출 (×4)</Text>
+                  <Text style={[styles.td, styles.thScenarioLabel, styles.scenarioRowLblRev]}>연율 매출 (×4)</Text>
                   {selectedRows.map((s) => (
                     <Text
                       key={`prov-ann-rev-${s.mockKey}`}
@@ -2330,7 +2330,7 @@ export default function FundamentalsCompareScreen() {
                   ))}
                 </View>
                 <View style={styles.tableBodyRow}>
-                  <Text style={[styles.td, styles.thScenarioLabel]}>영업이익률</Text>
+                  <Text style={[styles.td, styles.thScenarioLabel, styles.scenarioRowLblMargin]}>영업이익률</Text>
                   {selectedRows.map((s) => (
                     <Text
                       key={`prov-margin-${s.mockKey}`}
@@ -2350,7 +2350,7 @@ export default function FundamentalsCompareScreen() {
                   ))}
                 </View>
                 <View style={styles.tableBodyRow}>
-                  <Text style={[styles.td, styles.thScenarioLabel]}>PSR (×4)</Text>
+                  <Text style={[styles.td, styles.thScenarioLabel, styles.scenarioRowLblRev]}>PSR (×4)</Text>
                   {selectedRows.map((s) => (
                     <Text
                       key={`prov-psr-${s.mockKey}`}
@@ -2401,7 +2401,7 @@ export default function FundamentalsCompareScreen() {
                   ))}
                 </View>
                 <View style={styles.tableBodyRow}>
-                  <Text style={[styles.td, styles.thScenarioLabel]}>분기 영업이익</Text>
+                  <Text style={[styles.td, styles.thScenarioLabel, styles.scenarioRowLblOp]}>분기 영업이익</Text>
                   {selectedRows.map((s) => (
                     <View key={`guide-op-${s.mockKey}`} style={[styles.thStock, styles.scenarioStockCol]}>
                       <View style={styles.unitGrid}>
@@ -2437,7 +2437,7 @@ export default function FundamentalsCompareScreen() {
                   ))}
                 </View>
                 <View style={styles.tableBodyRow}>
-                  <Text style={[styles.td, styles.thScenarioLabel]}>연율 영업이익 (×4)</Text>
+                  <Text style={[styles.td, styles.thScenarioLabel, styles.scenarioRowLblOp]}>연율 영업이익 (×4)</Text>
                   {selectedRows.map((s) => (
                     <Text
                       key={`guide-ann-op-${s.mockKey}`}
@@ -2453,7 +2453,7 @@ export default function FundamentalsCompareScreen() {
                   ))}
                 </View>
                 <View style={styles.tableBodyRow}>
-                  <Text style={[styles.td, styles.thScenarioLabel]}>POR (×4)</Text>
+                  <Text style={[styles.td, styles.thScenarioLabel, styles.scenarioRowLblOp]}>POR (×4)</Text>
                   {selectedRows.map((s) => (
                     <Text
                       key={`guide-por-${s.mockKey}`}
@@ -2470,7 +2470,7 @@ export default function FundamentalsCompareScreen() {
                   ))}
                 </View>
                 <View style={styles.tableBodyRow}>
-                  <Text style={[styles.td, styles.thScenarioLabel]}>분기 매출</Text>
+                  <Text style={[styles.td, styles.thScenarioLabel, styles.scenarioRowLblRev]}>분기 매출</Text>
                   {selectedRows.map((s) => (
                     <View key={`guide-rev-${s.mockKey}`} style={[styles.thStock, styles.scenarioStockCol]}>
                       <View style={styles.unitGrid}>
@@ -2506,7 +2506,7 @@ export default function FundamentalsCompareScreen() {
                   ))}
                 </View>
                 <View style={styles.tableBodyRow}>
-                  <Text style={[styles.td, styles.thScenarioLabel]}>연율 매출 (×4)</Text>
+                  <Text style={[styles.td, styles.thScenarioLabel, styles.scenarioRowLblRev]}>연율 매출 (×4)</Text>
                   {selectedRows.map((s) => (
                     <Text
                       key={`guide-ann-rev-${s.mockKey}`}
@@ -2522,7 +2522,7 @@ export default function FundamentalsCompareScreen() {
                   ))}
                 </View>
                 <View style={styles.tableBodyRow}>
-                  <Text style={[styles.td, styles.thScenarioLabel]}>영업이익률</Text>
+                  <Text style={[styles.td, styles.thScenarioLabel, styles.scenarioRowLblMargin]}>영업이익률</Text>
                   {selectedRows.map((s) => (
                     <Text
                       key={`guide-margin-${s.mockKey}`}
@@ -2542,7 +2542,7 @@ export default function FundamentalsCompareScreen() {
                   ))}
                 </View>
                 <View style={styles.tableBodyRow}>
-                  <Text style={[styles.td, styles.thScenarioLabel]}>PSR (×4)</Text>
+                  <Text style={[styles.td, styles.thScenarioLabel, styles.scenarioRowLblRev]}>PSR (×4)</Text>
                   {selectedRows.map((s) => (
                     <Text
                       key={`guide-psr-${s.mockKey}`}
@@ -3162,6 +3162,20 @@ const styles = StyleSheet.create({
     width: 118,
     textAlign: 'left',
     paddingRight: 8,
+  },
+  /** 잠정·가이던스 — 영업이익/POR 블록 (시총계산기 metricLblOp와 동일) */
+  scenarioRowLblOp: {
+    color: '#ba68c8',
+    fontWeight: '700',
+  },
+  /** 잠정·가이던스 — 매출/PSR 블록 (시총계산기 metricLblRev와 동일) */
+  scenarioRowLblRev: {
+    color: '#4db6ac',
+    fontWeight: '700',
+  },
+  scenarioRowLblMargin: {
+    color: '#ffb74d',
+    fontWeight: '600',
   },
   scenarioStockCol: {
     width: 120,
