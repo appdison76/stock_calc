@@ -30,6 +30,27 @@ export function addCommas(numberString: string): string {
   return `${isNegative ? '-' : ''}${buffer}${decimalPart}`;
 }
 
+/** 금액 입력: maxFrac 0=정수+콤마(KRW), 2=소수 둘째 자리(USD) */
+export function formatPriceFieldInput(text: string, maxFrac: number): string {
+  if (maxFrac <= 0) {
+    const d = text.replace(/[^0-9]/g, '');
+    return d === '' ? '' : addCommas(d);
+  }
+  const c = text.replace(/[^0-9.]/g, '');
+  const fd = c.indexOf('.');
+  if (fd === -1) {
+    const d = c.replace(/[^0-9]/g, '');
+    return d === '' ? '' : addCommas(d);
+  }
+  const intD = c.slice(0, fd).replace(/[^0-9]/g, '');
+  const fracRaw = c.slice(fd + 1).replace(/\./g, '');
+  const frac = fracRaw.slice(0, maxFrac);
+  const intNorm = intD.replace(/^0+(?=\d)/, '');
+  const intShow = intNorm === '' ? (intD === '' ? '0' : addCommas(intD)) : addCommas(intNorm);
+  if (fracRaw === '' && c.endsWith('.')) return `${intShow}.`;
+  return frac === '' ? intShow : `${intShow}.${frac}`;
+}
+
 export function formatCurrency(value: number, currency: Currency): string {
   // null, undefined, NaN 체크
   if (value == null || isNaN(value) || !isFinite(value)) {

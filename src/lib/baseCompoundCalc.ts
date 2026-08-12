@@ -43,6 +43,8 @@ export type BaseRecoveryFieldStrings = {
   dropPct: string;
 };
 
+import { addCommas } from '../utils/formatUtils';
+
 function parsePriceInput(raw: string): number | null {
   const n = parseFloat(raw.replace(/,/g, ''));
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -53,10 +55,18 @@ function parsePctInput(raw: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function formatPriceInput(n: number): string {
+export function formatPriceInput(n: number, maxFractionDigits: 0 | 2 = 0): string {
   if (!Number.isFinite(n) || n <= 0) return '';
-  return new Intl.NumberFormat('en-US').format(Math.round(n));
+  if (maxFractionDigits === 0) {
+    return new Intl.NumberFormat('en-US').format(Math.round(n));
+  }
+  const rounded = Math.round(n * 100) / 100;
+  return addCommas(rounded.toFixed(2));
 }
+
+export type SyncBaseRecoveryOptions = {
+  priceMaxFractionDigits?: 0 | 2;
+};
 
 function formatPctInput(n: number): string {
   if (!Number.isFinite(n)) return '';
@@ -68,8 +78,11 @@ function formatPctInput(n: number): string {
 export function syncBaseRecoveryFields(
   driver: BaseRecoveryDriver,
   values: BaseRecoveryFieldStrings,
+  options?: SyncBaseRecoveryOptions,
 ): BaseRecoveryFieldStrings {
   const next = { ...values };
+  const priceFrac = options?.priceMaxFractionDigits ?? 0;
+  const fmtPrice = (n: number) => formatPriceInput(n, priceFrac);
   const peakN = parsePriceInput(values.peak);
   const bottomN = parsePriceInput(values.bottom);
   const dropN = parsePctInput(values.dropPct);
@@ -82,19 +95,19 @@ export function syncBaseRecoveryFields(
         next.target = '';
       } else {
         if (dropN != null) {
-          next.bottom = formatPriceInput(peakN * (1 + dropN / 100));
+          next.bottom = fmtPrice(peakN * (1 + dropN / 100));
         }
-        next.target = formatPriceInput(peakN);
+        next.target = fmtPrice(peakN);
       }
       break;
     }
     case 'drop': {
       if (peakN != null && dropN != null) {
-        next.bottom = formatPriceInput(peakN * (1 + dropN / 100));
+        next.bottom = fmtPrice(peakN * (1 + dropN / 100));
       } else if (bottomN != null && dropN != null) {
         const denom = 1 + dropN / 100;
         if (denom > 0) {
-          next.peak = formatPriceInput(bottomN / denom);
+          next.peak = fmtPrice(bottomN / denom);
         }
       }
       break;
@@ -105,7 +118,7 @@ export function syncBaseRecoveryFields(
       } else if (bottomN != null && dropN != null) {
         const denom = 1 + dropN / 100;
         if (denom > 0) {
-          next.peak = formatPriceInput(bottomN / denom);
+          next.peak = fmtPrice(bottomN / denom);
         }
       }
       break;

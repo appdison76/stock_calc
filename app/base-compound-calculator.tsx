@@ -39,7 +39,7 @@ import {
   type ContinuousScenarioResult,
   type CompoundStepRow,
 } from '../src/lib/baseCompoundCalc';
-import { addCommas, formatCurrency } from '../src/utils/formatUtils';
+import { addCommas, formatCurrency, formatPriceFieldInput } from '../src/utils/formatUtils';
 import { togglePlainPercentSign } from '../src/utils/percentSignToggle';
 
 type TabId = 'base' | 'negative' | 'positive' | 'path';
@@ -76,9 +76,12 @@ function parseCount(raw: string): number {
   return Number.isFinite(n) && n > 0 ? Math.min(n, 50) : 1;
 }
 
-function cleanPriceTyping(text: string): string {
-  const cleaned = text.replace(/[^0-9]/g, '');
-  return cleaned === '' ? '' : addCommas(cleaned);
+function priceMaxFrac(currency: Currency): 0 | 2 {
+  return currency === Currency.USD ? 2 : 0;
+}
+
+function cleanPriceTyping(text: string, currency: Currency): string {
+  return formatPriceFieldInput(text, priceMaxFrac(currency));
 }
 
 function cleanPctTyping(text: string): string {
@@ -174,14 +177,17 @@ export default function BaseCompoundCalculatorView() {
     }
   };
 
-  const handlePriceInput = useCallback((text: string, setter: (v: string) => void) => {
-    const cleaned = text.replace(/[^0-9]/g, '');
-    setter(cleaned === '' ? '' : addCommas(cleaned));
-  }, []);
+  const handlePriceInput = useCallback(
+    (text: string, setter: (v: string) => void) => {
+      setter(formatPriceFieldInput(text, priceMaxFrac(selectedCurrency)));
+    },
+    [selectedCurrency],
+  );
 
   const syncBaseForCurrency = useCallback(
     (driver: BaseRecoveryDriver, patch: Partial<BaseRecoveryFieldStrings>) => {
       const isKrw = selectedCurrency === Currency.KRW;
+      const syncOptions = { priceMaxFractionDigits: priceMaxFrac(selectedCurrency) };
 
       const values: BaseRecoveryFieldStrings = {
         peak: patch.peak ?? (isKrw ? krwPeak : usdPeak),
@@ -190,7 +196,7 @@ export default function BaseCompoundCalculatorView() {
         dropPct: patch.dropPct ?? dropPct,
       };
 
-      const next = syncBaseRecoveryFields(driver, values);
+      const next = syncBaseRecoveryFields(driver, values, syncOptions);
 
       if (isKrw) {
         setKrwPeak(next.peak);
@@ -207,13 +213,13 @@ export default function BaseCompoundCalculatorView() {
   );
 
   const handleBasePeakInput = useCallback(
-    (text: string) => syncBaseForCurrency('peak', { peak: cleanPriceTyping(text) }),
-    [syncBaseForCurrency],
+    (text: string) => syncBaseForCurrency('peak', { peak: cleanPriceTyping(text, selectedCurrency) }),
+    [syncBaseForCurrency, selectedCurrency],
   );
 
   const handleBaseBottomInput = useCallback(
-    (text: string) => syncBaseForCurrency('bottom', { bottom: cleanPriceTyping(text) }),
-    [syncBaseForCurrency],
+    (text: string) => syncBaseForCurrency('bottom', { bottom: cleanPriceTyping(text, selectedCurrency) }),
+    [syncBaseForCurrency, selectedCurrency],
   );
 
   const handleBaseDropInput = useCallback(
@@ -226,8 +232,8 @@ export default function BaseCompoundCalculatorView() {
   }, [dropPct, syncBaseForCurrency]);
 
   const handleBaseTargetInput = useCallback(
-    (text: string) => syncBaseForCurrency('target', { target: cleanPriceTyping(text) }),
-    [syncBaseForCurrency],
+    (text: string) => syncBaseForCurrency('target', { target: cleanPriceTyping(text, selectedCurrency) }),
+    [syncBaseForCurrency, selectedCurrency],
   );
 
   const handleResetTargetToStart = useCallback(() => {
@@ -245,14 +251,13 @@ export default function BaseCompoundCalculatorView() {
 
   const handlePathStartInput = useCallback(
     (text: string) => {
-      const cleaned = text.replace(/[^0-9]/g, '');
-      const formatted = cleaned === '' ? '' : addCommas(cleaned);
+      const formatted = formatPriceFieldInput(text, priceMaxFrac(selectedCurrency));
       setPathStart(formatted);
       if (pathTargetMode === 'price') {
         setPathTarget(formatted);
       }
     },
-    [pathTargetMode, setPathStart, setPathTarget],
+    [pathTargetMode, selectedCurrency, setPathStart, setPathTarget],
   );
 
   const selectPathPriceMode = useCallback(() => {
@@ -447,8 +452,8 @@ export default function BaseCompoundCalculatorView() {
         style={s.input}
         value={value}
         onChangeText={onChangeText}
-        keyboardType="number-pad"
-        placeholder={placeholder ?? (selectedCurrency === Currency.KRW ? '100,000' : '100')}
+        keyboardType={selectedCurrency === Currency.USD ? 'decimal-pad' : 'number-pad'}
+        placeholder={placeholder ?? (selectedCurrency === Currency.KRW ? '100,000' : '150.25')}
         placeholderTextColor="#616161"
       />
     </View>
