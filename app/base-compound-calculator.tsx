@@ -533,7 +533,7 @@ export default function BaseCompoundCalculatorView() {
       {hasBaseResult && baseResult && (
         <SharedResultSection onTextShare={handleTextShare}>
           <View style={s.card}>
-            <Text style={s.cardTitle}>결과</Text>
+            <Text style={s.cardTitle}>변동 경로</Text>
             {baseTimeline ? (
               <PathTimeline
                 start={baseTimeline.start}
@@ -643,7 +643,7 @@ export default function BaseCompoundCalculatorView() {
         {hasResult && result && (
           <SharedResultSection onTextShare={handleTextShare}>
             <View style={s.card}>
-              <Text style={s.cardTitle}>결과</Text>
+              <Text style={s.cardTitle}>변동 경로</Text>
               <PathTimeline
                 start={result.start}
                 steps={result.steps}
@@ -875,7 +875,7 @@ export default function BaseCompoundCalculatorView() {
       {hasPathResult && pathResult && (
         <SharedResultSection onTextShare={handleTextShare}>
           <View style={s.card}>
-            <Text style={s.cardTitle}>경로 타임라인</Text>
+            <Text style={s.cardTitle}>변동 경로</Text>
             {pathResult.kind === 'pathOnly'
               ? renderPathResultBody(pathResult.drops)
               : renderPathResultBody(pathResult.scenario.drops, {
