@@ -415,7 +415,7 @@ export const baseCompoundStyles = StyleSheet.create({
     backgroundColor: 'rgba(255, 183, 77, 0.08)',
   },
   pathTimelinePctChipText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '700',
   },
   pathTimelineCard: {
@@ -450,7 +450,7 @@ export const baseCompoundStyles = StyleSheet.create({
     fontWeight: '700',
   },
   pathTimelineCumulative: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '600',
   },
   pathTimelinePrice: {
