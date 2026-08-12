@@ -67,6 +67,15 @@ const calculatorItemsBase: CalculatorItem[] = [
   { label: '목표가 계산기', icon: '🎯', route: '/target-price', description: '목표가와 예상 수익 계산' },
   { label: '손절/익절 계산기', icon: '▲▼', route: '/stop-loss-take-profit', description: '목표가와 손절가 계산' },
   {
+    label: '음·양 복리·모수 계산기',
+    icon: '％',
+    route: '/base-compound-calculator',
+    description: '음·양 복리, 모수효과, 경로 시나리오',
+    renderMenuIcon: () => (
+      <MaterialCommunityIcons name="chart-bell-curve-cumulative" size={28} color="#FFFFFF" />
+    ),
+  },
+  {
     label: '주가 시나리오 수익 계산기',
     icon: '📊',
     route: '/price-scenario-profit',

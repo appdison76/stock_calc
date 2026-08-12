@@ -381,6 +381,12 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="base-compound-calculator"
+          options={{
+            title: '음·양 복리·모수 계산기',
+          }}
+        />
+        <Stack.Screen
           name="price-scenario-profit"
           options={{
             title: '주가 시나리오 수익 계산기',
