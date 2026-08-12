@@ -12,6 +12,7 @@ type Props = {
   steps: CompoundStepRow[];
   currency: Currency;
   recoveryStep?: CompoundStepRow;
+  getStepLabel?: (step: CompoundStepRow) => string;
 };
 
 function pctColor(pct: number): string {
@@ -85,7 +86,7 @@ function TimelineNode({
   );
 }
 
-export function PathTimeline({ start, steps, currency, recoveryStep }: Props) {
+export function PathTimeline({ start, steps, currency, recoveryStep, getStepLabel }: Props) {
   return (
     <View style={s.pathTimeline}>
       <TimelineNode
@@ -102,7 +103,7 @@ export function PathTimeline({ start, steps, currency, recoveryStep }: Props) {
           <React.Fragment key={step.index}>
             <TimelineConnector pct={step.stepPct} />
             <TimelineNode
-              label={`${step.index}단계`}
+              label={getStepLabel ? getStepLabel(step) : `${step.index}단계`}
               price={step.priceAfter}
               cumulativePct={step.cumulativePct}
               variant="step"

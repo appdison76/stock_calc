@@ -24,6 +24,7 @@ import {
   calcBaseRecovery,
   calcCompoundSteps,
   calcContinuousScenario,
+  buildBaseRecoveryTimeline,
   buildRecoveryStepRow,
   cumulativeOutcomeWord,
   formatChangePctDescription,
@@ -483,7 +484,10 @@ export default function BaseCompoundCalculatorView() {
     </View>
   );
 
-  const renderBaseTab = () => (
+  const renderBaseTab = () => {
+    const baseTimeline = baseResult ? buildBaseRecoveryTimeline(baseResult) : null;
+
+    return (
     <>
       <View style={s.card}>
         <Text style={s.cardTitle}>모수효과</Text>
@@ -530,6 +534,15 @@ export default function BaseCompoundCalculatorView() {
         <SharedResultSection onTextShare={handleTextShare}>
           <View style={s.card}>
             <Text style={s.cardTitle}>결과</Text>
+            {baseTimeline ? (
+              <PathTimeline
+                start={baseTimeline.start}
+                steps={baseTimeline.steps}
+                currency={selectedCurrency}
+                recoveryStep={baseTimeline.recoveryStep}
+                getStepLabel={() => '변동 후'}
+              />
+            ) : null}
             <View style={s.resultGrid}>
               <CalculationResultCard
                 title="변동률"
@@ -582,7 +595,8 @@ export default function BaseCompoundCalculatorView() {
         </SharedResultSection>
       )}
     </>
-  );
+    );
+  };
 
   const renderCompoundTab = (mode: 'negative' | 'positive') => {
     const isNeg = mode === 'negative';
@@ -630,6 +644,11 @@ export default function BaseCompoundCalculatorView() {
           <SharedResultSection onTextShare={handleTextShare}>
             <View style={s.card}>
               <Text style={s.cardTitle}>결과</Text>
+              <PathTimeline
+                start={result.start}
+                steps={result.steps}
+                currency={selectedCurrency}
+              />
               <View style={s.resultGrid}>
                 <CalculationResultCard
                   title="최종가"

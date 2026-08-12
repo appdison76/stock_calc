@@ -220,6 +220,37 @@ export function calcContinuousScenario(input: {
   };
 }
 
+export type BaseRecoveryTimeline = {
+  start: number;
+  steps: CompoundStepRow[];
+  recoveryStep?: CompoundStepRow;
+};
+
+/** 모수효과 — 시작→변동 후(1단계) + 선택적 회복(↩) */
+export function buildBaseRecoveryTimeline(base: BaseRecoveryResult): BaseRecoveryTimeline {
+  const { peak, bottom, target, dropPct, recoveryPct } = base;
+  const steps: CompoundStepRow[] = [
+    {
+      index: 1,
+      priceBefore: peak,
+      priceAfter: bottom,
+      stepPct: dropPct,
+      cumulativePct: dropPct,
+    },
+  ];
+  const recoveryStep =
+    target !== bottom
+      ? {
+          index: 2,
+          priceBefore: bottom,
+          priceAfter: target,
+          stepPct: recoveryPct,
+          cumulativePct: (target / peak - 1) * 100,
+        }
+      : undefined;
+  return { start: peak, steps, recoveryStep };
+}
+
 /** 경로 시나리오 — 변동 후 → 최종 회복 행 */
 export function buildRecoveryStepRow(scenario: ContinuousScenarioResult): CompoundStepRow {
   const { drops, bottom, target, recoveryPct } = scenario;
