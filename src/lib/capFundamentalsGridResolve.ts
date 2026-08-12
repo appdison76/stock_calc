@@ -92,15 +92,70 @@ export function parseScenarioToQuarterlyOpEok(raw: string, unit: OpScenarioUnit)
   return scenarioAmountToQuarterlyOpEok(n, unit);
 }
 
+export function annualWonFromQuarterlyEok(quarterlyEok: number | null): number | null {
+  if (quarterlyEok == null || !Number.isFinite(quarterlyEok) || quarterlyEok <= 0) return null;
+  const won = quarterlyEok * 1e8 * 4;
+  return Number.isFinite(won) ? won : null;
+}
+
+/** 분기 실적(억 환산) ×4 연율 금액 — 잠정·가이던스 표시용 */
+export function formatAnnualKrFromQuarterlyEok(quarterlyEok: number | null): string {
+  const won = annualWonFromQuarterlyEok(quarterlyEok);
+  if (won == null) return '—';
+  return formatWonShortKr(won);
+}
+
 export function formatPorFromQuarterlyOpEok(capWon: number | null, quarterlyOpEok: number | null): string {
   if (capWon == null || !Number.isFinite(capWon)) return '—';
   if (quarterlyOpEok == null || !Number.isFinite(quarterlyOpEok)) return '—';
   if (quarterlyOpEok <= 0) return '적자';
-  const annualOpWon = quarterlyOpEok * 1e8 * 4;
+  const annualOpWon = annualWonFromQuarterlyEok(quarterlyOpEok);
+  if (annualOpWon == null) return '—';
   const por = capWon / annualOpWon;
   if (!Number.isFinite(por) || por <= 0) return '—';
   return formatRatioLocale(por);
 }
+
+/** PSR = 시총 ÷ (분기 매출 ×4 연율) */
+export function formatPsrFromQuarterlyRevEok(capWon: number | null, quarterlyRevEok: number | null): string {
+  if (capWon == null || !Number.isFinite(capWon)) return '—';
+  if (quarterlyRevEok == null || !Number.isFinite(quarterlyRevEok)) return '—';
+  if (quarterlyRevEok <= 0) return '—';
+  const annualRevWon = annualWonFromQuarterlyEok(quarterlyRevEok);
+  if (annualRevWon == null) return '—';
+  const psr = capWon / annualRevWon;
+  if (!Number.isFinite(psr) || psr <= 0) return '—';
+  return formatRatioLocale(psr);
+}
+
+/** 영업이익률 = 분기 영업이익 ÷ 분기 매출 (×4 해도 동일) */
+export function formatOpMarginFromQuarterlyEok(
+  quarterlyOpEok: number | null,
+  quarterlyRevEok: number | null
+): string {
+  if (quarterlyOpEok == null || !Number.isFinite(quarterlyOpEok)) return '—';
+  if (quarterlyRevEok == null || !Number.isFinite(quarterlyRevEok) || quarterlyRevEok <= 0) return '—';
+  const pct = (quarterlyOpEok / quarterlyRevEok) * 100;
+  if (!Number.isFinite(pct)) return '—';
+  return `${new Intl.NumberFormat('ko-KR', { minimumFractionDigits: 0, maximumFractionDigits: 1 }).format(pct)}%`;
+}
+
+/** PER·POR·PBR·PSR 정의 — 실적 조회(연/분기) 한 줄 */
+export function fundamentalsValuationFormulasLine(g: 'year' | 'quarter'): string {
+  if (g === 'year') {
+    return 'PER=시총÷당기순이익 · POR=시총÷영업이익 · PBR=시총÷순자산(자본) · PSR=시총÷매출';
+  }
+  return 'PER=시총÷(분기 순이익×4) · POR=시총÷(분기 영업이익×4) · PBR=시총÷순자산(자본) · PSR=시총÷(분기 매출×4)';
+}
+
+/** 요약·실적 PER/POR/PBR/PSR 분모 안내 */
+export function fundamentalsValuationBasisFootnote(g: 'year' | 'quarter'): string {
+  return `※ ${fundamentalsValuationFormulasLine(g)}`;
+}
+
+/** 잠정·가이던스 시나리오 — POR·PSR·영업이익률 */
+export const SCENARIO_POR_PSR_METRICS_HINT =
+  'POR=시총÷(분기 영업이익×4) · PSR=시총÷(분기 매출×4) · 영업이익률=분기 영업이익÷분기 매출';
 
 export function formatCapBadge(periodKey: string, g: 'year' | 'quarter'): string {
   const quarterRe = /^(\d{4})Q([1-4])$/;

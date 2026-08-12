@@ -49,14 +49,19 @@ import {
   annualizeIncomeForPerPor,
   applyFundamentalsSnapshotFromGrid,
   formatCapBadge,
+  formatAnnualKrFromQuarterlyEok,
+  formatOpMarginFromQuarterlyEok,
   formatPerFromCapAndNet,
   formatPorFromCapAndOp,
   formatPbrFromCapAndEquity,
   formatPorFromQuarterlyOpEok,
+  formatPsrFromQuarterlyRevEok,
   marketCapWonFromQuote,
   OP_SCENARIO_UNITS,
   parseScenarioToQuarterlyOpEok,
   resolveUsdKrwRate,
+  fundamentalsValuationBasisFootnote,
+  SCENARIO_POR_PSR_METRICS_HINT,
   type OpScenarioUnit,
   yahooLookupFromMockKey,
 } from '../src/lib/capFundamentalsGridResolve';
@@ -145,8 +150,12 @@ export default function PriceScenarioProfitScreen() {
 
   const [provisionalOpEok, setProvisionalOpEok] = useState('');
   const [provisionalUnit, setProvisionalUnit] = useState<OpScenarioUnit>('jo');
+  const [provisionalRevEok, setProvisionalRevEok] = useState('');
+  const [provisionalRevUnit, setProvisionalRevUnit] = useState<OpScenarioUnit>('jo');
   const [guidanceOpEok, setGuidanceOpEok] = useState('');
   const [guidanceUnit, setGuidanceUnit] = useState<OpScenarioUnit>('jo');
+  const [guidanceRevEok, setGuidanceRevEok] = useState('');
+  const [guidanceRevUnit, setGuidanceRevUnit] = useState<OpScenarioUnit>('jo');
 
   const [usdKrwApplied, setUsdKrwApplied] = useState(FUNDAMENTALS_USD_KRW_RATE);
   const [portfolioStocks, setPortfolioStocks] = useState<Stock[]>([]);
@@ -243,8 +252,12 @@ export default function PriceScenarioProfitScreen() {
       scenarioPersistReadyRef.current = null;
       setProvisionalOpEok('');
       setProvisionalUnit('jo');
+      setProvisionalRevEok('');
+      setProvisionalRevUnit('jo');
       setGuidanceOpEok('');
       setGuidanceUnit('jo');
+      setGuidanceRevEok('');
+      setGuidanceRevUnit('jo');
       return;
     }
     scenarioPersistReadyRef.current = null;
@@ -257,13 +270,21 @@ export default function PriceScenarioProfitScreen() {
       if (row) {
         setProvisionalOpEok(row.provisionalEok);
         setProvisionalUnit(row.provisionalUnit as OpScenarioUnit);
+        setProvisionalRevEok(row.provisionalRevEok ?? '');
+        setProvisionalRevUnit((row.provisionalRevUnit ?? 'jo') as OpScenarioUnit);
         setGuidanceOpEok(row.guidanceEok);
         setGuidanceUnit(row.guidanceUnit as OpScenarioUnit);
+        setGuidanceRevEok(row.guidanceRevEok ?? '');
+        setGuidanceRevUnit((row.guidanceRevUnit ?? 'jo') as OpScenarioUnit);
       } else {
         setProvisionalOpEok('');
         setProvisionalUnit('jo');
+        setProvisionalRevEok('');
+        setProvisionalRevUnit('jo');
         setGuidanceOpEok('');
         setGuidanceUnit('jo');
+        setGuidanceRevEok('');
+        setGuidanceRevUnit('jo');
       }
       const ps = row?.priceScenarioInputs;
       if (ps) {
@@ -298,8 +319,12 @@ export default function PriceScenarioProfitScreen() {
     const snap: OpScenarioPersistRow = {
       provisionalEok: provisionalOpEok,
       provisionalUnit: provisionalUnit as OpScenarioPersistUnit,
+      provisionalRevEok: provisionalRevEok,
+      provisionalRevUnit: provisionalRevUnit as OpScenarioPersistUnit,
       guidanceEok: guidanceOpEok,
       guidanceUnit: guidanceUnit as OpScenarioPersistUnit,
+      guidanceRevEok: guidanceRevEok,
+      guidanceRevUnit: guidanceRevUnit as OpScenarioPersistUnit,
       priceScenarioInputs: {
         buyPriceStr,
         qtyStr,
@@ -328,8 +353,12 @@ export default function PriceScenarioProfitScreen() {
     mockKeyResolved,
     provisionalOpEok,
     provisionalUnit,
+    provisionalRevEok,
+    provisionalRevUnit,
     guidanceOpEok,
     guidanceUnit,
+    guidanceRevEok,
+    guidanceRevUnit,
     buyPriceStr,
     qtyStr,
     targetPriceStr,
@@ -392,10 +421,7 @@ export default function PriceScenarioProfitScreen() {
   }, [netIncomeWon, dartWonScaleDown, displayNetIncomeKr]);
 
   const perPorBasisFootnote = useMemo(
-    () =>
-      granularity === 'quarter'
-        ? '※ PER·POR는 분기 당기순이익·영업이익을 각각 ×4(연율화)한 금액을 분모로 씁니다. PBR은 해당 분기 순자산(자본)을 분모로 씁니다.'
-        : '※ PER·POR는 연간 당기순이익·영업이익을 분모로 씁니다. PBR은 연말 순자산(자본)을 분모로 씁니다.',
+    () => fundamentalsValuationBasisFootnote(granularity),
     [granularity]
   );
 
@@ -497,6 +523,14 @@ export default function PriceScenarioProfitScreen() {
   const guidanceQOp = useMemo(
     () => parseScenarioToQuarterlyOpEok(guidanceOpEok, guidanceUnit),
     [guidanceOpEok, guidanceUnit]
+  );
+  const provisionalQRev = useMemo(
+    () => parseScenarioToQuarterlyOpEok(provisionalRevEok, provisionalRevUnit),
+    [provisionalRevEok, provisionalRevUnit]
+  );
+  const guidanceQRev = useMemo(
+    () => parseScenarioToQuarterlyOpEok(guidanceRevEok, guidanceRevUnit),
+    [guidanceRevEok, guidanceRevUnit]
   );
 
   const perCurrent = formatPerFromCapAndNet(inputBasisCapWon, perDenominator);
@@ -1368,10 +1402,11 @@ export default function PriceScenarioProfitScreen() {
 
             <View style={styles.sectionCard}>
               <Text style={[styles.sectionHeading, styles.sectionHeadingUserInput]}>
-                잠정 분기 영업이익 ×4 (선택){' '}
+                잠정 분기 실적 ×4 (선택){' '}
                 <Text style={styles.sectionHeadingUserInputSuffix}>시총계산기와 동일 저장</Text>
               </Text>
-              <Text style={styles.sheetLead}>분기 영업이익 숫자·단위 입력 → ×4 연율화 후 POR만 표시.</Text>
+              <Text style={styles.sheetLead}>분기 영업이익·매출 → ×4 연율, POR·PSR·영업이익률.</Text>
+              <Text style={styles.sheetLeadSub}>영업이익</Text>
               <View style={[styles.unitRow, styles.unitRowInCard]}>
                 {OP_SCENARIO_UNITS.map((u) => (
                   <TouchableOpacity
@@ -1393,6 +1428,10 @@ export default function PriceScenarioProfitScreen() {
               />
               <View style={[styles.card, styles.cardInSection]}>
                 <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>연율 영업이익 (×4): </Text>
+                  <Text style={styles.summaryVal}>{formatAnnualKrFromQuarterlyEok(provisionalQOp)}</Text>
+                </Text>
+                <Text style={styles.line}>
                   <Text style={styles.summaryLblPrice}>
                     {inputPriceDiffersFromQuote ? '입력한 현재가 시총 기준 POR: ' : '현재 시총 기준 POR: '}
                   </Text>
@@ -1407,14 +1446,62 @@ export default function PriceScenarioProfitScreen() {
                   </Text>
                 </Text>
               </View>
+              <Text style={[styles.sheetLeadSub, styles.sheetLeadSubSpaced]}>매출</Text>
+              <View style={[styles.unitRow, styles.unitRowInCard]}>
+                {OP_SCENARIO_UNITS.map((u) => (
+                  <TouchableOpacity
+                    key={`prov-rev-u-${u.id}`}
+                    style={[styles.unitChip, provisionalRevUnit === u.id && styles.unitChipOn]}
+                    onPress={() => setProvisionalRevUnit(u.id)}
+                  >
+                    <Text style={[styles.unitChipText, provisionalRevUnit === u.id && styles.unitChipTextOn]}>{u.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                style={[styles.input, styles.inputInCard]}
+                placeholder="분기 매출"
+                placeholderTextColor="#888"
+                keyboardType="decimal-pad"
+                value={provisionalRevEok}
+                onChangeText={setProvisionalRevEok}
+              />
+              <View style={[styles.card, styles.cardInSection]}>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>연율 매출 (×4): </Text>
+                  <Text style={styles.summaryVal}>{formatAnnualKrFromQuarterlyEok(provisionalQRev)}</Text>
+                </Text>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>영업이익률: </Text>
+                  <Text style={styles.summaryValStrong}>
+                    {formatOpMarginFromQuarterlyEok(provisionalQOp, provisionalQRev)}
+                  </Text>
+                </Text>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>
+                    {inputPriceDiffersFromQuote ? '입력한 현재가 시총 기준 PSR: ' : '현재 시총 기준 PSR: '}
+                  </Text>
+                  <Text style={styles.summaryValStrong}>
+                    {formatPsrFromQuarterlyRevEok(inputBasisCapWon, provisionalQRev)}
+                  </Text>
+                </Text>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblScenarioCap}>시나리오 시총 기준 PSR: </Text>
+                  <Text style={styles.summaryValScenarioStrong}>
+                    {formatPsrFromQuarterlyRevEok(scenarioCapWon, provisionalQRev)}
+                  </Text>
+                </Text>
+              </View>
+              <Text style={styles.scenarioMetricsHint}>{SCENARIO_POR_PSR_METRICS_HINT}</Text>
             </View>
 
             <View style={styles.sectionCard}>
               <Text style={[styles.sectionHeading, styles.sectionHeadingUserInput]}>
-                가이던스 분기 영업이익 ×4 (선택){' '}
+                가이던스 분기 실적 ×4 (선택){' '}
                 <Text style={styles.sectionHeadingUserInputSuffix}>동일 저장 키</Text>
               </Text>
-              <Text style={styles.sheetLead}>잠정과 동일 규칙으로 가이던스 분기 영업이익을 넣으면 POR을 봅니다.</Text>
+              <Text style={styles.sheetLead}>잠정과 동일 — 가이던스 분기 영업이익·매출.</Text>
+              <Text style={styles.sheetLeadSub}>영업이익</Text>
               <View style={[styles.unitRow, styles.unitRowInCard]}>
                 {OP_SCENARIO_UNITS.map((u) => (
                   <TouchableOpacity
@@ -1436,6 +1523,10 @@ export default function PriceScenarioProfitScreen() {
               />
               <View style={[styles.card, styles.cardInSection]}>
                 <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>연율 영업이익 (×4): </Text>
+                  <Text style={styles.summaryVal}>{formatAnnualKrFromQuarterlyEok(guidanceQOp)}</Text>
+                </Text>
+                <Text style={styles.line}>
                   <Text style={styles.summaryLblPrice}>
                     {inputPriceDiffersFromQuote ? '입력한 현재가 시총 기준 POR: ' : '현재 시총 기준 POR: '}
                   </Text>
@@ -1448,6 +1539,53 @@ export default function PriceScenarioProfitScreen() {
                   <Text style={styles.summaryValScenarioStrong}>{formatPorFromQuarterlyOpEok(scenarioCapWon, guidanceQOp)}</Text>
                 </Text>
               </View>
+              <Text style={[styles.sheetLeadSub, styles.sheetLeadSubSpaced]}>매출</Text>
+              <View style={[styles.unitRow, styles.unitRowInCard]}>
+                {OP_SCENARIO_UNITS.map((u) => (
+                  <TouchableOpacity
+                    key={`guide-rev-u-${u.id}`}
+                    style={[styles.unitChip, guidanceRevUnit === u.id && styles.unitChipOn]}
+                    onPress={() => setGuidanceRevUnit(u.id)}
+                  >
+                    <Text style={[styles.unitChipText, guidanceRevUnit === u.id && styles.unitChipTextOn]}>{u.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                style={[styles.input, styles.inputInCard]}
+                placeholder="분기 매출"
+                placeholderTextColor="#888"
+                keyboardType="decimal-pad"
+                value={guidanceRevEok}
+                onChangeText={setGuidanceRevEok}
+              />
+              <View style={[styles.card, styles.cardInSection]}>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>연율 매출 (×4): </Text>
+                  <Text style={styles.summaryVal}>{formatAnnualKrFromQuarterlyEok(guidanceQRev)}</Text>
+                </Text>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>영업이익률: </Text>
+                  <Text style={styles.summaryValStrong}>
+                    {formatOpMarginFromQuarterlyEok(guidanceQOp, guidanceQRev)}
+                  </Text>
+                </Text>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>
+                    {inputPriceDiffersFromQuote ? '입력한 현재가 시총 기준 PSR: ' : '현재 시총 기준 PSR: '}
+                  </Text>
+                  <Text style={styles.summaryValStrong}>
+                    {formatPsrFromQuarterlyRevEok(inputBasisCapWon, guidanceQRev)}
+                  </Text>
+                </Text>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblScenarioCap}>시나리오 시총 기준 PSR: </Text>
+                  <Text style={styles.summaryValScenarioStrong}>
+                    {formatPsrFromQuarterlyRevEok(scenarioCapWon, guidanceQRev)}
+                  </Text>
+                </Text>
+              </View>
+              <Text style={styles.scenarioMetricsHint}>{SCENARIO_POR_PSR_METRICS_HINT}</Text>
             </View>
           </>
         ) : null}
@@ -1509,6 +1647,13 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: 10,
   },
+  sheetLeadSub: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#b0bec5',
+    marginBottom: 6,
+  },
+  sheetLeadSubSpaced: { marginTop: 14 },
   fieldLabel: { color: '#90a4ae', fontSize: 13, marginBottom: 6, marginTop: 4 },
   hintMuted: { color: '#78909c', fontSize: 12, marginBottom: 8 },
   hintBelowInput: { marginTop: -4, marginBottom: 6 },
@@ -1792,6 +1937,12 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     marginBottom: 6,
     marginTop: 2,
+  },
+  scenarioMetricsHint: {
+    color: '#78909c',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 10,
   },
   metricPeriodInline: {
     color: '#78909c',

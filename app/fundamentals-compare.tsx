@@ -66,6 +66,11 @@ import { SettingsService, type FundamentalsCompareSelectionPersisted, type OpSce
 import {
   pickPortfolioSnapshotPeriodKey,
   pickSnapshotPeriodKey,
+  formatAnnualKrFromQuarterlyEok,
+  formatOpMarginFromQuarterlyEok,
+  formatPsrFromQuarterlyRevEok,
+  fundamentalsValuationFormulasLine,
+  SCENARIO_POR_PSR_METRICS_HINT,
 } from '../src/lib/capFundamentalsGridResolve';
 
 /** 해외 실적 컬럼 동시 조회 상한 — 무제한 병렬은 Yahoo 차단·메모리 스파이크 위험 */
@@ -434,6 +439,10 @@ export default function FundamentalsCompareScreen() {
   const [guidanceOpEokByKey, setGuidanceOpEokByKey] = useState<Record<string, string>>({});
   const [provisionalOpUnitByKey, setProvisionalOpUnitByKey] = useState<Record<string, OpScenarioUnit>>({});
   const [guidanceOpUnitByKey, setGuidanceOpUnitByKey] = useState<Record<string, OpScenarioUnit>>({});
+  const [provisionalRevEokByKey, setProvisionalRevEokByKey] = useState<Record<string, string>>({});
+  const [guidanceRevEokByKey, setGuidanceRevEokByKey] = useState<Record<string, string>>({});
+  const [provisionalRevUnitByKey, setProvisionalRevUnitByKey] = useState<Record<string, OpScenarioUnit>>({});
+  const [guidanceRevUnitByKey, setGuidanceRevUnitByKey] = useState<Record<string, OpScenarioUnit>>({});
 
   const quarterYearChoices = useMemo(
     () => fundamentalsQuarterYearChoices(new Date(), FUNDAMENTALS_CALENDAR_YEAR_SPAN),
@@ -619,6 +628,34 @@ export default function FundamentalsCompareScreen() {
       }
       return next;
     });
+    setProvisionalRevEokByKey((prev) => {
+      const next: Record<string, string> = {};
+      for (const k of keyList) {
+        next[k] = prev[k] ?? '';
+      }
+      return next;
+    });
+    setGuidanceRevEokByKey((prev) => {
+      const next: Record<string, string> = {};
+      for (const k of keyList) {
+        next[k] = prev[k] ?? '';
+      }
+      return next;
+    });
+    setProvisionalRevUnitByKey((prev) => {
+      const next: Record<string, OpScenarioUnit> = {};
+      for (const k of keyList) {
+        next[k] = prev[k] ?? 'jo';
+      }
+      return next;
+    });
+    setGuidanceRevUnitByKey((prev) => {
+      const next: Record<string, OpScenarioUnit> = {};
+      for (const k of keyList) {
+        next[k] = prev[k] ?? 'jo';
+      }
+      return next;
+    });
   }, [deduped]);
 
   /** AsyncStorage에서 잠정·가이던스 복원(mockKey 공통 저장소) */
@@ -664,6 +701,38 @@ export default function FundamentalsCompareScreen() {
         }
         return next;
       });
+      setProvisionalRevEokByKey((prev) => {
+        const next: Record<string, string> = { ...prev };
+        for (const r of deduped) {
+          const row = map[r.mockKey];
+          next[r.mockKey] = row?.provisionalRevEok ?? prev[r.mockKey] ?? '';
+        }
+        return next;
+      });
+      setGuidanceRevEokByKey((prev) => {
+        const next: Record<string, string> = { ...prev };
+        for (const r of deduped) {
+          const row = map[r.mockKey];
+          next[r.mockKey] = row?.guidanceRevEok ?? prev[r.mockKey] ?? '';
+        }
+        return next;
+      });
+      setProvisionalRevUnitByKey((prev) => {
+        const next: Record<string, OpScenarioUnit> = { ...prev };
+        for (const r of deduped) {
+          const row = map[r.mockKey];
+          next[r.mockKey] = (row?.provisionalRevUnit ?? prev[r.mockKey] ?? 'jo') as OpScenarioUnit;
+        }
+        return next;
+      });
+      setGuidanceRevUnitByKey((prev) => {
+        const next: Record<string, OpScenarioUnit> = { ...prev };
+        for (const r of deduped) {
+          const row = map[r.mockKey];
+          next[r.mockKey] = (row?.guidanceRevUnit ?? prev[r.mockKey] ?? 'jo') as OpScenarioUnit;
+        }
+        return next;
+      });
       if (!cancelled) setOpScenarioReady(true);
     })();
     return () => {
@@ -683,8 +752,12 @@ export default function FundamentalsCompareScreen() {
           map[k] = {
             provisionalEok: provisionalOpEokByKey[k] ?? '',
             provisionalUnit: (provisionalOpUnitByKey[k] ?? 'jo') as OpScenarioPersistUnit,
+            provisionalRevEok: provisionalRevEokByKey[k] ?? '',
+            provisionalRevUnit: (provisionalRevUnitByKey[k] ?? 'jo') as OpScenarioPersistUnit,
             guidanceEok: guidanceOpEokByKey[k] ?? '',
             guidanceUnit: (guidanceOpUnitByKey[k] ?? 'jo') as OpScenarioPersistUnit,
+            guidanceRevEok: guidanceRevEokByKey[k] ?? '',
+            guidanceRevUnit: (guidanceRevUnitByKey[k] ?? 'jo') as OpScenarioPersistUnit,
             priceScenarioInputs: prev?.priceScenarioInputs,
           };
         }
@@ -697,8 +770,12 @@ export default function FundamentalsCompareScreen() {
     deduped,
     provisionalOpEokByKey,
     provisionalOpUnitByKey,
+    provisionalRevEokByKey,
+    provisionalRevUnitByKey,
     guidanceOpEokByKey,
     guidanceOpUnitByKey,
+    guidanceRevEokByKey,
+    guidanceRevUnitByKey,
   ]);
 
   /** 체크 상태·포트폴리오 스냅샷 저장 (재진입 시 복원·신규 종목 자동 체크에 사용) */
@@ -1737,7 +1814,7 @@ export default function FundamentalsCompareScreen() {
         >
           <Text style={styles.heroTitle}>기업 실적 비교</Text>
           <Text style={styles.heroSub}>
-            여러 종목을 선택해 연·분기 실적과 시총·PER을 비교하고, 잠정·가이던스 분기 영업이익으로 ×4 연율 기준 POR까지 시뮬레이션할 수 있습니다.
+            여러 종목을 선택해 연·분기 실적과 시총·PER을 비교하고, 잠정·가이던스 분기 영업이익·매출로 ×4 연율 POR·PSR·영업이익률까지 시뮬레이션할 수 있습니다.
           </Text>
         </LinearGradient>
 
@@ -2041,10 +2118,9 @@ export default function FundamentalsCompareScreen() {
             <Text style={styles.sectionHeading}>시총·PER·실적 요약</Text>
             <Text style={styles.sheetLead}>
               {granularity === 'year'
-                ? '연 실적 기준. PER·POR 분모도 연간 이익.'
-                : '분기 금액 표시, PER·POR은 분기 이익×4(연율).'}
-              {' '}
-              PER=시총÷당기순이익, POR=시총÷영업이익, PBR=시총÷순자산(자본). 출처는 숫자 아래.
+                ? '연 실적 기준. PER·POR·PSR 분모는 연간 이익·매출.'
+                : '분기 금액 표시. PER·POR·PSR은 ×4 연율.'}{' '}
+              {fundamentalsValuationFormulasLine(granularity)}. 출처는 숫자 아래.
               {hasForeignSelected ? ' 해외: Yahoo 구간' : ''}
               {hasDomesticSelected ? ' · 국내: DART' : ''}
             </Text>
@@ -2102,8 +2178,9 @@ export default function FundamentalsCompareScreen() {
             </ScrollView>
             <Text style={styles.tableHintMuted}>
               {granularity === 'year'
-                ? '시총·조회 시점. POR·PER 분모는 연간 이익. PBR 분모는 연말 순자산.'
-                : '시총·조회 시점. PER·POR은 이익×4 연율. PBR은 해당 분기 순자산.'}
+                ? '시총·조회 시점. '
+                : '시총·조회 시점. PER·POR·PSR은 이익·매출 ×4 연율. '}
+              {fundamentalsValuationFormulasLine(granularity)}
             </Text>
             </View>
 
@@ -2113,9 +2190,14 @@ export default function FundamentalsCompareScreen() {
               <Text style={styles.sectionHeadingUserInputSuffix}>계산기</Text>
             </Text>
             <Text style={styles.scenarioSub}>
-              다음 분기 영업이익(조·억·천만·백만) 입력 → ×4 연율 대비 현재 시총으로 POR만 표시합니다.
+              분기 영업이익·매출(조·억·천만·백만) 입력 → ×4 연율, POR·PSR·영업이익률.
             </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator style={styles.tableScroll}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator
+              nestedScrollEnabled
+              style={styles.scenarioTableScroll}
+            >
               <View style={styles.tableInner}>
                 <View style={styles.tableHeaderRow}>
                   <Text style={[styles.th, styles.thScenarioLabel]}>항목</Text>
@@ -2166,6 +2248,22 @@ export default function FundamentalsCompareScreen() {
                   ))}
                 </View>
                 <View style={styles.tableBodyRow}>
+                  <Text style={[styles.td, styles.thScenarioLabel]}>연율 영업이익 (×4)</Text>
+                  {selectedRows.map((s) => (
+                    <Text
+                      key={`prov-ann-op-${s.mockKey}`}
+                      style={[styles.td, styles.thStock, styles.scenarioStockCol]}
+                    >
+                      {formatAnnualKrFromQuarterlyEok(
+                        parseScenarioToQuarterlyOpEok(
+                          provisionalOpEokByKey[s.mockKey] ?? '',
+                          provisionalOpUnitByKey[s.mockKey] ?? 'jo'
+                        )
+                      )}
+                    </Text>
+                  ))}
+                </View>
+                <View style={styles.tableBodyRow}>
                   <Text style={[styles.td, styles.thScenarioLabel]}>POR (×4)</Text>
                   {selectedRows.map((s) => (
                     <Text
@@ -2182,9 +2280,100 @@ export default function FundamentalsCompareScreen() {
                     </Text>
                   ))}
                 </View>
+                <View style={styles.tableBodyRow}>
+                  <Text style={[styles.td, styles.thScenarioLabel]}>분기 매출</Text>
+                  {selectedRows.map((s) => (
+                    <View key={`prov-rev-${s.mockKey}`} style={[styles.thStock, styles.scenarioStockCol]}>
+                      <View style={styles.unitGrid}>
+                        {OP_SCENARIO_UNITS.map((u) => {
+                          const on = (provisionalRevUnitByKey[s.mockKey] ?? 'jo') === u.id;
+                          return (
+                            <TouchableOpacity
+                              key={u.id}
+                              style={[styles.unitChip, on && styles.unitChipOn]}
+                              onPress={() =>
+                                setProvisionalRevUnitByKey((p) => ({ ...p, [s.mockKey]: u.id }))
+                              }
+                              activeOpacity={0.85}
+                            >
+                              <Text style={[styles.unitChipText, on && styles.unitChipTextOn]}>
+                                {u.label}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                      <TextInput
+                        style={styles.scenarioInput}
+                        value={provisionalRevEokByKey[s.mockKey] ?? ''}
+                        onChangeText={(t) =>
+                          setProvisionalRevEokByKey((p) => ({ ...p, [s.mockKey]: t }))
+                        }
+                        placeholder="—"
+                        placeholderTextColor="#546E7A"
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                  ))}
+                </View>
+                <View style={styles.tableBodyRow}>
+                  <Text style={[styles.td, styles.thScenarioLabel]}>연율 매출 (×4)</Text>
+                  {selectedRows.map((s) => (
+                    <Text
+                      key={`prov-ann-rev-${s.mockKey}`}
+                      style={[styles.td, styles.thStock, styles.scenarioStockCol]}
+                    >
+                      {formatAnnualKrFromQuarterlyEok(
+                        parseScenarioToQuarterlyOpEok(
+                          provisionalRevEokByKey[s.mockKey] ?? '',
+                          provisionalRevUnitByKey[s.mockKey] ?? 'jo'
+                        )
+                      )}
+                    </Text>
+                  ))}
+                </View>
+                <View style={styles.tableBodyRow}>
+                  <Text style={[styles.td, styles.thScenarioLabel]}>영업이익률</Text>
+                  {selectedRows.map((s) => (
+                    <Text
+                      key={`prov-margin-${s.mockKey}`}
+                      style={[styles.td, styles.thStock, styles.scenarioStockCol]}
+                    >
+                      {formatOpMarginFromQuarterlyEok(
+                        parseScenarioToQuarterlyOpEok(
+                          provisionalOpEokByKey[s.mockKey] ?? '',
+                          provisionalOpUnitByKey[s.mockKey] ?? 'jo'
+                        ),
+                        parseScenarioToQuarterlyOpEok(
+                          provisionalRevEokByKey[s.mockKey] ?? '',
+                          provisionalRevUnitByKey[s.mockKey] ?? 'jo'
+                        )
+                      )}
+                    </Text>
+                  ))}
+                </View>
+                <View style={styles.tableBodyRow}>
+                  <Text style={[styles.td, styles.thScenarioLabel]}>PSR (×4)</Text>
+                  {selectedRows.map((s) => (
+                    <Text
+                      key={`prov-psr-${s.mockKey}`}
+                      style={[styles.td, styles.thStock, styles.scenarioStockCol]}
+                    >
+                      {formatPsrFromQuarterlyRevEok(
+                        marketCapWonByKey[s.mockKey] ?? null,
+                        parseScenarioToQuarterlyOpEok(
+                          provisionalRevEokByKey[s.mockKey] ?? '',
+                          provisionalRevUnitByKey[s.mockKey] ?? 'jo'
+                        )
+                      )}
+                    </Text>
+                  ))}
+                </View>
               </View>
             </ScrollView>
-            <Text style={styles.tableHintMuted}>시총은 위 요약과 동일(조회 시점).</Text>
+            <Text style={styles.tableHintMuted}>
+              {SCENARIO_POR_PSR_METRICS_HINT}. 시총은 위 요약과 동일(조회 시점).
+            </Text>
             </View>
 
             <View style={styles.sectionCard}>
@@ -2193,9 +2382,14 @@ export default function FundamentalsCompareScreen() {
               <Text style={styles.sectionHeadingUserInputSuffix}>계산기</Text>
             </Text>
             <Text style={styles.scenarioSub}>
-              차기 분기 가이던스 영업이익만 입력 · POR만 표시합니다.
+              차기 분기 가이던스 영업이익·매출 입력 · 잠정과 동일 규칙.
             </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator style={styles.tableScroll}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator
+              nestedScrollEnabled
+              style={styles.scenarioTableScroll}
+            >
               <View style={styles.tableInner}>
                 <View style={styles.tableHeaderRow}>
                   <Text style={[styles.th, styles.thScenarioLabel]}>항목</Text>
@@ -2246,6 +2440,22 @@ export default function FundamentalsCompareScreen() {
                   ))}
                 </View>
                 <View style={styles.tableBodyRow}>
+                  <Text style={[styles.td, styles.thScenarioLabel]}>연율 영업이익 (×4)</Text>
+                  {selectedRows.map((s) => (
+                    <Text
+                      key={`guide-ann-op-${s.mockKey}`}
+                      style={[styles.td, styles.thStock, styles.scenarioStockCol]}
+                    >
+                      {formatAnnualKrFromQuarterlyEok(
+                        parseScenarioToQuarterlyOpEok(
+                          guidanceOpEokByKey[s.mockKey] ?? '',
+                          guidanceOpUnitByKey[s.mockKey] ?? 'jo'
+                        )
+                      )}
+                    </Text>
+                  ))}
+                </View>
+                <View style={styles.tableBodyRow}>
                   <Text style={[styles.td, styles.thScenarioLabel]}>POR (×4)</Text>
                   {selectedRows.map((s) => (
                     <Text
@@ -2262,9 +2472,98 @@ export default function FundamentalsCompareScreen() {
                     </Text>
                   ))}
                 </View>
+                <View style={styles.tableBodyRow}>
+                  <Text style={[styles.td, styles.thScenarioLabel]}>분기 매출</Text>
+                  {selectedRows.map((s) => (
+                    <View key={`guide-rev-${s.mockKey}`} style={[styles.thStock, styles.scenarioStockCol]}>
+                      <View style={styles.unitGrid}>
+                        {OP_SCENARIO_UNITS.map((u) => {
+                          const on = (guidanceRevUnitByKey[s.mockKey] ?? 'jo') === u.id;
+                          return (
+                            <TouchableOpacity
+                              key={u.id}
+                              style={[styles.unitChip, on && styles.unitChipOn]}
+                              onPress={() =>
+                                setGuidanceRevUnitByKey((p) => ({ ...p, [s.mockKey]: u.id }))
+                              }
+                              activeOpacity={0.85}
+                            >
+                              <Text style={[styles.unitChipText, on && styles.unitChipTextOn]}>
+                                {u.label}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                      <TextInput
+                        style={styles.scenarioInput}
+                        value={guidanceRevEokByKey[s.mockKey] ?? ''}
+                        onChangeText={(t) =>
+                          setGuidanceRevEokByKey((p) => ({ ...p, [s.mockKey]: t }))
+                        }
+                        placeholder="—"
+                        placeholderTextColor="#546E7A"
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                  ))}
+                </View>
+                <View style={styles.tableBodyRow}>
+                  <Text style={[styles.td, styles.thScenarioLabel]}>연율 매출 (×4)</Text>
+                  {selectedRows.map((s) => (
+                    <Text
+                      key={`guide-ann-rev-${s.mockKey}`}
+                      style={[styles.td, styles.thStock, styles.scenarioStockCol]}
+                    >
+                      {formatAnnualKrFromQuarterlyEok(
+                        parseScenarioToQuarterlyOpEok(
+                          guidanceRevEokByKey[s.mockKey] ?? '',
+                          guidanceRevUnitByKey[s.mockKey] ?? 'jo'
+                        )
+                      )}
+                    </Text>
+                  ))}
+                </View>
+                <View style={styles.tableBodyRow}>
+                  <Text style={[styles.td, styles.thScenarioLabel]}>영업이익률</Text>
+                  {selectedRows.map((s) => (
+                    <Text
+                      key={`guide-margin-${s.mockKey}`}
+                      style={[styles.td, styles.thStock, styles.scenarioStockCol]}
+                    >
+                      {formatOpMarginFromQuarterlyEok(
+                        parseScenarioToQuarterlyOpEok(
+                          guidanceOpEokByKey[s.mockKey] ?? '',
+                          guidanceOpUnitByKey[s.mockKey] ?? 'jo'
+                        ),
+                        parseScenarioToQuarterlyOpEok(
+                          guidanceRevEokByKey[s.mockKey] ?? '',
+                          guidanceRevUnitByKey[s.mockKey] ?? 'jo'
+                        )
+                      )}
+                    </Text>
+                  ))}
+                </View>
+                <View style={styles.tableBodyRow}>
+                  <Text style={[styles.td, styles.thScenarioLabel]}>PSR (×4)</Text>
+                  {selectedRows.map((s) => (
+                    <Text
+                      key={`guide-psr-${s.mockKey}`}
+                      style={[styles.td, styles.thStock, styles.scenarioStockCol]}
+                    >
+                      {formatPsrFromQuarterlyRevEok(
+                        marketCapWonByKey[s.mockKey] ?? null,
+                        parseScenarioToQuarterlyOpEok(
+                          guidanceRevEokByKey[s.mockKey] ?? '',
+                          guidanceRevUnitByKey[s.mockKey] ?? 'jo'
+                        )
+                      )}
+                    </Text>
+                  ))}
+                </View>
               </View>
             </ScrollView>
-            <Text style={styles.tableHintMuted}>POR = 시총 ÷ (분기 영업이익 억 × 10⁸ × 4). 잠정과 동일.</Text>
+            <Text style={styles.tableHintMuted}>{SCENARIO_POR_PSR_METRICS_HINT}</Text>
             </View>
           </>
         )}
@@ -2739,6 +3038,11 @@ const styles = StyleSheet.create({
   tableScroll: {
     marginTop: 4,
     maxHeight: 320,
+  },
+  /** 잠정·가이던스: 입력 행 2개 + 연율·POR·PSR 등 — maxHeight 없이 부모 ScrollView가 세로 스크롤 */
+  scenarioTableScroll: {
+    marginTop: 4,
+    flexGrow: 0,
   },
   /** 시총·PER·실적 요약: 6행 + 칸 아래 출처 힌트(최대 3줄) 시 기본 maxHeight(320)로 마지막 행(당기순이익)이 잘림 */
   capSummaryTableScroll: {

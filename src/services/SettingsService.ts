@@ -46,6 +46,11 @@ export type OpScenarioPersistRow = {
   provisionalUnit: OpScenarioPersistUnit;
   guidanceEok: string;
   guidanceUnit: OpScenarioPersistUnit;
+  /** 잠정·가이던스 분기 매출 컨센(영업이익과 동일 단위) */
+  provisionalRevEok?: string;
+  provisionalRevUnit?: OpScenarioPersistUnit;
+  guidanceRevEok?: string;
+  guidanceRevUnit?: OpScenarioPersistUnit;
   priceScenarioInputs?: PriceScenarioInputsPersist;
 };
 
@@ -118,6 +123,10 @@ function parseOpScenarioRowValue(raw: unknown): OpScenarioPersistRow | null {
     provisionalUnit: normalizeOpScenarioUnit(o.provisionalUnit, 'jo'),
     guidanceEok: typeof o.guidanceEok === 'string' ? o.guidanceEok : '',
     guidanceUnit: normalizeOpScenarioUnit(o.guidanceUnit, 'jo'),
+    provisionalRevEok: typeof o.provisionalRevEok === 'string' ? o.provisionalRevEok : '',
+    provisionalRevUnit: normalizeOpScenarioUnit(o.provisionalRevUnit, 'jo'),
+    guidanceRevEok: typeof o.guidanceRevEok === 'string' ? o.guidanceRevEok : '',
+    guidanceRevUnit: normalizeOpScenarioUnit(o.guidanceRevUnit, 'jo'),
     ...(priceScenarioInputs != null ? { priceScenarioInputs } : {}),
   };
 }

@@ -46,7 +46,16 @@ import {
 import { SettingsService, type OpScenarioPersistRow, type OpScenarioPersistUnit } from '../src/services/SettingsService';
 import {
   applyFundamentalsSnapshotFromGrid,
+  formatAnnualKrFromQuarterlyEok,
+  formatOpMarginFromQuarterlyEok,
   formatPbrFromCapAndEquity,
+  formatPorFromQuarterlyOpEok,
+  formatPsrFromQuarterlyRevEok,
+  parseScenarioToQuarterlyOpEok,
+  OP_SCENARIO_UNITS,
+  fundamentalsValuationBasisFootnote,
+  SCENARIO_POR_PSR_METRICS_HINT,
+  type OpScenarioUnit,
 } from '../src/lib/capFundamentalsGridResolve';
 
 /** 비율 표시 — 기업실적비교와 동일 규칙 */
@@ -78,55 +87,6 @@ function formatPorFromCapAndOp(marketCapWon: number | null, operatingIncomeWon: 
   if (operatingIncomeWon == null || !Number.isFinite(operatingIncomeWon)) return '—';
   if (operatingIncomeWon <= 0) return '적자';
   const por = marketCapWon / operatingIncomeWon;
-  if (!Number.isFinite(por) || por <= 0) return '—';
-  return formatRatioLocale(por);
-}
-
-type OpScenarioUnit = 'jo' | 'eok' | 'cheonman' | 'baekman';
-
-const OP_SCENARIO_UNITS: { id: OpScenarioUnit; label: string }[] = [
-  { id: 'jo', label: '조' },
-  { id: 'eok', label: '억' },
-  { id: 'cheonman', label: '천만' },
-  { id: 'baekman', label: '백만' },
-];
-
-function parsePositiveAmountString(raw: string): number | null {
-  const s = raw.replace(/,/g, '').trim();
-  if (s === '') return null;
-  const n = Number(s);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return n;
-}
-
-function scenarioAmountToQuarterlyOpEok(amount: number, unit: OpScenarioUnit): number {
-  switch (unit) {
-    case 'jo':
-      return amount * 10000;
-    case 'eok':
-      return amount;
-    case 'cheonman':
-      return amount * 0.1;
-    case 'baekman':
-      return amount * 0.01;
-    default:
-      return amount;
-  }
-}
-
-function parseScenarioToQuarterlyOpEok(raw: string, unit: OpScenarioUnit): number | null {
-  const n = parsePositiveAmountString(raw);
-  if (n == null) return null;
-  return scenarioAmountToQuarterlyOpEok(n, unit);
-}
-
-/** 분기 영업이익(억)×4 = 연율 영업이익(원) 기준 POR */
-function formatPorFromQuarterlyOpEok(capWon: number | null, quarterlyOpEok: number | null): string {
-  if (capWon == null || !Number.isFinite(capWon)) return '—';
-  if (quarterlyOpEok == null || !Number.isFinite(quarterlyOpEok)) return '—';
-  if (quarterlyOpEok <= 0) return '적자';
-  const annualOpWon = quarterlyOpEok * 1e8 * 4;
-  const por = capWon / annualOpWon;
   if (!Number.isFinite(por) || por <= 0) return '—';
   return formatRatioLocale(por);
 }
@@ -211,8 +171,12 @@ export default function CapPerPorCalculatorScreen() {
 
   const [provisionalOpEok, setProvisionalOpEok] = useState('');
   const [provisionalUnit, setProvisionalUnit] = useState<OpScenarioUnit>('jo');
+  const [provisionalRevEok, setProvisionalRevEok] = useState('');
+  const [provisionalRevUnit, setProvisionalRevUnit] = useState<OpScenarioUnit>('jo');
   const [guidanceOpEok, setGuidanceOpEok] = useState('');
   const [guidanceUnit, setGuidanceUnit] = useState<OpScenarioUnit>('jo');
+  const [guidanceRevEok, setGuidanceRevEok] = useState('');
+  const [guidanceRevUnit, setGuidanceRevUnit] = useState<OpScenarioUnit>('jo');
 
   const [usdKrwApplied, setUsdKrwApplied] = useState(FUNDAMENTALS_USD_KRW_RATE);
 
@@ -225,8 +189,12 @@ export default function CapPerPorCalculatorScreen() {
       scenarioPersistReadyRef.current = null;
       setProvisionalOpEok('');
       setProvisionalUnit('jo');
+      setProvisionalRevEok('');
+      setProvisionalRevUnit('jo');
       setGuidanceOpEok('');
       setGuidanceUnit('jo');
+      setGuidanceRevEok('');
+      setGuidanceRevUnit('jo');
       return;
     }
     scenarioPersistReadyRef.current = null;
@@ -238,13 +206,21 @@ export default function CapPerPorCalculatorScreen() {
       if (row) {
         setProvisionalOpEok(row.provisionalEok);
         setProvisionalUnit(row.provisionalUnit as OpScenarioUnit);
+        setProvisionalRevEok(row.provisionalRevEok ?? '');
+        setProvisionalRevUnit((row.provisionalRevUnit ?? 'jo') as OpScenarioUnit);
         setGuidanceOpEok(row.guidanceEok);
         setGuidanceUnit(row.guidanceUnit as OpScenarioUnit);
+        setGuidanceRevEok(row.guidanceRevEok ?? '');
+        setGuidanceRevUnit((row.guidanceRevUnit ?? 'jo') as OpScenarioUnit);
       } else {
         setProvisionalOpEok('');
         setProvisionalUnit('jo');
+        setProvisionalRevEok('');
+        setProvisionalRevUnit('jo');
         setGuidanceOpEok('');
         setGuidanceUnit('jo');
+        setGuidanceRevEok('');
+        setGuidanceRevUnit('jo');
       }
       if (!cancelled) scenarioPersistReadyRef.current = mockKeyResolved;
     })();
@@ -264,8 +240,12 @@ export default function CapPerPorCalculatorScreen() {
         map[key] = {
           provisionalEok: provisionalOpEok,
           provisionalUnit: provisionalUnit as OpScenarioPersistUnit,
+          provisionalRevEok: provisionalRevEok,
+          provisionalRevUnit: provisionalRevUnit as OpScenarioPersistUnit,
           guidanceEok: guidanceOpEok,
           guidanceUnit: guidanceUnit as OpScenarioPersistUnit,
+          guidanceRevEok: guidanceRevEok,
+          guidanceRevUnit: guidanceRevUnit as OpScenarioPersistUnit,
           priceScenarioInputs: prev?.priceScenarioInputs,
         };
         await SettingsService.setOpScenarioByMockKey(map);
@@ -279,14 +259,28 @@ export default function CapPerPorCalculatorScreen() {
         map[key] = {
           provisionalEok: provisionalOpEok,
           provisionalUnit: provisionalUnit as OpScenarioPersistUnit,
+          provisionalRevEok: provisionalRevEok,
+          provisionalRevUnit: provisionalRevUnit as OpScenarioPersistUnit,
           guidanceEok: guidanceOpEok,
           guidanceUnit: guidanceUnit as OpScenarioPersistUnit,
+          guidanceRevEok: guidanceRevEok,
+          guidanceRevUnit: guidanceRevUnit as OpScenarioPersistUnit,
           priceScenarioInputs: prev?.priceScenarioInputs,
         };
         await SettingsService.setOpScenarioByMockKey(map);
       })();
     };
-  }, [mockKeyResolved, provisionalOpEok, provisionalUnit, guidanceOpEok, guidanceUnit]);
+  }, [
+    mockKeyResolved,
+    provisionalOpEok,
+    provisionalUnit,
+    provisionalRevEok,
+    provisionalRevUnit,
+    guidanceOpEok,
+    guidanceUnit,
+    guidanceRevEok,
+    guidanceRevUnit,
+  ]);
 
   const quarterYearChoices = useMemo(
     () => fundamentalsQuarterYearChoices(new Date(), FUNDAMENTALS_CALENDAR_YEAR_SPAN),
@@ -357,12 +351,9 @@ export default function CapPerPorCalculatorScreen() {
     return displayNetIncomeKr ?? '—';
   }, [netIncomeWon, dartWonScaleDown, displayNetIncomeKr]);
 
-  /** 요약·주가 시나리오 PER/POR가 분기 실적을 어떻게 쓰는지 안내 */
+  /** 요약·실적 PER/POR/PBR/PSR 분모 안내 */
   const perPorBasisFootnote = useMemo(
-    () =>
-      granularity === 'quarter'
-        ? '※ PER·POR는 분기 당기순이익·영업이익을 각각 ×4(연율화)한 금액을 분모로 씁니다. PBR은 해당 분기 순자산(자본)을 분모로 씁니다.'
-        : '※ PER·POR는 연간 당기순이익·영업이익을 분모로 씁니다. PBR은 연말 순자산(자본)을 분모로 씁니다.',
+    () => fundamentalsValuationBasisFootnote(granularity),
     [granularity]
   );
 
@@ -392,6 +383,14 @@ export default function CapPerPorCalculatorScreen() {
   const guidanceQOp = useMemo(
     () => parseScenarioToQuarterlyOpEok(guidanceOpEok, guidanceUnit),
     [guidanceOpEok, guidanceUnit]
+  );
+  const provisionalQRev = useMemo(
+    () => parseScenarioToQuarterlyOpEok(provisionalRevEok, provisionalRevUnit),
+    [provisionalRevEok, provisionalRevUnit]
+  );
+  const guidanceQRev = useMemo(
+    () => parseScenarioToQuarterlyOpEok(guidanceRevEok, guidanceRevUnit),
+    [guidanceRevEok, guidanceRevUnit]
   );
 
   const handleScenarioPctInputChange = useCallback((text: string) => {
@@ -718,7 +717,7 @@ export default function CapPerPorCalculatorScreen() {
         <LinearGradient colors={['#1e3a5f', '#121212']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
           <Text style={styles.heroTitle}>시총·PER·POR·PBR 계산기</Text>
           <Text style={styles.heroSub}>
-            시총·실적 기준 PER/POR/PBR, 주가 % 시나리오와 잠정·가이던스 POR을 한 화면에서 확인합니다.
+            시총·실적 기준 PER/POR/PBR, 주가 % 시나리오와 잠정·가이던스 POR·PSR·영업이익률을 한 화면에서 확인합니다.
           </Text>
         </LinearGradient>
 
@@ -981,10 +980,11 @@ export default function CapPerPorCalculatorScreen() {
 
             <View style={styles.sectionCard}>
               <Text style={[styles.sectionHeading, styles.sectionHeadingUserInput]}>
-                잠정 분기 영업이익 ×4 (선택){' '}
+                잠정 분기 실적 ×4 (선택){' '}
                 <Text style={styles.sectionHeadingUserInputSuffix}>계산기</Text>
               </Text>
-              <Text style={styles.sheetLead}>분기 영업이익 숫자·단위 입력 → ×4 연율화 후 POR만 표시.</Text>
+              <Text style={styles.sheetLead}>분기 영업이익·매출 입력 → ×4 연율, POR·PSR·영업이익률.</Text>
+              <Text style={styles.sheetLeadSub}>영업이익</Text>
               <View style={[styles.unitRow, styles.unitRowInCard]}>
                 {OP_SCENARIO_UNITS.map((u) => (
                   <TouchableOpacity
@@ -1006,6 +1006,10 @@ export default function CapPerPorCalculatorScreen() {
               />
               <View style={[styles.card, styles.cardInSection]}>
                 <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>연율 영업이익 (×4): </Text>
+                  <Text style={styles.summaryVal}>{formatAnnualKrFromQuarterlyEok(provisionalQOp)}</Text>
+                </Text>
+                <Text style={styles.line}>
                   <Text style={styles.summaryLblPrice}>현재 시총 기준 POR: </Text>
                   <Text style={styles.summaryValStrong}>{formatPorFromQuarterlyOpEok(capWon, provisionalQOp)}</Text>
                 </Text>
@@ -1016,14 +1020,58 @@ export default function CapPerPorCalculatorScreen() {
                   </Text>
                 </Text>
               </View>
+              <Text style={[styles.sheetLeadSub, styles.sheetLeadSubSpaced]}>매출</Text>
+              <View style={[styles.unitRow, styles.unitRowInCard]}>
+                {OP_SCENARIO_UNITS.map((u) => (
+                  <TouchableOpacity
+                    key={`prov-rev-u-${u.id}`}
+                    style={[styles.unitChip, provisionalRevUnit === u.id && styles.unitChipOn]}
+                    onPress={() => setProvisionalRevUnit(u.id)}
+                  >
+                    <Text style={[styles.unitChipText, provisionalRevUnit === u.id && styles.unitChipTextOn]}>{u.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                style={[styles.input, styles.inputInCard]}
+                placeholder="분기 매출"
+                placeholderTextColor="#888"
+                keyboardType="decimal-pad"
+                value={provisionalRevEok}
+                onChangeText={setProvisionalRevEok}
+              />
+              <View style={[styles.card, styles.cardInSection]}>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>연율 매출 (×4): </Text>
+                  <Text style={styles.summaryVal}>{formatAnnualKrFromQuarterlyEok(provisionalQRev)}</Text>
+                </Text>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>영업이익률: </Text>
+                  <Text style={styles.summaryValStrong}>
+                    {formatOpMarginFromQuarterlyEok(provisionalQOp, provisionalQRev)}
+                  </Text>
+                </Text>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>현재 시총 기준 PSR: </Text>
+                  <Text style={styles.summaryValStrong}>{formatPsrFromQuarterlyRevEok(capWon, provisionalQRev)}</Text>
+                </Text>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblScenarioCap}>시나리오 시총 기준 PSR: </Text>
+                  <Text style={styles.summaryValScenarioStrong}>
+                    {formatPsrFromQuarterlyRevEok(scenarioCapWon, provisionalQRev)}
+                  </Text>
+                </Text>
+              </View>
+              <Text style={styles.scenarioMetricsHint}>{SCENARIO_POR_PSR_METRICS_HINT}</Text>
             </View>
 
             <View style={styles.sectionCard}>
               <Text style={[styles.sectionHeading, styles.sectionHeadingUserInput]}>
-                가이던스 분기 영업이익 ×4 (선택){' '}
+                가이던스 분기 실적 ×4 (선택){' '}
                 <Text style={styles.sectionHeadingUserInputSuffix}>계산기</Text>
               </Text>
-              <Text style={styles.sheetLead}>잠정과 동일 규칙으로 가이던스 분기 영업이익을 넣으면 POR을 봅니다.</Text>
+              <Text style={styles.sheetLead}>잠정과 동일 규칙 — 가이던스 분기 영업이익·매출.</Text>
+              <Text style={styles.sheetLeadSub}>영업이익</Text>
               <View style={[styles.unitRow, styles.unitRowInCard]}>
                 {OP_SCENARIO_UNITS.map((u) => (
                   <TouchableOpacity
@@ -1045,6 +1093,10 @@ export default function CapPerPorCalculatorScreen() {
               />
               <View style={[styles.card, styles.cardInSection]}>
                 <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>연율 영업이익 (×4): </Text>
+                  <Text style={styles.summaryVal}>{formatAnnualKrFromQuarterlyEok(guidanceQOp)}</Text>
+                </Text>
+                <Text style={styles.line}>
                   <Text style={styles.summaryLblPrice}>현재 시총 기준 POR: </Text>
                   <Text style={styles.summaryValStrong}>{formatPorFromQuarterlyOpEok(capWon, guidanceQOp)}</Text>
                 </Text>
@@ -1053,6 +1105,49 @@ export default function CapPerPorCalculatorScreen() {
                   <Text style={styles.summaryValScenarioStrong}>{formatPorFromQuarterlyOpEok(scenarioCapWon, guidanceQOp)}</Text>
                 </Text>
               </View>
+              <Text style={[styles.sheetLeadSub, styles.sheetLeadSubSpaced]}>매출</Text>
+              <View style={[styles.unitRow, styles.unitRowInCard]}>
+                {OP_SCENARIO_UNITS.map((u) => (
+                  <TouchableOpacity
+                    key={`guide-rev-u-${u.id}`}
+                    style={[styles.unitChip, guidanceRevUnit === u.id && styles.unitChipOn]}
+                    onPress={() => setGuidanceRevUnit(u.id)}
+                  >
+                    <Text style={[styles.unitChipText, guidanceRevUnit === u.id && styles.unitChipTextOn]}>{u.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                style={[styles.input, styles.inputInCard]}
+                placeholder="분기 매출"
+                placeholderTextColor="#888"
+                keyboardType="decimal-pad"
+                value={guidanceRevEok}
+                onChangeText={setGuidanceRevEok}
+              />
+              <View style={[styles.card, styles.cardInSection]}>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>연율 매출 (×4): </Text>
+                  <Text style={styles.summaryVal}>{formatAnnualKrFromQuarterlyEok(guidanceQRev)}</Text>
+                </Text>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>영업이익률: </Text>
+                  <Text style={styles.summaryValStrong}>
+                    {formatOpMarginFromQuarterlyEok(guidanceQOp, guidanceQRev)}
+                  </Text>
+                </Text>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblPrice}>현재 시총 기준 PSR: </Text>
+                  <Text style={styles.summaryValStrong}>{formatPsrFromQuarterlyRevEok(capWon, guidanceQRev)}</Text>
+                </Text>
+                <Text style={styles.line}>
+                  <Text style={styles.summaryLblScenarioCap}>시나리오 시총 기준 PSR: </Text>
+                  <Text style={styles.summaryValScenarioStrong}>
+                    {formatPsrFromQuarterlyRevEok(scenarioCapWon, guidanceQRev)}
+                  </Text>
+                </Text>
+              </View>
+              <Text style={styles.scenarioMetricsHint}>{SCENARIO_POR_PSR_METRICS_HINT}</Text>
             </View>
           </>
         ) : null}
@@ -1115,6 +1210,13 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: 10,
   },
+  sheetLeadSub: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#b0bec5',
+    marginBottom: 6,
+  },
+  sheetLeadSubSpaced: { marginTop: 14 },
   rowInCard: { marginHorizontal: 0 },
   bleedInCard: { marginHorizontal: 0 },
   inputInCard: { marginHorizontal: 0 },
@@ -1359,6 +1461,12 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     marginBottom: 6,
     marginTop: 2,
+  },
+  scenarioMetricsHint: {
+    color: '#78909c',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 10,
   },
   metricPeriodInline: {
     color: '#78909c',
