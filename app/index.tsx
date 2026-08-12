@@ -130,6 +130,8 @@ const CalculatorCard: React.FC<CalculatorCardProps> = ({
               <MaterialCommunityIcons name="calculator-variant" size={32} color={color} />
             ) : icon === 'mci-chart-timeline-variant' ? (
               <MaterialCommunityIcons name="chart-timeline-variant" size={32} color={color} />
+            ) : icon === 'mci-chart-bell-curve-cumulative' ? (
+              <MaterialCommunityIcons name="chart-bell-curve-cumulative" size={32} color={color} />
             ) : (
               <Text style={[styles.icon, { color }]}>{icon}</Text>
             )}
@@ -1250,6 +1252,21 @@ export default function MainScreen() {
                     </Text>
                   </View>
                 </View>
+                {/* 복리·모수 */}
+                <View style={styles.iconGridRow}>
+                  <View style={styles.iconItemContainer}>
+                    <TouchableOpacity
+                      style={[styles.circularIconCard, { backgroundColor: 'rgba(38, 166, 154, 0.85)' }]}
+                      onPress={() => router.push('/base-compound-calculator')}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialCommunityIcons name="chart-bell-curve-cumulative" size={28} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <Text style={styles.circularIconLabel} numberOfLines={2}>
+                      음·양 복리·{'\n'}모수 계산기
+                    </Text>
+                  </View>
+                </View>
                 {/* 세 번째 줄 */}
                 <View style={styles.iconGridRow}>
                   <View style={styles.iconItemContainer}>
@@ -1886,6 +1903,15 @@ export default function MainScreen() {
               icon="▲▼"
               color="#FF6B6B"
               onPress={() => router.push('/stop-loss-take-profit')}
+            />
+            <View style={styles.cardSpacer} />
+
+            <CalculatorCard
+              title="음·양 복리·모수 계산기"
+              description={['음·양 복리, 모수효과, 경로 시나리오를', '단계별 변동 경로로 계산합니다']}
+              icon="mci-chart-bell-curve-cumulative"
+              color="#26A69A"
+              onPress={() => router.push('/base-compound-calculator')}
             />
             <View style={styles.cardSpacer} />
 
