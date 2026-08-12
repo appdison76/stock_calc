@@ -50,10 +50,10 @@ type PathScenarioResult =
   | { kind: 'withRecovery'; scenario: ContinuousScenarioResult };
 
 const TABS: { id: TabId; label: string }[] = [
+  { id: 'path', label: '경로 시나리오' },
   { id: 'base', label: '모수효과' },
   { id: 'negative', label: '음의복리' },
   { id: 'positive', label: '양의복리' },
-  { id: 'path', label: '경로 시나리오' },
 ];
 
 const NEGATIVE_PRESETS = [-10, -20, -30, -50];
@@ -105,7 +105,7 @@ function parsePathStepPcts(steps: string[]): number[] | null {
 
 export default function BaseCompoundCalculatorView() {
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>(Currency.KRW);
-  const [activeTab, setActiveTab] = useState<TabId>('base');
+  const [activeTab, setActiveTab] = useState<TabId>('path');
   const [usdExchangeRate, setUsdExchangeRate] = useState('1350');
   const [isLoadingExchangeRate, setIsLoadingExchangeRate] = useState(false);
 
