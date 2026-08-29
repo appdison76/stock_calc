@@ -897,21 +897,16 @@ export default function MainScreen() {
       >
         {/* 최상단 헤더 */}
         <View style={[styles.topHeader, { paddingTop: insets.top + 10 }]}>
-          <View style={styles.topHeaderLeft}>
+          <View style={styles.topHeaderBrand}>
             <View style={styles.logoContainer}>
-              <Image 
-                source={require('../assets/icon.png')} 
+              <Image
+                source={require('../assets/icon.png')}
                 style={styles.logo}
                 resizeMode="contain"
               />
             </View>
-            <Text
-              style={styles.topHeaderTitle}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.78}
-            >
-              스마트 물타기 계산기
+            <Text style={styles.topHeaderTitle} numberOfLines={1}>
+              주식계산기
             </Text>
           </View>
           <View style={styles.topHeaderRight}>
@@ -1179,75 +1174,75 @@ export default function MainScreen() {
                 </View>
               )}
 
-              {/* 원형 아이콘 그리드 (3×4) */}
+              {/* 앱 아이콘형 메뉴 그리드 (3×4) */}
               {showMiniBanners && (
               <View style={styles.iconGridContainer}>
                 {/* 첫 번째 줄 */}
                 <View style={styles.iconGridRow}>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(76, 175, 80, 0.85)' }]}
+                      style={[styles.appIconTile, { backgroundColor: 'rgba(76, 175, 80, 0.85)' }]}
                       onPress={() => router.push('/profit')}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.circularIconText}>%</Text>
+                      <Text style={styles.appIconTileText}>%</Text>
                     </TouchableOpacity>
-                    <Text style={styles.circularIconLabel}>수익률 계산기</Text>
+                    <Text style={styles.appIconTileLabel}>수익률 계산기</Text>
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(33, 150, 243, 0.85)' }]}
+                      style={[styles.appIconTile, { backgroundColor: 'rgba(33, 150, 243, 0.85)' }]}
                       onPress={() => router.push('/averaging')}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.circularIconText}>💧</Text>
+                      <Text style={styles.appIconTileText}>💧</Text>
                     </TouchableOpacity>
-                    <Text style={styles.circularIconLabel}>물타기 계산기</Text>
+                    <Text style={styles.appIconTileLabel}>물타기 계산기</Text>
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(0, 188, 212, 0.85)' }]}
+                      style={[styles.appIconTile, { backgroundColor: 'rgba(0, 188, 212, 0.85)' }]}
                       onPress={() => router.push('/target-price')}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.circularIconText}>🎯</Text>
+                      <Text style={styles.appIconTileText}>🎯</Text>
                     </TouchableOpacity>
-                    <Text style={styles.circularIconLabel}>목표가 계산기</Text>
+                    <Text style={styles.appIconTileLabel}>목표가 계산기</Text>
                   </View>
                 </View>
                 {/* 두 번째 줄 */}
                 <View style={styles.iconGridRow}>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(255, 193, 7, 0.92)' }]}
+                      style={[styles.appIconTile, { backgroundColor: 'rgba(255, 193, 7, 0.92)' }]}
                       onPress={() => router.push('/price-scenario-profit')}
                       activeOpacity={0.8}
                     >
                       <MaterialCommunityIcons name="chart-timeline-variant" size={28} color="#4a3728" />
                     </TouchableOpacity>
-                    <Text style={styles.circularIconLabel} numberOfLines={2}>
+                    <Text style={styles.appIconTileLabel} numberOfLines={2}>
                       주가 시나리오{'\n'}수익 계산기
                     </Text>
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(126, 87, 194, 0.85)' }]}
+                      style={[styles.appIconTile, { backgroundColor: 'rgba(126, 87, 194, 0.85)' }]}
                       onPress={() => router.push('/cap-per-por-calculator')}
                       activeOpacity={0.8}
                     >
                       <MaterialCommunityIcons name="calculator-variant" size={28} color="#FFFFFF" />
                     </TouchableOpacity>
-                    <Text style={styles.circularIconLabel} numberOfLines={2}>시총·PER·POR 계산기</Text>
+                    <Text style={styles.appIconTileLabel} numberOfLines={2}>시총·PER·POR 계산기</Text>
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(103, 58, 183, 0.85)' }]}
+                      style={[styles.appIconTile, { backgroundColor: 'rgba(103, 58, 183, 0.85)' }]}
                       onPress={() => router.push('/fundamentals-compare')}
                       activeOpacity={0.8}
                     >
                       <MaterialCommunityIcons name="scale-balance" size={28} color="#FFFFFF" />
                     </TouchableOpacity>
-                    <Text style={styles.circularIconLabel} numberOfLines={2}>
+                    <Text style={styles.appIconTileLabel} numberOfLines={2}>
                       기업 실적 비교
                     </Text>
                   </View>
@@ -1256,13 +1251,13 @@ export default function MainScreen() {
                 <View style={styles.iconGridRow}>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(38, 166, 154, 0.85)' }]}
+                      style={[styles.appIconTile, { backgroundColor: 'rgba(38, 166, 154, 0.85)' }]}
                       onPress={() => router.push('/base-compound-calculator')}
                       activeOpacity={0.8}
                     >
                       <MaterialCommunityIcons name="chart-bell-curve-cumulative" size={28} color="#FFFFFF" />
                     </TouchableOpacity>
-                    <Text style={styles.circularIconLabel} numberOfLines={2}>
+                    <Text style={styles.appIconTileLabel} numberOfLines={2}>
                       음·양 복리·{'\n'}모수 계산기
                     </Text>
                   </View>
@@ -1271,60 +1266,60 @@ export default function MainScreen() {
                 <View style={styles.iconGridRow}>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(171, 71, 188, 0.85)' }]}
+                      style={[styles.appIconTile, { backgroundColor: 'rgba(171, 71, 188, 0.85)' }]}
                       onPress={() => router.push('/news')}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.circularIconText}>📰</Text>
+                      <Text style={styles.appIconTileText}>📰</Text>
                     </TouchableOpacity>
-                    <Text style={styles.circularIconLabel}>주식 뉴스</Text>
+                    <Text style={styles.appIconTileLabel}>주식 뉴스</Text>
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(255, 167, 38, 0.85)' }]}
+                      style={[styles.appIconTile, { backgroundColor: 'rgba(255, 167, 38, 0.85)' }]}
                       onPress={() => router.push('/portfolios')}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.circularIconText}>📊</Text>
+                      <Text style={styles.appIconTileText}>📊</Text>
                     </TouchableOpacity>
-                    <Text style={styles.circularIconLabel}>포트폴리오</Text>
+                    <Text style={styles.appIconTileLabel}>포트폴리오</Text>
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(255, 107, 107, 0.85)' }]}
+                      style={[styles.appIconTile, { backgroundColor: 'rgba(255, 107, 107, 0.85)' }]}
                       onPress={handleAddStock}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.circularIconText}>+</Text>
+                      <Text style={styles.appIconTileText}>+</Text>
                     </TouchableOpacity>
-                    <Text style={styles.circularIconLabel}>종목 추가</Text>
+                    <Text style={styles.appIconTileLabel}>종목 추가</Text>
                   </View>
                 </View>
                 {/* 네 번째 줄 */}
                 <View style={styles.iconGridRow}>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(66, 165, 245, 0.85)' }]}
+                      style={[styles.appIconTile, { backgroundColor: 'rgba(66, 165, 245, 0.85)' }]}
                       onPress={() => router.push('/stock-chart')}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.circularIconText}>📈</Text>
+                      <Text style={styles.appIconTileText}>📈</Text>
                     </TouchableOpacity>
-                    <Text style={styles.circularIconLabel}>종목 차트</Text>
+                    <Text style={styles.appIconTileLabel}>종목 차트</Text>
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(236, 64, 122, 0.85)' }]}
+                      style={[styles.appIconTile, { backgroundColor: 'rgba(236, 64, 122, 0.85)' }]}
                       onPress={() => router.push('/visualization')}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.circularIconText}>📉</Text>
+                      <Text style={styles.appIconTileText}>📉</Text>
                     </TouchableOpacity>
-                    <Text style={styles.circularIconLabel}>매매 기록</Text>
+                    <Text style={styles.appIconTileLabel}>매매 기록</Text>
                   </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
-                      style={[styles.circularIconCard, { backgroundColor: 'rgba(84, 110, 122, 0.85)' }]}
+                      style={[styles.appIconTile, { backgroundColor: 'rgba(84, 110, 122, 0.85)' }]}
                       onPress={() => router.push('/heatmap')}
                       activeOpacity={0.8}
                     >
@@ -1335,7 +1330,7 @@ export default function MainScreen() {
                         <View style={[styles.heatmapBlock, styles.heatmapBlockTop, { backgroundColor: '#4CAF50' }]} />
                       </View>
                     </TouchableOpacity>
-                    <Text style={styles.circularIconLabel}>히트맵</Text>
+                    <Text style={styles.appIconTileLabel}>히트맵</Text>
                   </View>
                 </View>
               </View>
@@ -1396,7 +1391,7 @@ export default function MainScreen() {
                             )}
                             <TouchableOpacity
                               style={[
-                                styles.circularIconCard,
+                                styles.appIconTile,
                                 {
                                   backgroundColor: 'rgba(100, 181, 246, 0.58)',
                                   borderColor: 'rgba(255, 255, 255, 0.38)',
@@ -1410,9 +1405,9 @@ export default function MainScreen() {
                               }}
                               activeOpacity={0.8}
                             >
-                              <Text style={styles.circularIconText}>{displayEmoji(s)}</Text>
+                              <Text style={styles.appIconTileText}>{displayEmoji(s)}</Text>
                             </TouchableOpacity>
-                            <Text style={styles.circularIconLabel} numberOfLines={2}>
+                            <Text style={styles.appIconTileLabel} numberOfLines={2}>
                               {s.title}
                             </Text>
                           </View>
@@ -1442,7 +1437,7 @@ export default function MainScreen() {
                         <View key={`${s.id}-${ri}-${ci}`} style={styles.iconItemContainer}>
                           <TouchableOpacity
                             style={[
-                              styles.circularIconCard,
+                              styles.appIconTile,
                               {
                                 backgroundColor: 'rgba(171, 111, 216, 0.55)',
                                 borderColor: 'rgba(255, 255, 255, 0.38)',
@@ -1458,14 +1453,14 @@ export default function MainScreen() {
                             {isNaverFinanceShortcutUrl(s.url) ? (
                               <NaverFinanceMiniIcon size={34} />
                             ) : (
-                              <Text style={styles.circularIconText}>
+                              <Text style={styles.appIconTileText}>
                                 {s.iconEmoji?.trim()
                                   ? s.iconEmoji.trim()
                                   : suggestedEmojiForUrl(s.url)}
                               </Text>
                             )}
                           </TouchableOpacity>
-                          <Text style={styles.circularIconLabel} numberOfLines={2}>
+                          <Text style={styles.appIconTileLabel} numberOfLines={2}>
                             {s.title}
                           </Text>
                         </View>
@@ -1831,7 +1826,7 @@ export default function MainScreen() {
             </View>
           )}
 
-          {/* 배너 광고: 최신 뉴스와 물타기 CTA 사이 */}
+          {/* 배너 광고: 최신 뉴스와 계산기 카드 사이 */}
           {showLatestNews && (latestNewsKo.length > 0 || latestNewsEn.length > 0) ? (
             <>
               <View style={styles.adSpacer} />
@@ -1841,32 +1836,6 @@ export default function MainScreen() {
               <View style={styles.adSpacer} />
             </>
           ) : null}
-
-          {/* 하단 그라데이션 카드 (스마트 물타기) — 뉴스 블록 아래 */}
-          <TouchableOpacity
-            style={styles.mainGradientCard}
-            onPress={() => router.push('/averaging')}
-            activeOpacity={0.9}
-          >
-            <LinearGradient
-              colors={['#42A5F5', '#4CAF50']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.mainGradientCardContent}
-            >
-              <View style={styles.mainGradientIconContainer}>
-                <Image
-                  source={require('../assets/icon.png')}
-                  style={styles.mainGradientLogo}
-                  resizeMode="contain"
-                />
-              </View>
-              <Text style={styles.mainGradientTitle}>스마트 물타기 계산기</Text>
-              <Text style={styles.mainGradientSubtitle}>평단가 & 수익률 계산</Text>
-              <Text style={styles.mainGradientFeature}>한국·미국 주식 지원</Text>
-              <Text style={styles.mainGradientFeature}>반복 물타기 계산</Text>
-            </LinearGradient>
-          </TouchableOpacity>
 
           {/* 계산기 카드들 */}
           <View style={styles.cardsContainer}>
@@ -2146,55 +2115,56 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingBottom: 16,
+    minHeight: 64,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-    backgroundColor: '#42A5F5',
+    borderBottomColor: 'rgba(255, 255, 255, 0.16)',
+    backgroundColor: '#0A0A0A',
   },
-  topHeaderLeft: {
+  topHeaderBrand: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    minWidth: 0,
+    marginRight: 16,
+    gap: 14,
   },
   logoContainer: {
-    width: 50,
-    height: 50,
-    marginRight: 10,
-    borderRadius: 25,
-    backgroundColor: '#121212',
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.85)',
   },
   logo: {
-    width: 60,
-    height: 60,
+    width: '100%',
+    height: '100%',
   },
   topHeaderTitle: {
     flexShrink: 1,
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 26,
+    fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: Platform.OS === 'ios' ? -0.55 : -0.28,
+    lineHeight: 30,
+    letterSpacing: Platform.OS === 'ios' ? -0.8 : -0.35,
     fontFamily: Platform.select({
       ios: 'Apple SD Gothic Neo',
-      android: 'sans-serif',
+      android: 'sans-serif-medium',
       default: undefined,
     }),
-    textShadowColor: 'rgba(0, 0, 0, 0.22)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
     ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
   },
   addStockButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.22)',
   },
   addStockButtonText: {
     fontSize: 24,
@@ -2211,12 +2181,14 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   notificationButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
   },
   notificationIcon: {
     fontSize: 20,
@@ -2235,7 +2207,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#42A5F5',
+    borderColor: 'rgba(18, 18, 18, 0.9)',
   },
   notificationBadgeText: {
     color: '#FFFFFF',
@@ -2631,48 +2603,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.2,
   },
-  menuBannersContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    marginBottom: 20,
-    gap: 6,
-  },
-  menuBannerCard: {
-    flex: 1,
-    borderRadius: 18,
-    overflow: 'hidden',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    minHeight: 95,
-  },
-  menuBannerGradient: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 4,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 18,
-  },
-  menuBannerCardEmpty: {
-    flex: 1,
-  },
-  menuBannerIcon: {
-    fontSize: 28,
-    marginBottom: 10,
-  },
-  menuBannerText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
   myShortcutsSection: {
     width: '100%',
     marginBottom: 8,
@@ -2741,31 +2671,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: 78,
   },
-  circularIconCard: {
+  appIconTile: {
     width: 64,
     height: 64,
-    borderRadius: 32,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.32)',
-    elevation: 6,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.38,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.28,
+    shadowRadius: 4,
   },
-  circularIconCardEmpty: {
+  appIconTileEmpty: {
     width: 64,
     height: 64,
   },
-  circularIconText: {
+  appIconTileText: {
     fontSize: 27,
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
-  circularIconLabel: {
+  appIconTileLabel: {
     color: '#F5F5F5',
     fontSize: 12,
     fontWeight: '700',
@@ -2807,58 +2737,6 @@ const styles = StyleSheet.create({
   triangleIcon: {
     fontSize: 20,
     lineHeight: 22,
-  },
-  mainGradientCard: {
-    width: '100%',
-    borderRadius: 20,
-    overflow: 'hidden',
-    marginTop: 24,
-    marginBottom: 16,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-  },
-  mainGradientCardContent: {
-    padding: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mainGradientIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-    overflow: 'hidden',
-  },
-  mainGradientLogo: {
-    width: 100,
-    height: 100,
-  },
-  mainGradientTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  mainGradientSubtitle: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    marginBottom: 4,
-    textAlign: 'center',
-    opacity: 0.9,
-  },
-  mainGradientFeature: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    marginTop: 4,
-    textAlign: 'center',
-    opacity: 0.8,
   },
   dashboardSection: {
     width: '100%',

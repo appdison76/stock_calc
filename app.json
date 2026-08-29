@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "물타기 계산기",
+    "name": "주식계산기",
     "slug": "stock_calculator_rn",
     "version": "1.4.4",
     "orientation": "portrait",
@@ -174,7 +174,7 @@
       "package": "com.neovisioning.stockcalc",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#121212"
+        "backgroundColor": "#FFFFFF"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
