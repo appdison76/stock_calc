@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { ExchangeRateService } from '../src/services/ExchangeRateService';
 import { getStockQuote } from '../src/services/YahooFinanceService';
+import { formatMarketIndicatorPrice } from '../src/lib/marketIndicatorDisplay';
 
 interface MarketIndicator {
   name: string;
@@ -40,11 +41,12 @@ export default function MarketIndicatorsScreen() {
       const indicatorsList: MarketIndicator[] = [];
 
       // 모든 API 호출을 병렬로 실행
-      const [usdkrwQuote, btcQuote, goldQuote, oilQuote] = await Promise.all([
+      const [usdkrwQuote, btcQuote, goldQuote, oilQuote, us10yQuote] = await Promise.all([
         getStockQuote('USDKRW=X').catch(() => null),
         getStockQuote('BTC-USD').catch(() => null),
         getStockQuote('GC=F').catch(() => null),
         getStockQuote('CL=F').catch(() => null),
+        getStockQuote('^TNX').catch(() => null),
       ]);
 
       // 환율 (USDKRW=X)
@@ -108,6 +110,18 @@ export default function MarketIndicatorsScreen() {
         });
       }
 
+      // 미국 10년 국채 (^TNX)
+      if (us10yQuote) {
+        indicatorsList.push({
+          name: '美10年',
+          symbol: 'US10Y',
+          price: us10yQuote.price,
+          change: us10yQuote.change,
+          changePercent: us10yQuote.changePercent,
+          currency: 'PCT',
+        });
+      }
+
       setIndicators(indicatorsList);
     } catch (error) {
       console.error('주요 지표 로드 오류:', error);
@@ -116,19 +130,7 @@ export default function MarketIndicatorsScreen() {
     }
   };
 
-  const formatPrice = (price: number, currency: string) => {
-    if (currency === 'USD') {
-      if (price < 1) {
-        return `$${price.toFixed(2)}`;
-      } else if (price < 100) {
-        return `$${price.toFixed(2)}`;
-      } else {
-        return `$${price.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-      }
-    } else {
-      return `${Math.round(price).toLocaleString()}원`;
-    }
-  };
+  const formatPrice = formatMarketIndicatorPrice;
 
   return (
     <View style={styles.container}>
@@ -158,6 +160,7 @@ export default function MarketIndicatorsScreen() {
                 '비트코인': 'BTC-USD',
                 '금': 'GC=F',
                 '유가': 'CL=F',
+                '美10年': '^TNX',
               };
               const ticker = tickerMap[indicator.name] || '';
               

@@ -60,6 +60,7 @@ import { sumForPeriod } from '../src/services/DailySettlementService';
 import { openDefaultPortfolioAddStock } from '../src/navigation/openDefaultPortfolioAddStock';
 import { NaverFinanceMiniIcon } from '../src/components/NaverFinanceMiniIcon';
 import { isNaverFinanceShortcutUrl } from '../src/utils/naverFinanceUrl';
+import { formatMarketIndicatorPrice } from '../src/lib/marketIndicatorDisplay';
 
 const MAIN_ISSUE_SECTION_COLLAPSED_KEY = '@main_issue_section_collapsed';
 
@@ -802,11 +803,12 @@ export default function MainScreen() {
   const loadMarketIndicators = async () => {
     try {
       // 모든 지표를 병렬로 로딩하여 속도 개선
-      const [usdkrwQuote, btcQuote, goldQuote, oilQuote] = await Promise.all([
+      const [usdkrwQuote, btcQuote, goldQuote, oilQuote, us10yQuote] = await Promise.all([
         getStockQuote('USDKRW=X').catch(() => null),
         getStockQuote('BTC-USD').catch(() => null),
         getStockQuote('GC=F').catch(() => null),
         getStockQuote('CL=F').catch(() => null),
+        getStockQuote('^TNX').catch(() => null),
       ]);
 
       const indicators: MarketIndicator[] = [];
@@ -867,6 +869,18 @@ export default function MainScreen() {
           change: oilQuote.change,
           changePercent: oilQuote.changePercent,
           currency: 'USD',
+        });
+      }
+
+      // 미국 10년 국채 (^TNX)
+      if (us10yQuote) {
+        indicators.push({
+          name: '美10年',
+          symbol: 'US10Y',
+          price: us10yQuote.price,
+          change: us10yQuote.change,
+          changePercent: us10yQuote.changePercent,
+          currency: 'PCT',
         });
       }
 
@@ -1021,10 +1035,10 @@ export default function MainScreen() {
                 </View>
               )}
 
-              {/* 주요 지표 (최상단, 작게 일렬로 - 환율, 비트코인, 금, 유가) */}
+              {/* 주요 지표 (환율·BTC·금·유가·美10年) */}
               {showMarketIndicators && marketIndicators.length > 0 && (
                 <View style={styles.topIndicatorsContainer}>
-                  {marketIndicators.slice(0, 4).map((indicator, index) => (
+                  {marketIndicators.slice(0, 5).map((indicator, index) => (
                     <TouchableOpacity
                       key={index}
                       style={styles.topIndicatorCard}
@@ -1039,10 +1053,7 @@ export default function MainScreen() {
                       >
                         <Text style={styles.topIndicatorName}>{indicator.name}</Text>
                         <Text style={styles.topIndicatorPrice}>
-                          {indicator.currency === 'USD' 
-                            ? `$${indicator.price.toLocaleString(undefined, { minimumFractionDigits: indicator.price < 100 ? 2 : 0, maximumFractionDigits: indicator.price < 100 ? 2 : 0 })}`
-                            : `${Math.round(indicator.price).toLocaleString()}원`
-                          }
+                          {formatMarketIndicatorPrice(indicator.price, indicator.currency)}
                         </Text>
                         {indicator.changePercent != null ? (
                           <View
@@ -2589,14 +2600,14 @@ const styles = StyleSheet.create({
   },
   topIndicatorName: {
     color: '#94A3B8',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
     marginBottom: 8,
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   topIndicatorPrice: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     marginBottom: 6,
     textAlign: 'center',
