@@ -314,6 +314,11 @@ export async function sendLocalNotification(
   body: string,
   data?: any
 ): Promise<void> {
+  const hasPermission = await requestNotificationPermissions();
+  if (!hasPermission) {
+    throw new Error('알림 권한이 없습니다.');
+  }
+
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
@@ -326,6 +331,7 @@ export async function sendLocalNotification(
     });
   } catch (error) {
     console.error('로컬 알림 발송 오류:', error);
+    throw error;
   }
 }
 
