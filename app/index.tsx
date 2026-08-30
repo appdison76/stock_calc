@@ -1210,8 +1210,35 @@ export default function MainScreen() {
                     <Text style={styles.appIconTileLabel}>목표가 계산기</Text>
                   </View>
                 </View>
-                {/* 두 번째 줄 */}
+                {/* 손절/익절 · 복리 · 주가 시나리오 · 시총 · 기업 실적 (3+2) */}
                 <View style={styles.iconGridRow}>
+                  <View style={styles.iconItemContainer}>
+                    <TouchableOpacity
+                      style={[styles.appIconTile, { backgroundColor: 'rgba(55, 71, 79, 0.92)' }]}
+                      onPress={() => router.push('/stop-loss-take-profit')}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.triangleIconContainer}>
+                        <Text style={[styles.triangleIcon, { color: '#4CAF50' }]}>▲</Text>
+                        <Text style={[styles.triangleIcon, { color: '#EF5350' }]}>▼</Text>
+                      </View>
+                    </TouchableOpacity>
+                    <Text style={styles.appIconTileLabel} numberOfLines={2}>
+                      손절/익절{'\n'}계산기
+                    </Text>
+                  </View>
+                  <View style={styles.iconItemContainer}>
+                    <TouchableOpacity
+                      style={[styles.appIconTile, { backgroundColor: 'rgba(38, 166, 154, 0.85)' }]}
+                      onPress={() => router.push('/base-compound-calculator')}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialCommunityIcons name="chart-bell-curve-cumulative" size={28} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <Text style={styles.appIconTileLabel} numberOfLines={2}>
+                      음·양 복리·{'\n'}모수 계산기
+                    </Text>
+                  </View>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
                       style={[styles.appIconTile, { backgroundColor: 'rgba(255, 193, 7, 0.92)' }]}
@@ -1224,6 +1251,8 @@ export default function MainScreen() {
                       주가 시나리오{'\n'}수익 계산기
                     </Text>
                   </View>
+                </View>
+                <View style={styles.iconGridRow}>
                   <View style={styles.iconItemContainer}>
                     <TouchableOpacity
                       style={[styles.appIconTile, { backgroundColor: 'rgba(126, 87, 194, 0.85)' }]}
@@ -1246,21 +1275,7 @@ export default function MainScreen() {
                       기업 실적 비교
                     </Text>
                   </View>
-                </View>
-                {/* 복리·모수 */}
-                <View style={styles.iconGridRow}>
-                  <View style={styles.iconItemContainer}>
-                    <TouchableOpacity
-                      style={[styles.appIconTile, { backgroundColor: 'rgba(38, 166, 154, 0.85)' }]}
-                      onPress={() => router.push('/base-compound-calculator')}
-                      activeOpacity={0.8}
-                    >
-                      <MaterialCommunityIcons name="chart-bell-curve-cumulative" size={28} color="#FFFFFF" />
-                    </TouchableOpacity>
-                    <Text style={styles.appIconTileLabel} numberOfLines={2}>
-                      음·양 복리·{'\n'}모수 계산기
-                    </Text>
-                  </View>
+                  <View style={styles.iconItemContainer} />
                 </View>
                 {/* 세 번째 줄 */}
                 <View style={styles.iconGridRow}>

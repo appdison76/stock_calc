@@ -125,7 +125,6 @@ interface MoreMenuItem {
 }
 
 const moreMenuItemsBase: MoreMenuItem[] = [
-  { label: '일일 정산', icon: '📒', route: '/daily-settlement', description: '금액·메모·일별 요약' },
   { label: '포트폴리오', icon: '📊', route: '/portfolios', description: '내 포트폴리오 관리' },
   { label: '매매기록', icon: '📉', route: '/visualization', description: '매매 기록 차트' },
   { label: '종목차트', icon: '📈', route: '/stock-chart', description: '종목 가격 차트' },
@@ -134,12 +133,20 @@ const moreMenuItemsBase: MoreMenuItem[] = [
   { label: '환경설정', icon: '⚙️', route: '/settings', description: '앱 설정 및 수수료 관리' },
 ];
 
+const heatmapMoreMenuItem: MoreMenuItem = {
+  label: '히트맵',
+  icon: 'heatmap',
+  route: '/heatmap',
+  description: '시장·종목 히트맵',
+  renderMenuIcon: () => <HeatmapIcon isActive={true} />,
+};
+
 const navItems: NavItem[] = [
   { label: '홈화면', icon: '⌂', route: '/' },
   { label: '주식계산기', icon: 'calculator', route: 'calculator_modal', isModal: true, isCustomIcon: true },
-  { label: '종목추가', icon: '+', route: '/portfolios' },
   { label: '주식뉴스', icon: '📰', route: '/news' },
-  { label: '히트맵', icon: 'heatmap', route: '/heatmap', isCustomIcon: true },
+  { label: '일일정산', icon: '📒', route: '/daily-settlement' },
+  { label: '종목추가', icon: '+', route: 'add_stock' },
   { label: '더보기', icon: '☰', route: 'more_modal', isModal: true },
 ];
 
@@ -151,7 +158,7 @@ export default function BottomNavigationBar() {
   const insets = useSafeAreaInsets();
   const [calculatorModalVisible, setCalculatorModalVisible] = useState(false);
   const [moreModalVisible, setMoreModalVisible] = useState(false);
-  const moreMenuItems = useMemo(() => [...moreMenuItemsBase], []);
+  const moreMenuItems = useMemo(() => [heatmapMoreMenuItem, ...moreMenuItemsBase], []);
   
   // 하단 네비게이션 바 높이 계산 (아이콘 40 + 라벨 20 + 패딩 20 + SafeArea)
   const bottomNavHeight = 80 + Math.max(insets.bottom, 8);
@@ -172,8 +179,7 @@ export default function BottomNavigationBar() {
         console.log('Opening more modal, items:', moreMenuItems.length);
         setMoreModalVisible(true);
       }
-    } else if (item.route === '/portfolios') {
-      // 종목추가 버튼은 메인 화면과 동일한 경로로 이동
+    } else if (item.route === 'add_stock') {
       handleAddStock();
     } else {
       router.push(item.route as any);
@@ -199,7 +205,7 @@ export default function BottomNavigationBar() {
       <SafeAreaView edges={['bottom']} style={styles.safeArea}>
         <View style={styles.container}>
           {navItems.map((item) => {
-            const isActive = !item.isModal && (
+            const isActive = !item.isModal && item.route !== 'add_stock' && (
               pathname === item.route || 
               (item.route === '/' && pathname === '/index') ||
               (item.route !== '/' && pathname?.startsWith(item.route))
