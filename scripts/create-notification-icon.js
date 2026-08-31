@@ -9,8 +9,17 @@ const fs = require('fs');
 const path = require('path');
 
 const OUTPUT = path.join(__dirname, '../assets/notification-icon.png');
+const ANDROID_RES = path.join(__dirname, '../android/app/src/main/res');
 const OUT_SIZE = 96;
 const CHAR = '계';
+/** expo-notifications: baseline 24dp × density */
+const ANDROID_DPI = [
+  { folder: 'drawable-mdpi', px: 24 },
+  { folder: 'drawable-hdpi', px: 36 },
+  { folder: 'drawable-xhdpi', px: 48 },
+  { folder: 'drawable-xxhdpi', px: 72 },
+  { folder: 'drawable-xxxhdpi', px: 96 },
+];
 
 async function writeCharIcon() {
   let sharp;
@@ -41,6 +50,26 @@ async function writeCharIcon() {
     .toFile(OUTPUT);
 
   console.log('Wrote', OUTPUT, `(「${CHAR}」)`);
+  await syncAndroidDrawables(sharp, svg);
+}
+
+async function syncAndroidDrawables(sharp, svg) {
+  if (!fs.existsSync(ANDROID_RES)) {
+    console.log('Skip android drawables (no android/ folder)');
+    return;
+  }
+  for (const { folder, px } of ANDROID_DPI) {
+    const fontSize = Math.round(px * 0.58);
+    const sizedSvg = svg.replace(/font-size="58"/, `font-size="${fontSize}"`);
+    const outDir = path.join(ANDROID_RES, folder);
+    fs.mkdirSync(outDir, { recursive: true });
+    const outPath = path.join(outDir, 'notification_icon.png');
+    await sharp(Buffer.from(sizedSvg))
+      .resize(px, px)
+      .png()
+      .toFile(outPath);
+    console.log('Wrote', outPath);
+  }
 }
 
 function lum(r, g, b) {
