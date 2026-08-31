@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect, usePathname, useGlobalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { AdmobBanner } from '../src/components/AdmobBanner';
 import { AdmobNativeAd } from '../src/components/AdmobNativeAd';
 import { getUnreadCount } from '../src/services/NotificationService';
@@ -61,6 +62,16 @@ import { openDefaultPortfolioAddStock } from '../src/navigation/openDefaultPortf
 import { NaverFinanceMiniIcon } from '../src/components/NaverFinanceMiniIcon';
 import { isNaverFinanceShortcutUrl } from '../src/utils/naverFinanceUrl';
 import { formatMarketIndicatorPrice } from '../src/lib/marketIndicatorDisplay';
+import {
+  DEFAULT_HEADER_THEME_ID,
+  getHeaderThemeStyles,
+  getMainScreenGradient,
+  HEADER_THEMES,
+} from '../src/theme/headerThemes';
+
+const headerTheme = HEADER_THEMES[DEFAULT_HEADER_THEME_ID];
+const headerThemeStyles = getHeaderThemeStyles(headerTheme);
+const mainScreenGradient = getMainScreenGradient(headerTheme);
 
 const MAIN_ISSUE_SECTION_COLLAPSED_KEY = '@main_issue_section_collapsed';
 
@@ -903,29 +914,31 @@ export default function MainScreen() {
 
   return (
     <View style={styles.container}>
+      <StatusBar style="dark" />
       <LinearGradient
-        colors={['#000000', '#121212', '#1A1A1A', '#0D0D0D']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+        colors={mainScreenGradient.colors}
+        locations={mainScreenGradient.locations}
+        start={mainScreenGradient.start}
+        end={mainScreenGradient.end}
         style={styles.gradient}
       >
-        {/* 최상단 헤더 */}
-        <View style={[styles.topHeader, { paddingTop: insets.top + 10 }]}>
+        <View style={[styles.topHeader, headerThemeStyles.topHeader, { paddingTop: insets.top + 6 }]}>
           <View style={styles.topHeaderBrand}>
             <View style={styles.logoContainer}>
               <Image
-                source={require('../assets/icon.png')}
+                source={require('../assets/icon-header-light.png')}
                 style={styles.logo}
                 resizeMode="contain"
               />
             </View>
             <Text style={styles.topHeaderTitle} numberOfLines={1}>
-              주식계산기
+              <Text style={styles.topHeaderTitleBlack}>주식</Text>
+              <Text style={styles.topHeaderTitleRed}>계산기</Text>
             </Text>
           </View>
           <View style={styles.topHeaderRight}>
             <TouchableOpacity 
-              style={styles.addStockButton}
+              style={[styles.addStockButton, headerThemeStyles.headerButton]}
               onPress={handleAddStock}
               activeOpacity={0.7}
             >
@@ -936,7 +949,7 @@ export default function MainScreen() {
               onPress={() => router.push('/notifications')}
               activeOpacity={0.7}
             >
-              <View style={styles.notificationButton}>
+              <View style={[styles.notificationButton, headerThemeStyles.headerButton]}>
                 <Text style={styles.notificationIcon}>🔔</Text>
               </View>
               {unreadNotificationCount > 0 && (
@@ -951,6 +964,7 @@ export default function MainScreen() {
         </View>
 
         <ScrollView
+          style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           nestedScrollEnabled
@@ -2126,11 +2140,14 @@ const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
-    backgroundColor: '#121212',
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: 'transparent',
   },
   scrollContent: {
     padding: 24,
-    paddingTop: 20,
+    paddingTop: 12,
     paddingBottom: 100,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2141,28 +2158,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingBottom: 16,
-    minHeight: 64,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.16)',
-    backgroundColor: '#0A0A0A',
+    paddingBottom: 8,
+    minHeight: 56,
   },
   topHeaderBrand: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
     minWidth: 0,
-    marginRight: 16,
-    gap: 14,
+    marginRight: 12,
+    gap: 10,
   },
   logoContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.85)',
+    height: 50,
+    width: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   logo: {
     width: '100%',
@@ -2170,33 +2181,43 @@ const styles = StyleSheet.create({
   },
   topHeaderTitle: {
     flexShrink: 1,
-    fontSize: 26,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    lineHeight: 30,
-    letterSpacing: Platform.OS === 'ios' ? -0.8 : -0.35,
+    lineHeight: 46,
+  },
+  topHeaderTitleBlack: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1E293B',
+    letterSpacing: Platform.OS === 'ios' ? -0.6 : -0.3,
     fontFamily: Platform.select({
       ios: 'Apple SD Gothic Neo',
-      android: 'sans-serif-medium',
+      android: 'sans-serif',
       default: undefined,
     }),
-    ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
+  },
+  topHeaderTitleRed: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#E53935',
+    letterSpacing: Platform.OS === 'ios' ? -0.6 : -0.3,
+    fontFamily: Platform.select({
+      ios: 'Apple SD Gothic Neo',
+      android: 'sans-serif',
+      default: undefined,
+    }),
   },
   addStockButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    width: 40,
+    height: 40,
+    borderRadius: 11,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.22)',
   },
   addStockButtonText: {
-    fontSize: 24,
-    color: '#FFFFFF',
+    fontSize: 22,
+    color: '#1E293B',
     fontWeight: 'bold',
-    lineHeight: 28,
+    lineHeight: 24,
   },
   topHeaderRight: {
     flexDirection: 'row',
@@ -2207,19 +2228,16 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   notificationButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    width: 40,
+    height: 40,
+    borderRadius: 11,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.22)',
   },
   notificationIcon: {
-    fontSize: 20,
-    color: '#E0E0E0',
-    opacity: 0.9,
+    fontSize: 18,
+    opacity: 0.85,
   },
   notificationBadge: {
     position: 'absolute',
