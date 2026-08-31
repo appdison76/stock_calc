@@ -12,6 +12,9 @@ const OUTPUT = path.join(__dirname, '../assets/notification-icon.png');
 const ANDROID_RES = path.join(__dirname, '../android/app/src/main/res');
 const OUT_SIZE = 96;
 const CHAR = '계';
+/** 상태바 24dp 아이콘 안에서 다른 앱과 비슷한 시각 크기 (Material ≈ 20dp glyph) */
+const FONT_SIZE_RATIO = 0.86;
+const TEXT_Y_PERCENT = 51;
 /** expo-notifications: baseline 24dp × density */
 const ANDROID_DPI = [
   { folder: 'drawable-mdpi', px: 24 },
@@ -30,19 +33,8 @@ async function writeCharIcon() {
     process.exit(1);
   }
 
-  const svg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${OUT_SIZE}" height="${OUT_SIZE}" viewBox="0 0 ${OUT_SIZE} ${OUT_SIZE}">
-  <text
-    x="50%"
-    y="54%"
-    dominant-baseline="middle"
-    text-anchor="middle"
-    fill="#FFFFFF"
-    font-family="Noto Sans CJK KR, Noto Sans KR, Malgun Gothic, Apple SD Gothic Neo, sans-serif"
-    font-size="58"
-    font-weight="700"
-  >${CHAR}</text>
-</svg>`;
+  const fontSize = Math.round(OUT_SIZE * FONT_SIZE_RATIO);
+  const svg = buildCharSvg(OUT_SIZE, fontSize);
 
   await sharp(Buffer.from(svg))
     .resize(OUT_SIZE, OUT_SIZE)
@@ -50,17 +42,33 @@ async function writeCharIcon() {
     .toFile(OUTPUT);
 
   console.log('Wrote', OUTPUT, `(「${CHAR}」)`);
-  await syncAndroidDrawables(sharp, svg);
+  await syncAndroidDrawables(sharp);
 }
 
-async function syncAndroidDrawables(sharp, svg) {
+function buildCharSvg(canvasPx, fontSizePx) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${canvasPx}" height="${canvasPx}" viewBox="0 0 ${canvasPx} ${canvasPx}">
+  <text
+    x="50%"
+    y="${TEXT_Y_PERCENT}%"
+    dominant-baseline="middle"
+    text-anchor="middle"
+    fill="#FFFFFF"
+    font-family="Noto Sans CJK KR, Noto Sans KR, Malgun Gothic, Apple SD Gothic Neo, sans-serif"
+    font-size="${fontSizePx}"
+    font-weight="800"
+  >${CHAR}</text>
+</svg>`;
+}
+
+async function syncAndroidDrawables(sharp) {
   if (!fs.existsSync(ANDROID_RES)) {
     console.log('Skip android drawables (no android/ folder)');
     return;
   }
   for (const { folder, px } of ANDROID_DPI) {
-    const fontSize = Math.round(px * 0.58);
-    const sizedSvg = svg.replace(/font-size="58"/, `font-size="${fontSize}"`);
+    const fontSize = Math.round(px * FONT_SIZE_RATIO);
+    const sizedSvg = buildCharSvg(px, fontSize);
     const outDir = path.join(ANDROID_RES, folder);
     fs.mkdirSync(outDir, { recursive: true });
     const outPath = path.join(outDir, 'notification_icon.png');
